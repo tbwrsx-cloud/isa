@@ -166,6 +166,13 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
         </div>
         <button onclick="updateKey()" style="background:#00d4aa;color:#000;border:none;border-radius:8px;padding:11px;font-weight:700;font-size:13px;width:100%;cursor:pointer;margin-bottom:9px">Update Key</button>
         <button onclick="clearAll()" style="background:#ef444418;color:#ef4444;border:1px solid #ef444433;border-radius:8px;padding:11px;font-weight:700;font-size:13px;width:100%;cursor:pointer">🗑 Clear All Data &amp; Reset</button>
+        <div style="margin-top:12px;border-top:1px solid #1e2d45;padding-top:12px">
+          <div style="color:#94a3b8;font-size:11px;margin-bottom:8px;font-weight:700">HISTORY MIGRATION</div>
+          <div style="color:#64748b;font-size:11px;margin-bottom:8px;line-height:1.5">If your old history did not load automatically, tap below to force migrate it.</div>
+          <button onclick="forceMigrate()" style="background:#f59e0b18;color:#f59e0b;border:1px solid #f59e0b44;border-radius:8px;padding:11px;font-weight:700;font-size:13px;width:100%;cursor:pointer;margin-bottom:8px">🔄 Force Migrate Old History</button>
+          <button onclick="showStorageDebug()" style="background:#38bdf818;color:#38bdf8;border:1px solid #38bdf844;border-radius:8px;padding:10px;font-weight:700;font-size:12px;width:100%;cursor:pointer">🔍 Show Storage Debug Info</button>
+          <div id="migrateMsg" style="font-size:11px;text-align:center;margin-top:7px;min-height:14px;line-height:1.5"></div>
+        </div>
         <div id="settingsMsg" style="color:#22c55e;font-size:12px;text-align:center;margin-top:7px;min-height:16px"></div>
       </div>
       <div class="card">
@@ -549,6 +556,55 @@ function downloadReport(){
   document.body.appendChild(a);a.click();document.body.removeChild(a);
   setTimeout(()=>URL.revokeObjectURL(url),3000);
 }
+
+// ── Force migration & debug ───────────────────────────────────────────────────
+function forceMigrate(){
+  const msg=document.getElementById("migrateMsg");
+  try{
+    // Check all possible old keys
+    const keys=["isa_history","isaHistory","isa-history","history"];
+    let found=null, foundKey=null;
+    keys.forEach(k=>{
+      const v=localStorage.getItem(k);
+      if(v&&v!=="[]"&&v!=="null"&&!found){
+        try{const p=JSON.parse(v);if(p&&p.length){found=p;foundKey=k;}}catch(_){}
+      }
+    });
+    // Also check if isa_h already has data
+    const current=localStorage.getItem("isa_h");
+    const currentParsed=current?JSON.parse(current):[];
+    if(found){
+      // Merge old with current, old takes priority for deduplication
+      const merged=[...found,...currentParsed.filter(c=>!found.find(f=>f.ticker===c.ticker))].slice(0,30);
+      localStorage.setItem("isa_h",JSON.stringify(merged));
+      localStorage.removeItem(foundKey);
+      updateHistCount();
+      msg.style.color="#22c55e";
+      msg.textContent=`✓ Migrated ${found.length} analyses from "${foundKey}"`;
+    } else {
+      msg.style.color="#f59e0b";
+      msg.textContent="No old history found in any known storage key.";
+    }
+  }catch(e){
+    msg.style.color="#ef4444";
+    msg.textContent="Migration error: "+e.message;
+  }
+}
+
+function showStorageDebug(){
+  const msg=document.getElementById("migrateMsg");
+  let info=[];
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    const v=localStorage.getItem(k);
+    let display=v;
+    try{const p=JSON.parse(v);display=Array.isArray(p)?`Array(${p.length})`:typeof p==="object"?"Object":"string";}catch(_){display=v?.slice(0,30)||"empty";}
+    info.push(`${k}: ${display}`);
+  }
+  msg.style.color="#38bdf8";
+  msg.innerHTML=info.length?info.join("<br/>"):"LocalStorage is empty";
+}
+
 </script>
 </body>
 </html>
