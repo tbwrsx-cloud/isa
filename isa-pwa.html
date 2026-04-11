@@ -361,28 +361,13 @@ function instrKey(sym){
 
 // Resolve instrument key via Upstox search — stores ISIN key in cache
 async function resolveInstrKey(sym){
+  // Use cached ISIN key if available (set when user picks from dropdown)
   const cached=instrKeyCache[sym.toUpperCase()];
   if(cached)return cached;
-  const token=getAT();
-  if(!token)return `NSE_EQ|${sym.toUpperCase()}`;
-  try{
-    const r=await fetch(
-      `https://api.upstox.com/v1/instruments/search?query=${encodeURIComponent(sym)}&exchanges=NSE&segments=EQ&instrument_types=EQ`,
-      {headers:{"Authorization":`Bearer ${token}`,"Accept":"application/json"},
-       signal:AbortSignal.timeout(4000)}
-    );
-    if(!r.ok)return `NSE_EQ|${sym.toUpperCase()}`;
-    const d=await r.json();
-    const match=(d.data||[]).find(x=>
-      x.trading_symbol?.toUpperCase()===sym.toUpperCase()&&x.segment==="NSE_EQ"
-    );
-    if(match?.instrument_key){
-      instrKeyCache[sym.toUpperCase()]=match.instrument_key;
-      return match.instrument_key;
-    }
-  }catch(_){}
+  // Default: symbol-based key works for quotes on most Upstox accounts
   return `NSE_EQ|${sym.toUpperCase()}`;
 }
+
 
 // ── Symbol search — fuzzy name to NSE symbol ──────────────────
 // ── NSE Stock Database (bundled) ─────────────────────────────
@@ -564,127 +549,138 @@ function hideSuggestions(){
 
 
 async function fetchQuote(sym){
-  // Resolve ISIN-based instrument key
-  const ik=await resolveInstrKey(sym);
+  const symUp=sym.toUpperCase();
+  const ik=await resolveInstrKey(symUp);
   const k=encodeURIComponent(ik);
+  // Use full market quote — returns price + OHLC + volume
   const d=await upGet(`/market-quote/quotes?instrument_key=${k}`);
-  // Response key can be NSE_EQ:SYMBOL or NSE_EQ:ISIN format
-  const q=d.data?.[Object.keys(d.data||{})[0]];
-  if(!q)throw new Error(`Symbol "${sym}" not found on NSE. Please select from the dropdown suggestions.`);
-  return q;
+  if(!d.data||Object.keys(d.data).length===0){
+    throw new Error(`Symbol "${symUp}" not found. Please select from dropdown suggestions.`);
+  }
+  // Take first (and only) result regardless of key format
+  return d.data[Object.keys(d.data)[0]];
 }
 
 async function fetchHistory(sym){
-  const ik=await resolveInstrKey(sym);
+  const symUp=sym.toUpperCase();
+  const ik=await resolveInstrKey(symUp);
   const k=encodeURIComponent(ik);
   const to=new Date().toISOString().slice(0,10);
   const from=new Date(Date.now()-310*864e5).toISOString().slice(0,10);
-  const d=await upGet(`/historical-candle/${k}/day/${to}/${from}`);
-  return d.data?.candles||[];
+  try{
+    const d=await upGet(`/historical-candle/${k}/day/${to}/${from}`);
+    if(d.data?.candles?.length>0)return d.data.candles;
+  }catch(e1){}
+  // Retry with previous day as to_date (in case market closed today)
+  try{
+    const to2=new Date(Date.now()-864e5).toISOString().slice(0,10);
+    const from2=new Date(Date.now()-311*864e5).toISOString().slice(0,10);
+    const d2=await upGet(`/historical-candle/${k}/day/${to2}/${from2}`);
+    if(d2.data?.candles?.length>0)return d2.data.candles;
+  }catch(e2){}
+  return [];
 }
 
 // ── Screener.in (fundamentals — free, no key) ────────────────
 async function fetchFundamentals(sym){
-  // Try multiple CORS proxies in sequence
+  const symUp=sym.toUpperCase();
+  // Screener.in uses NSE symbol directly
+  const screenerUrl=`https://www.screener.in/api/company/${symUp}/?format=json`;
   const proxies=[
-    `https://api.allorigins.win/get?url=${encodeURIComponent(`https://www.screener.in/api/company/${sym}/?format=json`)}`,
-    `https://corsproxy.io/?${encodeURIComponent(`https://www.screener.in/api/company/${sym}/?format=json`)}`
+    `https://api.allorigins.win/get?url=${encodeURIComponent(screenerUrl)}`,
+    `https://corsproxy.io/?${encodeURIComponent(screenerUrl)}`,
+    `https://thingproxy.freeboard.io/fetch/${screenerUrl}`,
   ];
   for(const url of proxies){
     try{
-      const r=await fetch(url,{signal:AbortSignal.timeout(8000)});
+      const r=await fetch(url,{signal:AbortSignal.timeout(10000)});
       if(!r.ok)continue;
       const wrapper=await r.json();
-      // allorigins wraps in {contents:"..."}, corsproxy returns directly
       const raw=wrapper.contents||wrapper;
       const data=typeof raw==="string"?JSON.parse(raw):raw;
-      if(data&&(data.name||data.companyName))return data;
+      // Validate we got real data
+      if(data&&(data.name||data.bse_id||data.consolidated_peer_benchmarking)){
+        return data;
+      }
     }catch(_){continue;}
   }
-  return null; // fundamentals unavailable, app continues with defaults
+  // Final fallback: try without /api/ path (Screener HTML API)
+  try{
+    const altUrl=`https://www.screener.in/company/${symUp}/consolidated/`;
+    const r=await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(altUrl)}`,
+      {signal:AbortSignal.timeout(10000)});
+    if(r.ok){
+      const w=await r.json();
+      // Parse key ratios from HTML if JSON fails
+      const html=w.contents||"";
+      if(html.includes("Promoter"))return {_html:html,name:symUp};
+    }
+  }catch(_){}
+  return null;
 }
 
 // Parse screener data into our format
 function parseScreener(data,sym){
-  if(!data)return {};
+  if(!data||data._html)return {};
   try{
-    // Screener returns ratios as array of {name, values:[{value}]}
-    const getRatio=(name)=>{
-      const r=(data.ratios||[]).find(x=>x.name?.toLowerCase().includes(name.toLowerCase()));
-      return r?.values?.[0]?.value||0;
-    };
-    const getQuarterly=(name)=>{
-      const s=(data.quarterly_results||data.quarterlyResults||[]);
-      return s.map(q=>parseFloat(q[name]||0)).slice(0,4).reverse();
-    };
-    const getAnnual=(name)=>{
-      const s=(data.annual_results||data.annualResults||data.results||[]);
-      return s.map(q=>parseFloat(q[name]||0)).slice(0,2).reverse();
-    };
-
-    // Shareholding
-    const sh=data.shareholding||{};
-    const shPattern=data.shareholding_pattern||data.shareholdingPattern||[];
-    const latestSH=shPattern[0]||{};
-    const promoter=parseFloat(latestSH.promoter||latestSH.Promoters||sh.promoter||0);
-    const fii=parseFloat(latestSH.fii||latestSH.FII||sh.fii||0);
-    const pub=parseFloat(latestSH.public||latestSH.Public||sh.public||0);
-    const prevSH=shPattern[1]||{};
-    const prevPromoter=parseFloat(prevSH.promoter||prevSH.Promoters||0);
-    const prevFII=parseFloat(prevSH.fii||prevSH.FII||0);
-
-    // Financials
-    const pe=parseFloat(data.pe||getRatio("PE")||0);
-    const mcap=parseFloat(data.market_cap||data.marketCap||0);
-    const sales=parseFloat(data.sales_ttm||data.revenue||0);
-    const patMargin=parseFloat(data.net_profit_margin||getRatio("Net Profit Margin")||getRatio("PAT Margin")||0);
-    const debtEquity=parseFloat(data.debt_to_equity||getRatio("Debt / Equity")||0);
-
-    // Cash flow
-    const cfOps=parseFloat(data.cash_from_operations||getRatio("Cash from Operations")||0);
-    const cfInv=parseFloat(data.cash_from_investing||0);
-    const cfFin=parseFloat(data.cash_from_financing||0);
-
-    // Quarterly revenue (QoQ growth %)
-    const qRev=getQuarterly("sales")||getQuarterly("revenue")||[0,0,0,0];
-    const qGrowth=qRev.map((v,i)=>i===0?0:qRev[i-1]>0?Math.round((v-qRev[i-1])/qRev[i-1]*100*10)/10:0).slice(1);
-
-    // Annual revenue & PAT growth (YOY %)
-    const aRev=getAnnual("sales")||getAnnual("revenue")||[0,0];
-    const aPAT=getAnnual("net_profit")||getAnnual("profit")||[0,0];
-    const revGrowth=aRev.length>=2?[Math.round((aRev[0]-aRev[1])/(aRev[1]||1)*100*10)/10,Math.round((aRev[1]-(aRev[2]||aRev[1]))/(aRev[2]||aRev[1]||1)*100*10)/10]:[0,0];
-    const patGrowth=aPAT.length>=2?[Math.round((aPAT[0]-aPAT[1])/(aPAT[1]||1)*100*10)/10,Math.round((aPAT[1]-(aPAT[2]||aPAT[1]))/(aPAT[2]||aPAT[1]||1)*100*10)/10]:[0,0];
-
     const now=new Date();
     const fyYear=now.getMonth()>=3?now.getFullYear()+1:now.getFullYear();
-    const qLabels=[`Q1FY${String(fyYear).slice(2)}`,`Q2FY${String(fyYear).slice(2)}`,`Q3FY${String(fyYear).slice(2)}`,`Q4FY${String(fyYear).slice(2)}`];
-
+    // Screener ratios array
+    const getRatio=(name)=>{
+      const arr=data.ratios||data.concise_ratios||[];
+      const r=arr.find(x=>(x.name||"").toLowerCase().includes(name.toLowerCase()));
+      const v=r?.values?.find(x=>x.ttm)?.ttm||r?.values?.[0]?.value;
+      return parseFloat(v)||0;
+    };
+    const getQ=(field)=>(data.quarterly_results||[]).map(q=>parseFloat(q[field]||0));
+    const getA=(field)=>(data.annual_results||data.results||[]).map(q=>parseFloat(q[field]||0));
+    // Shareholding
+    const shList=data.shareholding?.quarterly||data.shareholding_pattern||[];
+    const sh0=shList[0]||{},sh1=shList[1]||{};
+    const getSH=(o,keys)=>{for(const k of keys){const v=o[k];if(v!=null)return parseFloat(v)||0;}return 0;};
+    const promoter=getSH(sh0,["Promoters","promoter","promoter_and_promoter_group"]);
+    const fii=getSH(sh0,["FII","fii","Foreign Institutions","foreign_institutions"]);
+    const pub=getSH(sh0,["Public","public"]);
+    const promoterPrev=getSH(sh1,["Promoters","promoter","promoter_and_promoter_group"]);
+    const fiiPrev=getSH(sh1,["FII","fii","Foreign Institutions"]);
+    // Financials
+    const pe=parseFloat(data.pe||getRatio("p/e")||getRatio("pe")||0);
+    const mcap=parseFloat(data.market_cap||0);
+    const salesArr=getA("Sales");
+    const profArr=getA("Net Profit");
+    const cfOps=parseFloat(data.cash_from_operations||getRatio("cash from operations")||0);
+    const cfInv=parseFloat(data.cash_from_investing||0);
+    const cfFin=parseFloat(data.cash_from_financing||0);
+    const debtEq=parseFloat(data.debt_to_equity||getRatio("debt / equity")||0);
+    const patM=parseFloat(data.net_profit_margin||getRatio("net profit margin")||0);
+    const sales=salesArr[0]||0;
+    // QoQ growth
+    const qS=getQ("Sales").slice(0,5);
+    const qG=qS.map((v,i)=>i===qS.length-1?0:qS[i+1]>0?Math.round((v-qS[i+1])/qS[i+1]*1000)/10:0).slice(0,4);
+    const qL=[`Q1FY${String(fyYear).slice(2)}`,`Q2FY${String(fyYear).slice(2)}`,`Q3FY${String(fyYear).slice(2)}`,`Q4FY${String(fyYear).slice(2)}`];
+    // YoY growth
+    const rg=salesArr.length>=2?[Math.round((salesArr[0]-salesArr[1])/(salesArr[1]||1)*1000)/10,Math.round((salesArr[1]-(salesArr[2]||salesArr[1]))/(salesArr[2]||salesArr[1]||1)*1000)/10]:[0,0];
+    const pg=profArr.length>=2?[Math.round((profArr[0]-profArr[1])/(Math.abs(profArr[1])||1)*1000)/10,Math.round((profArr[1]-(profArr[2]||profArr[1]))/(Math.abs(profArr[2]||profArr[1])||1)*1000)/10]:[0,0];
+    const fy2=`FY${String(fyYear-2).slice(2)}-${String(fyYear-1).slice(2)}`,fy1=`FY${String(fyYear-1).slice(2)}-${String(fyYear).slice(2)}`;
     return{
-      company:data.name||data.companyName||sym,
-      sector:data.industry||data.sector||"--",
-      peRatio:pe,
+      company:data.name||sym,sector:data.industry||"--",
+      peRatio:Math.round(pe*10)/10,
       marketCap:mcap>0?`Rs.${Math.round(mcap)} Cr`:"N/A",
       mcapToSales:sales>0?Math.round(mcap/sales*10)/10:0,
-      promoterHolding:Math.round(promoter*10)/10,
-      publicHolding:Math.round(pub*10)/10,
-      fiiHolding:Math.round(fii*10)/10,
-      promoterHoldingChange:Math.round((promoter-prevPromoter)*100)/100,
-      fiiHoldingChange:Math.round((fii-prevFII)*100)/100,
-      cfOperations:cfOps,
-      cfoPositive:cfOps>0,
-      cfoVsOthers:cfOps>Math.abs(cfInv)+Math.abs(cfFin)?"CFO is higher":"CFO is lower",
-      debtToReserve:Math.round(debtEquity*100),
-      patMargin:Math.round(patMargin*10)/10,
-      revenueQoQ:qGrowth.slice(0,4).concat([0,0,0,0]).slice(0,4),
-      revenueQoQLabels:qLabels,
-      revenueGrowthYOY:[revGrowth[0]||0,revGrowth[1]||0],
-      revenueGrowthYOYLabels:[`FY${String(fyYear-2).slice(2)}-${String(fyYear-1).slice(2)}`,`FY${String(fyYear-1).slice(2)}-${String(fyYear).slice(2)}`],
-      patGrowthYOY:[patGrowth[0]||0,patGrowth[1]||0],
-      patGrowthYOYLabels:[`FY${String(fyYear-2).slice(2)}-${String(fyYear-1).slice(2)}`,`FY${String(fyYear-1).slice(2)}-${String(fyYear).slice(2)}`],
+      promoterHolding:Math.round(promoter*10)/10,publicHolding:Math.round(pub*10)/10,fiiHolding:Math.round(fii*10)/10,
+      promoterHoldingChange:Math.round((promoter-promoterPrev)*10)/10,
+      fiiHoldingChange:Math.round((fii-fiiPrev)*10)/10,
+      cfOperations:Math.round(cfOps),cfoPositive:cfOps>0,
+      cfoVsOthers:cfOps>0&&cfOps>Math.abs(cfInv)+Math.abs(cfFin)?"CFO is higher":"CFO is lower",
+      debtToReserve:Math.round(debtEq*100),patMargin:Math.round(patM*10)/10,
+      revenueQoQ:qG.length?qG:[0,0,0,0],revenueQoQLabels:qL,
+      revenueGrowthYOY:[rg[0]||0,rg[1]||0],revenueGrowthYOYLabels:[fy2,fy1],
+      patGrowthYOY:[pg[0]||0,pg[1]||0],patGrowthYOYLabels:[fy2,fy1],
       screenerLoaded:true
     };
   }catch(e){console.error("Screener parse error",e);return{};}
 }
+
 
 // ── Technical calcs ───────────────────────────────────────────
 function ema(prices,p){if(prices.length<p)return null;const k=2/(p+1);let e=prices.slice(0,p).reduce((a,b)=>a+b,0)/p;for(let i=p;i<prices.length;i++)e=prices[i]*k+e*(1-k);return Math.round(e*100)/100;}
