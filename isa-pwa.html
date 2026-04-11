@@ -316,7 +316,7 @@ window.addEventListener("load",()=>{
   const si=document.getElementById("scripInput");
   if(si){
     si.addEventListener("keydown",e=>{if(e.key==="Enter"){const dd=document.getElementById("symDD");if(dd)dd.remove();analyze();}});
-    si.addEventListener("input",e=>showSuggestions(e.target.value));
+    si.addEventListener("input",e=>{e.target.dataset.sym="";e.target.dataset.name="";showSuggestions(e.target.value);});
     si.addEventListener("blur",hideSuggestions);
   }
   if("serviceWorker"in navigator){const sw=`self.addEventListener('install',()=>self.skipWaiting());self.addEventListener('activate',()=>clients.claim());self.addEventListener('fetch',e=>{if(e.request.url.includes('anthropic.com')||e.request.url.includes('upstox.com'))return;e.respondWith(fetch(e.request).catch(()=>new Response('Offline')));});`;navigator.serviceWorker.register(URL.createObjectURL(new Blob([sw],{type:"application/javascript"}))).catch(()=>{});}
@@ -511,7 +511,11 @@ async function showSuggestions(query){
 function selectSym(sym,name,sector){
   const dd=document.getElementById("symDD");
   if(dd)dd.remove();
-  document.getElementById("scripInput").value=name;
+  // Show "Company Name (SYMBOL)" in input for clarity
+  document.getElementById("scripInput").value=`${name} (${sym})`;
+  // Store resolved symbol for Go button
+  document.getElementById("scripInput").dataset.sym=sym;
+  document.getElementById("scripInput").dataset.name=name;
   analyzeSymbol(sym,name);
 }
 
@@ -988,11 +992,18 @@ function switchTab(t){
 }
 // ── Main analyze entry (with symbol search) ──────────────────
 async function analyze(){
-  const input=document.getElementById("scripInput").value.trim();
+  const inp=document.getElementById("scripInput");
+  const input=inp.value.trim();
   if(!input)return;
   if(!getAT()){showError("Upstox Analytics token not set. Go to ⚙ Settings.");return;}
   // Hide dropdown
   const dd=document.getElementById("symDD");if(dd)dd.remove();
+  // If symbol already resolved via dropdown selection, use it directly
+  if(inp.dataset.sym){
+    const sym=inp.dataset.sym, name=inp.dataset.name||sym;
+    inp.dataset.sym=""; inp.dataset.name="";
+    analyzeSymbol(sym,name); return;
+  }
   // Search bundled DB
   const results=await searchSymbol(input);
   if(results.length>0){
