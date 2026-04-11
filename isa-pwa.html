@@ -134,16 +134,16 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
     </div>
     <div style="color:#64748b;font-size:10px;margin-bottom:10px">Upstox live data · Formula score · AI commentary</div>
     <div style="display:flex;gap:7px;margin-bottom:7px">
-      <input id="scripInput" class="inp" placeholder="NSE symbol e.g. RELIANCE, INFY…" style="flex:1;font-size:12px"/>
+      <input id="scripInput" class="inp" placeholder="Search by name or NSE symbol…" style="flex:1;font-size:12px"/>
       <button id="goBtn" class="abtn ag" style="width:auto;padding:9px 15px" onclick="analyze()">Go</button>
     </div>
     <div style="display:flex;gap:5px;flex-wrap:wrap">
-      <span class="chip" onclick="setQ('RELIANCE')">RELIANCE</span>
-      <span class="chip" onclick="setQ('INFY')">INFY</span>
-      <span class="chip" onclick="setQ('HDFCBANK')">HDFCBANK</span>
-      <span class="chip" onclick="setQ('TATAMOTORS')">TATAMOTORS</span>
-      <span class="chip" onclick="setQ('ZOMATO')">ZOMATO</span>
-      <span class="chip" onclick="setQ('ITC')">ITC</span>
+      <span class="chip" onclick="setQ('Reliance');analyze()">Reliance</span>
+      <span class="chip" onclick="setQ('Infosys');analyze()">Infosys</span>
+      <span class="chip" onclick="setQ('HDFC Bank');analyze()">HDFC Bank</span>
+      <span class="chip" onclick="setQ('Tata Motors');analyze()">Tata Motors</span>
+      <span class="chip" onclick="setQ('Zomato');analyze()">Zomato</span>
+      <span class="chip" onclick="setQ('ITC');analyze()">ITC</span>
     </div>
   </div>
 
@@ -345,6 +345,69 @@ async function upGet(ep){
   return r.json();
 }
 const instrKey=sym=>`NSE_EQ|${sym.toUpperCase()}`;
+
+// ── Symbol search — fuzzy name to NSE symbol ──────────────────
+async function searchSymbol(query){
+  // Try Upstox Instrument Search API first
+  try{
+    const r=await fetch(`https://api.upstox.com/v1/instruments/search?query=${encodeURIComponent(query)}&exchanges=NSE&segments=EQ&instrument_types=EQ`,
+      {headers:{"Authorization":`Bearer ${getAT()}`,"Accept":"application/json"},signal:AbortSignal.timeout(5000)});
+    if(r.ok){
+      const d=await r.json();
+      const results=(d.data||[]).filter(x=>x.segment==="NSE_EQ"||x.exchange==="NSE");
+      if(results.length>0)return results;
+    }
+  }catch(_){}
+  // Fallback: common name map for popular stocks
+  const nameMap={
+    "infosys":"INFY","reliance industries":"RELIANCE","hdfc bank":"HDFCBANK",
+    "tata motors":"TATAMOTORS","tata consultancy":"TCS","tcs":"TCS",
+    "wipro":"WIPRO","itc":"ITC","zomato":"ZOMATO","icici bank":"ICICIBANK",
+    "axis bank":"AXISBANK","kotak bank":"KOTAKBANK","kotak mahindra":"KOTAKBANK",
+    "bajaj finance":"BAJFINANCE","hul":"HINDUNILVR","hindustan unilever":"HINDUNILVR",
+    "sun pharma":"SUNPHARMA","dr reddy":"DRREDDY","cipla":"CIPLA",
+    "ultratech cement":"ULTRACEMCO","asian paints":"ASIANPAINT",
+    "maruti":"MARUTI","maruti suzuki":"MARUTI","hero motocorp":"HEROMOTOCO",
+    "ongc":"ONGC","ntpc":"NTPC","power grid":"POWERGRID","adani ports":"ADANIPORTS",
+    "adani green":"ADANIGREEN","adani enterprises":"ADANIENT",
+    "tata steel":"TATASTEEL","jsw steel":"JSWSTEEL","hindalco":"HINDALCO",
+    "bharti airtel":"BHARTIARTL","airtel":"BHARTIARTL","idea":"IDEA",
+    "sbi":"SBIN","state bank":"SBIN","bank of baroda":"BANKBARODA",
+    "larsen":"LT","l&t":"LT","mahindra":"M&M","m&m":"M&M",
+    "bajaj auto":"BAJAJ-AUTO","eicher motors":"EICHERMOT",
+    "divi's":"DIVISLAB","biocon":"BIOCON","pidilite":"PIDILITIND",
+    "avenue supermarts":"DMART","dmart":"DMART","nykaa":"NYKAA",
+    "paytm":"PAYTM","policybazaar":"POLICYBZR","zomato":"ZOMATO",
+    "swiggy":"SWIGGY","ola electric":"OLAELEC"
+  };
+  const q=query.toLowerCase().trim();
+  const mapped=nameMap[q];
+  if(mapped)return [{trading_symbol:mapped,name:mapped,instrument_key:`NSE_EQ|${mapped}`}];
+  // Last resort: treat as direct symbol
+  return [{trading_symbol:query.toUpperCase(),name:query.toUpperCase(),instrument_key:`NSE_EQ|${query.toUpperCase()}`}];
+}
+
+// Show symbol picker if multiple results
+function showSymbolPicker(results, callback){
+  const overlay=document.createElement("div");
+  overlay.style.cssText="position:fixed;inset:0;background:#0a0e1a99;z-index:999;display:flex;align-items:flex-end;justify-content:center";
+  const sheet=document.createElement("div");
+  sheet.style.cssText="background:#111827;border-radius:16px 16px 0 0;padding:20px 16px;width:100%;max-width:500px;max-height:70vh;overflow-y:auto";
+  sheet.innerHTML=`<div style="color:#00d4aa;font-size:11px;font-weight:700;letter-spacing:2px;margin-bottom:14px">SELECT STOCK</div>`+
+    results.slice(0,8).map(r=>`
+      <div onclick="this.closest('#symOverlay').remove();(${callback.toString()})('${r.trading_symbol||r.symbol}','${(r.name||r.trading_symbol||"").replace(/'/g,"\'")}');"
+        style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:#161d2e;border:1px solid #1e2d45;border-radius:9px;margin-bottom:8px;cursor:pointer;">
+        <div>
+          <div style="font-weight:700;font-size:14px">${r.name||r.trading_symbol}</div>
+          <div style="color:#64748b;font-size:11px;margin-top:2px">${r.trading_symbol} · NSE</div>
+        </div>
+        <span style="color:#00d4aa;font-size:18px">›</span>
+      </div>`).join("")+
+    `<button onclick="this.closest('#symOverlay').remove()" style="background:none;border:none;color:#64748b;font-size:13px;cursor:pointer;width:100%;text-align:center;margin-top:8px;padding:8px">Cancel</button>`;
+  overlay.id="symOverlay";
+  overlay.appendChild(sheet);
+  document.body.appendChild(overlay);
+}
 
 async function fetchQuote(sym){
   const k=encodeURIComponent(instrKey(sym));
@@ -575,9 +638,8 @@ function exJSON(t){
 // ── Analyze ───────────────────────────────────────────────────
 let curData=null,stepIv=null;
 
-async function analyze(){
-  const sym=document.getElementById("scripInput").value.trim().toUpperCase();
-  if(!sym)return;
+async function analyzeSymbol(sym, companyName){
+  // Called after symbol is confirmed
   if(!getAT()){showError("Upstox Analytics token not set. Go to ⚙ Settings.");return;}
   showLoading();
   let si=0;document.getElementById("progressTxt").textContent=STEPS[0];
@@ -813,6 +875,37 @@ function switchTab(t){
   if(t==="history")renderHistory();
   if(t==="gtt"){if(getAlgoT())showGTTMain();else{document.getElementById("gttLogin").style.display="block";document.getElementById("gttMain").style.display="none";}}
 }
+// ── Main analyze entry (with symbol search) ──────────────────
+async function analyze(){
+  const input=document.getElementById("scripInput").value.trim();
+  if(!input)return;
+  if(!getAT()){showError("Upstox Analytics token not set. Go to ⚙ Settings.");return;}
+  const btn=document.getElementById("goBtn");
+  btn.disabled=true;btn.textContent="🔍";
+  try{
+    const results=await searchSymbol(input);
+    btn.disabled=false;btn.textContent="Go";
+    if(!results||results.length===0){showError(`No stock found for "${input}". Try NSE symbol e.g. RELIANCE, INFY, HDFCBANK`);return;}
+    // Exact match or single result → go directly
+    const exactMatch=results.find(r=>(r.trading_symbol||"").toUpperCase()===input.toUpperCase());
+    if(exactMatch||results.length===1){
+      const sym=(exactMatch||results[0]).trading_symbol||input.toUpperCase();
+      const name=(exactMatch||results[0]).name||sym;
+      document.getElementById("scripInput").value=sym;
+      analyzeSymbol(sym,name);
+    } else {
+      // Multiple results → show picker
+      showSymbolPicker(results,(sym,name)=>{
+        document.getElementById("scripInput").value=sym;
+        analyzeSymbol(sym,name);
+      });
+    }
+  }catch(e){
+    btn.disabled=false;btn.textContent="Go";
+    analyzeSymbol(input.toUpperCase(),input); // fallback direct
+  }
+}
+
 function showLoading(){switchTab("analyse");["emptyState","errorState","resultState"].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display="none";});document.getElementById("loadingState").style.display="block";const b=document.getElementById("goBtn");b.disabled=true;b.textContent="…";}
 function showError(msg){document.getElementById("loadingState").style.display="none";document.getElementById("errorState").style.display="block";document.getElementById("errorState").innerHTML=`<div class="ebox">⚠ ${msg}</div>`;}
 function showResult(d){document.getElementById("loadingState").style.display="none";document.getElementById("resultState").style.display="block";document.getElementById("resultState").innerHTML=buildResult(d);drawGauge(d.fitScore);}
