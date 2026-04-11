@@ -250,7 +250,7 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
 // ── Config ────────────────────────────────────────────────────
 const REDIR = "https://tbwrsx-cloud.github.io/isa/isa-pwa.html";
 const UPSTOX = "https://api.upstox.com/v2";
-const STEPS = ["Fetching live price…","Loading 200-day history…","Calculating RSI, MACD, DMAs…","Finding support & resistance…","Getting AI commentary…","Finalising score…"];
+const STEPS = ["Fetching live price from Upstox…","Loading 200-day price history…","Calculating RSI, MACD, DMAs…","Finding support & resistance…","Fetching fundamentals from Screener…","Getting AI commentary…","Finalising fit score…"];
 
 const CSYS = `You are an expert Indian stock analyst specialising in concall and management commentary analysis.
 
@@ -338,10 +338,10 @@ async function exchangeToken(code){
 }
 function saveManualToken(){const t=document.getElementById("manualTok")?.value.trim();if(!t)return;ls.s("isa_algot",t);updateStatus();showGTTMain();}
 
-// ── Upstox API ────────────────────────────────────────────────
+// ── Upstox API (price + historical only) ─────────────────────
 async function upGet(ep){
   const r=await fetch(`${UPSTOX}${ep}`,{headers:{"Authorization":`Bearer ${getAT()}`,"Accept":"application/json"}});
-  if(!r.ok)throw new Error(`Upstox ${r.status}: ${r.statusText}`);
+  if(!r.ok)throw new Error(`Upstox API error ${r.status}: ${r.statusText}. Check your Analytics token in Settings.`);
   return r.json();
 }
 const instrKey=sym=>`NSE_EQ|${sym.toUpperCase()}`;
@@ -350,15 +350,119 @@ async function fetchQuote(sym){
   const k=encodeURIComponent(instrKey(sym));
   const d=await upGet(`/market-quote/quotes?instrument_key=${k}`);
   const q=d.data?.[instrKey(sym)];
-  if(!q)throw new Error(`Symbol "${sym}" not found. Use exact NSE ticker e.g. RELIANCE, INFY, HDFCBANK`);
+  if(!q)throw new Error(`Symbol "${sym}" not found on NSE. Try exact NSE ticker e.g. RELIANCE, INFY, HDFCBANK, TATAMOTORS`);
   return q;
 }
+
 async function fetchHistory(sym){
   const k=encodeURIComponent(instrKey(sym));
   const to=new Date().toISOString().slice(0,10);
   const from=new Date(Date.now()-310*864e5).toISOString().slice(0,10);
   const d=await upGet(`/historical-candle/${k}/day/${to}/${from}`);
   return d.data?.candles||[];
+}
+
+// ── Screener.in (fundamentals — free, no key) ────────────────
+async function fetchFundamentals(sym){
+  // Try multiple CORS proxies in sequence
+  const proxies=[
+    `https://api.allorigins.win/get?url=${encodeURIComponent(`https://www.screener.in/api/company/${sym}/?format=json`)}`,
+    `https://corsproxy.io/?${encodeURIComponent(`https://www.screener.in/api/company/${sym}/?format=json`)}`
+  ];
+  for(const url of proxies){
+    try{
+      const r=await fetch(url,{signal:AbortSignal.timeout(8000)});
+      if(!r.ok)continue;
+      const wrapper=await r.json();
+      // allorigins wraps in {contents:"..."}, corsproxy returns directly
+      const raw=wrapper.contents||wrapper;
+      const data=typeof raw==="string"?JSON.parse(raw):raw;
+      if(data&&(data.name||data.companyName))return data;
+    }catch(_){continue;}
+  }
+  return null; // fundamentals unavailable, app continues with defaults
+}
+
+// Parse screener data into our format
+function parseScreener(data,sym){
+  if(!data)return {};
+  try{
+    // Screener returns ratios as array of {name, values:[{value}]}
+    const getRatio=(name)=>{
+      const r=(data.ratios||[]).find(x=>x.name?.toLowerCase().includes(name.toLowerCase()));
+      return r?.values?.[0]?.value||0;
+    };
+    const getQuarterly=(name)=>{
+      const s=(data.quarterly_results||data.quarterlyResults||[]);
+      return s.map(q=>parseFloat(q[name]||0)).slice(0,4).reverse();
+    };
+    const getAnnual=(name)=>{
+      const s=(data.annual_results||data.annualResults||data.results||[]);
+      return s.map(q=>parseFloat(q[name]||0)).slice(0,2).reverse();
+    };
+
+    // Shareholding
+    const sh=data.shareholding||{};
+    const shPattern=data.shareholding_pattern||data.shareholdingPattern||[];
+    const latestSH=shPattern[0]||{};
+    const promoter=parseFloat(latestSH.promoter||latestSH.Promoters||sh.promoter||0);
+    const fii=parseFloat(latestSH.fii||latestSH.FII||sh.fii||0);
+    const pub=parseFloat(latestSH.public||latestSH.Public||sh.public||0);
+    const prevSH=shPattern[1]||{};
+    const prevPromoter=parseFloat(prevSH.promoter||prevSH.Promoters||0);
+    const prevFII=parseFloat(prevSH.fii||prevSH.FII||0);
+
+    // Financials
+    const pe=parseFloat(data.pe||getRatio("PE")||0);
+    const mcap=parseFloat(data.market_cap||data.marketCap||0);
+    const sales=parseFloat(data.sales_ttm||data.revenue||0);
+    const patMargin=parseFloat(data.net_profit_margin||getRatio("Net Profit Margin")||getRatio("PAT Margin")||0);
+    const debtEquity=parseFloat(data.debt_to_equity||getRatio("Debt / Equity")||0);
+
+    // Cash flow
+    const cfOps=parseFloat(data.cash_from_operations||getRatio("Cash from Operations")||0);
+    const cfInv=parseFloat(data.cash_from_investing||0);
+    const cfFin=parseFloat(data.cash_from_financing||0);
+
+    // Quarterly revenue (QoQ growth %)
+    const qRev=getQuarterly("sales")||getQuarterly("revenue")||[0,0,0,0];
+    const qGrowth=qRev.map((v,i)=>i===0?0:qRev[i-1]>0?Math.round((v-qRev[i-1])/qRev[i-1]*100*10)/10:0).slice(1);
+
+    // Annual revenue & PAT growth (YOY %)
+    const aRev=getAnnual("sales")||getAnnual("revenue")||[0,0];
+    const aPAT=getAnnual("net_profit")||getAnnual("profit")||[0,0];
+    const revGrowth=aRev.length>=2?[Math.round((aRev[0]-aRev[1])/(aRev[1]||1)*100*10)/10,Math.round((aRev[1]-(aRev[2]||aRev[1]))/(aRev[2]||aRev[1]||1)*100*10)/10]:[0,0];
+    const patGrowth=aPAT.length>=2?[Math.round((aPAT[0]-aPAT[1])/(aPAT[1]||1)*100*10)/10,Math.round((aPAT[1]-(aPAT[2]||aPAT[1]))/(aPAT[2]||aPAT[1]||1)*100*10)/10]:[0,0];
+
+    const now=new Date();
+    const fyYear=now.getMonth()>=3?now.getFullYear()+1:now.getFullYear();
+    const qLabels=[`Q1FY${String(fyYear).slice(2)}`,`Q2FY${String(fyYear).slice(2)}`,`Q3FY${String(fyYear).slice(2)}`,`Q4FY${String(fyYear).slice(2)}`];
+
+    return{
+      company:data.name||data.companyName||sym,
+      sector:data.industry||data.sector||"--",
+      peRatio:pe,
+      marketCap:mcap>0?`Rs.${Math.round(mcap)} Cr`:"N/A",
+      mcapToSales:sales>0?Math.round(mcap/sales*10)/10:0,
+      promoterHolding:Math.round(promoter*10)/10,
+      publicHolding:Math.round(pub*10)/10,
+      fiiHolding:Math.round(fii*10)/10,
+      promoterHoldingChange:Math.round((promoter-prevPromoter)*100)/100,
+      fiiHoldingChange:Math.round((fii-prevFII)*100)/100,
+      cfOperations:cfOps,
+      cfoPositive:cfOps>0,
+      cfoVsOthers:cfOps>Math.abs(cfInv)+Math.abs(cfFin)?"CFO is higher":"CFO is lower",
+      debtToReserve:Math.round(debtEquity*100),
+      patMargin:Math.round(patMargin*10)/10,
+      revenueQoQ:qGrowth.slice(0,4).concat([0,0,0,0]).slice(0,4),
+      revenueQoQLabels:qLabels,
+      revenueGrowthYOY:[revGrowth[0]||0,revGrowth[1]||0],
+      revenueGrowthYOYLabels:[`FY${String(fyYear-2).slice(2)}-${String(fyYear-1).slice(2)}`,`FY${String(fyYear-1).slice(2)}-${String(fyYear).slice(2)}`],
+      patGrowthYOY:[patGrowth[0]||0,patGrowth[1]||0],
+      patGrowthYOYLabels:[`FY${String(fyYear-2).slice(2)}-${String(fyYear-1).slice(2)}`,`FY${String(fyYear-1).slice(2)}-${String(fyYear).slice(2)}`],
+      screenerLoaded:true
+    };
+  }catch(e){console.error("Screener parse error",e);return{};}
 }
 
 // ── Technical calcs ───────────────────────────────────────────
@@ -479,16 +583,19 @@ async function analyze(){
   let si=0;document.getElementById("progressTxt").textContent=STEPS[0];
   stepIv=setInterval(()=>{si=(si+1)%STEPS.length;document.getElementById("progressTxt").textContent=STEPS[si];},2500);
   try{
-    // 1. Live quote
-    progSet(0);const quote=await fetchQuote(sym);
+    // 1. Live quote from Upstox
+    progSet(0);
+    const quote=await fetchQuote(sym);
     const ltp=quote.last_price||quote.ohlc?.close||0;
     const ohlc=quote.ohlc||{};
+    if(!ltp)throw new Error(`Could not get live price for ${sym}. Check symbol name.`);
 
-    // 2. Historical
-    progSet(1);const candles=await fetchHistory(sym);
+    // 2. Historical from Upstox (for technicals)
+    progSet(1);
+    const candles=await fetchHistory(sym);
     const closes=candles.map(c=>c[4]).reverse();
 
-    // 3. Technicals
+    // 3. Technicals — calculated locally
     progSet(2);
     const RSI=rsi(closes);
     const MACD=macdSignal(closes);
@@ -497,43 +604,79 @@ async function analyze(){
     const above50=dma50>0&&ltp>dma50;
     const above200=dma200>0&&ltp>dma200;
 
-    // 4. S/R
-    progSet(3);const levels=sr(candles);
+    // 4. Support & Resistance
+    progSet(3);
+    const levels=sr(candles);
     const sl=levels.s2||Math.round(ltp*0.93*100)/100;
     const t1=levels.r1||Math.round(ltp*1.1*100)/100;
     const t2=levels.r2||Math.round(ltp*1.2*100)/100;
     const potRet=Math.round((t2-ltp)/ltp*100);
     const rPct=ltp-sl,rwPct=t1-ltp;
     const rr=rPct>0?`1:${Math.round(rwPct/rPct*10)/10}`:"1:2";
-    const entry=`Rs.${levels.s1||Math.round(ltp*0.98)}–Rs.${Math.round((levels.s1||ltp)*1.02)}`;
+    const entry=`Rs.${levels.s1||Math.round(ltp*0.98)}-Rs.${Math.round((levels.s1||ltp)*1.02)}`;
 
-    // Build fd
+    // 5. Fundamentals from Screener.in (free, no key needed)
+    progSet(4);
+    const screenerRaw=await fetchFundamentals(sym);
+    const screenerData=parseScreener(screenerRaw,sym);
+    const screenerOk=screenerData.screenerLoaded||false;
+
+    // Build combined fd — Upstox for price/technicals, Screener for fundamentals
     const fd={
-      currentPrice:ltp, marketCap:quote.market_cap?`Rs.${Math.round(quote.market_cap/1e7)} Cr`:"N/A",
-      mcapToSales:quote.mcap_to_sales||0, peRatio:quote.pe||0,
-      publicHolding:quote.public_holding||0, promoterHolding:quote.promoter_holding||0,
-      promoterHoldingChange:quote.promoter_holding_change||0, fiiHoldingChange:quote.fii_holding_change||0,
-      cfOperations:quote.cfo||0, cfoPositive:(quote.cfo||0)>0,
-      cfoVsOthers:(quote.cfo||0)>0?"CFO is higher":"CFO is lower",
-      debtToReserve:quote.debt_to_equity?quote.debt_to_equity*100:0,
-      revenueQoQ:quote.revenue_qoq||[0,0,0,0], revenueQoQLabels:["Q1FY24","Q2FY24","Q3FY24","Q4FY24"],
-      patMargin:quote.pat_margin||0,
-      revenueGrowthYOY:quote.revenue_growth_yoy||[0,0], revenueGrowthYOYLabels:["FY23","FY24"],
-      patGrowthYOY:quote.pat_growth_yoy||[0,0], patGrowthYOYLabels:["FY23","FY24"],
-      rsi:RSI, macdSignal:MACD, above50DMA:above50, above200DMA:above200,
-      movingAvg50:dma50, movingAvg200:dma200,
-      support1:levels.s1, support2:levels.s2, resistance1:levels.r1, resistance2:levels.r2,
-      entryZone:entry, stopLoss:sl, target1:t1, target2:t2, potentialReturn:potRet, riskReward:rr,
+      // Price from Upstox (always reliable)
+      currentPrice:ltp,
+      weekHigh52:ohlc.high||ltp,
+      weekLow52:ohlc.low||ltp,
+      volume:quote.volume||0,
+      // Fundamentals from Screener (with fallback defaults)
+      company:screenerData.company||sym,
+      sector:screenerData.sector||"--",
+      marketCap:screenerData.marketCap||"N/A",
+      mcapToSales:screenerData.mcapToSales||0,
+      peRatio:screenerData.peRatio||0,
+      promoterHolding:screenerData.promoterHolding||0,
+      publicHolding:screenerData.publicHolding||0,
+      fiiHolding:screenerData.fiiHolding||0,
+      promoterHoldingChange:screenerData.promoterHoldingChange||0,
+      fiiHoldingChange:screenerData.fiiHoldingChange||0,
+      cfOperations:screenerData.cfOperations||0,
+      cfoPositive:screenerData.cfoPositive||false,
+      cfoVsOthers:screenerData.cfoVsOthers||"N/A",
+      debtToReserve:screenerData.debtToReserve||0,
+      patMargin:screenerData.patMargin||0,
+      revenueQoQ:screenerData.revenueQoQ||[0,0,0,0],
+      revenueQoQLabels:screenerData.revenueQoQLabels||["Q1","Q2","Q3","Q4"],
+      revenueGrowthYOY:screenerData.revenueGrowthYOY||[0,0],
+      revenueGrowthYOYLabels:screenerData.revenueGrowthYOYLabels||["FY23","FY24"],
+      patGrowthYOY:screenerData.patGrowthYOY||[0,0],
+      patGrowthYOYLabels:screenerData.patGrowthYOYLabels||["FY23","FY24"],
+      // Technicals from local calculation (always reliable)
+      rsi:RSI,
+      macdSignal:MACD,
+      above50DMA:above50,
+      above200DMA:above200,
+      movingAvg50:dma50,
+      movingAvg200:dma200,
+      support1:levels.s1,
+      support2:levels.s2,
+      resistance1:levels.r1,
+      resistance2:levels.r2,
+      entryZone:entry,
+      stopLoss:sl,
+      target1:t1,
+      target2:t2,
+      potentialReturn:potRet,
+      riskReward:rr,
       timeframe:RSI<40?"Short-term (1-3 months)":"Medium-term (3-6 months)",
       trend:above200&&above50?"Bullish":!above200&&!above50?"Bearish":"Sideways",
-      weekHigh52:ohlc.high||ltp, weekLow52:ohlc.low||ltp, volume:quote.volume||0
+      screenerLoaded:screenerOk
     };
 
-    // 5. Score
-    progSet(4);const scoring=calcScore(fd);
+    // 6. Score
+    progSet(5);const scoring=calcScore(fd);
 
-    // 6. Commentary
-    progSet(5);const ai=await getCommentary(sym,scoring,fd);
+    // 7. Commentary
+    progSet(6);const ai=await getCommentary(sym,scoring,fd);
 
     // Incorporate commentary score (15 pts max) into final score
     const commScore = Math.min(Math.max(ai?.commentaryScore||0, -15), 15);
@@ -548,7 +691,7 @@ async function analyze(){
     else finalRating="Avoid";
 
     const final={
-      symbol:sym, ticker:sym, company:sym, exchange:"NSE", sector:"--",
+      symbol:sym, ticker:sym, company:fd.company||sym, exchange:"NSE", sector:fd.sector||"--",
       ...fd,
       fitScore:finalScore,
       fitScoreBase:baseScore,
@@ -566,7 +709,7 @@ async function analyze(){
       fitSummary:ai?.fitSummary||`${sym} scores ${finalScore}/100 on formula-based analysis.`,
       redFlags:ai?.redFlags||[],
       positives:ai?.positives||[],
-      dataNote:"Price & technicals: Upstox live. Score: formula(85%) + concall commentary(15%).",
+      dataNote:`Price & technicals: Upstox live. Fundamentals: ${screenerOk?"Screener.in":"unavailable — check symbol"}. Score: formula(85%) + concall(15%).`,
       savedAt:new Date().toLocaleString("en-IN")
     };
     curData=final;addToHist(final);showResult(final);
