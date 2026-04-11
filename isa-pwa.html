@@ -349,7 +349,40 @@ async function upGet(ep){
   if(!r.ok)throw new Error(`Upstox API error ${r.status}: ${r.statusText}. Check your Analytics token in Settings.`);
   return r.json();
 }
-const instrKey=sym=>`NSE_EQ|${sym.toUpperCase()}`;
+// instrument_key cache: sym -> full ISIN-based key e.g. NSE_EQ|INE002A01018
+const instrKeyCache={};
+
+// Get instrument key — from cache (set by search), or fallback to symbol-based
+// Upstox actually accepts BOTH NSE_EQ|SYMBOL and NSE_EQ|ISIN in some endpoints
+// but the safest approach is to resolve from search first
+function instrKey(sym){
+  return instrKeyCache[sym.toUpperCase()]||`NSE_EQ|${sym.toUpperCase()}`;
+}
+
+// Resolve instrument key via Upstox search — stores ISIN key in cache
+async function resolveInstrKey(sym){
+  const cached=instrKeyCache[sym.toUpperCase()];
+  if(cached)return cached;
+  const token=getAT();
+  if(!token)return `NSE_EQ|${sym.toUpperCase()}`;
+  try{
+    const r=await fetch(
+      `https://api.upstox.com/v1/instruments/search?query=${encodeURIComponent(sym)}&exchanges=NSE&segments=EQ&instrument_types=EQ`,
+      {headers:{"Authorization":`Bearer ${token}`,"Accept":"application/json"},
+       signal:AbortSignal.timeout(4000)}
+    );
+    if(!r.ok)return `NSE_EQ|${sym.toUpperCase()}`;
+    const d=await r.json();
+    const match=(d.data||[]).find(x=>
+      x.trading_symbol?.toUpperCase()===sym.toUpperCase()&&x.segment==="NSE_EQ"
+    );
+    if(match?.instrument_key){
+      instrKeyCache[sym.toUpperCase()]=match.instrument_key;
+      return match.instrument_key;
+    }
+  }catch(_){}
+  return `NSE_EQ|${sym.toUpperCase()}`;
+}
 
 // ── Symbol search — fuzzy name to NSE symbol ──────────────────
 // ── NSE Stock Database (bundled) ─────────────────────────────
@@ -479,13 +512,19 @@ function renderDD(results){
     wrap.appendChild(dd);
   }
   dd.style.cssText="position:absolute;left:0;right:70px;top:100%;background:#111827;border:1px solid #00d4aa55;border-top:none;border-radius:0 0 10px 10px;z-index:9999;max-height:280px;overflow-y:auto;box-shadow:0 8px 32px #00000099";
+  // Cache instrument keys from search results for faster quote lookup
+  results.forEach(r=>{
+    if(r.instrument_key&&r.trading_symbol){
+      instrKeyCache[r.trading_symbol.toUpperCase()]=r.instrument_key;
+    }
+  });
   dd.innerHTML=results.map(r=>`
-    <div onclick="selectSym('${r.trading_symbol}','${(r.name||r.trading_symbol).replace(/['"]/g,"")}','${r.sector||""}')"
+    <div onclick="selectSym('${r.trading_symbol}','${(r.name||r.trading_symbol).replace(/['"]/g,"")}','${r.sector||r.industry||""}')"
       style="display:flex;justify-content:space-between;align-items:center;padding:11px 13px;cursor:pointer;border-bottom:1px solid #1e2d45"
       onmouseover="this.style.background='#1e2d45'" onmouseout="this.style.background='transparent'">
       <div style="flex:1;min-width:0">
         <div style="font-weight:700;font-size:13px;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.name||r.trading_symbol}</div>
-        <div style="color:#64748b;font-size:10px;margin-top:1px">${r.sector||"NSE Equity"}</div>
+        <div style="color:#64748b;font-size:10px;margin-top:1px">${r.sector||r.industry||"NSE Equity"}</div>
       </div>
       <span style="color:#00d4aa;font-family:monospace;font-size:11px;font-weight:700;flex-shrink:0;margin-left:8px">${r.trading_symbol}</span>
     </div>`).join("");
@@ -525,15 +564,19 @@ function hideSuggestions(){
 
 
 async function fetchQuote(sym){
-  const k=encodeURIComponent(instrKey(sym));
+  // Resolve ISIN-based instrument key
+  const ik=await resolveInstrKey(sym);
+  const k=encodeURIComponent(ik);
   const d=await upGet(`/market-quote/quotes?instrument_key=${k}`);
-  const q=d.data?.[instrKey(sym)];
-  if(!q)throw new Error(`Symbol "${sym}" not found on NSE. Try exact NSE ticker e.g. RELIANCE, INFY, HDFCBANK, TATAMOTORS`);
+  // Response key can be NSE_EQ:SYMBOL or NSE_EQ:ISIN format
+  const q=d.data?.[Object.keys(d.data||{})[0]];
+  if(!q)throw new Error(`Symbol "${sym}" not found on NSE. Please select from the dropdown suggestions.`);
   return q;
 }
 
 async function fetchHistory(sym){
-  const k=encodeURIComponent(instrKey(sym));
+  const ik=await resolveInstrKey(sym);
+  const k=encodeURIComponent(ik);
   const to=new Date().toISOString().slice(0,10);
   const from=new Date(Date.now()-310*864e5).toISOString().slice(0,10);
   const d=await upGet(`/historical-candle/${k}/day/${to}/${from}`);
