@@ -153,6 +153,17 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
     </div>
 
     <div id="view-history" style="display:none;padding:13px">
+      <div style="display:flex;gap:7px;margin-bottom:11px;align-items:center">
+        <select id="histSort" onchange="renderHistory()" style="flex:1;background:#111827;border:1px solid #1e2d45;border-radius:8px;padding:8px 10px;color:#e2e8f0;font-size:12px;outline:none">
+          <option value="newest">🕐 Newest First</option>
+          <option value="oldest">🕐 Oldest First</option>
+          <option value="score_desc">⭐ Score: High→Low</option>
+          <option value="score_asc">⭐ Score: Low→High</option>
+          <option value="rating">🏆 Rating</option>
+        </select>
+        <button onclick="exportHistory()" style="background:#38bdf818;color:#38bdf8;border:1px solid #38bdf844;border-radius:8px;padding:8px 11px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">📤 Export</button>
+        <label style="background:#22c55e18;color:#22c55e;border:1px solid #22c55e44;border-radius:8px;padding:8px 11px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">📥 Import<input type="file" accept=".json" onchange="importHistory(event)" style="display:none"/></label>
+      </div>
       <div id="historyList"></div>
     </div>
 
@@ -274,7 +285,7 @@ const saveHist=l=>{try{localStorage.setItem("isa_h",JSON.stringify(l));}catch(_)
 function addToHist(d){
   const l=loadHist();
   const e={ticker:d.ticker,company:d.company,fitScore:d.fitScore,fitRating:d.fitRating,currentPrice:d.currentPrice,peRatio:d.peRatio,savedAt:new Date().toLocaleString("en-IN"),fullData:d};
-  saveHist([e,...l.filter(x=>x.ticker!==d.ticker)].slice(0,30));
+  saveHist([e,...l.filter(x=>x.ticker!==d.ticker)].slice(0,100));
   updateHistCount();
 }
 const updateHistCount=()=>{const el=document.getElementById("histCount");if(el)el.textContent=loadHist().length;};
@@ -492,10 +503,21 @@ function drawGauge(score){
 
 // ── History ───────────────────────────────────────────────────────────────────
 function renderHistory(){
-  const list=loadHist();
+  const rawList=loadHist();
   const el=document.getElementById("historyList");
-  if(!list.length){el.innerHTML=`<div class="empty"><div style="font-size:34px;margin-bottom:10px">🗂</div><div style="font-size:13px">No saved analyses yet.</div><div style="font-size:11px;margin-top:3px">Every analysis saves automatically.</div></div>`;return;}
-  el.innerHTML=list.map((h,i)=>{
+  if(!rawList.length){el.innerHTML=`<div class="empty"><div style="font-size:34px;margin-bottom:10px">🗂</div><div style="font-size:13px">No saved analyses yet.</div><div style="font-size:11px;margin-top:3px">Every analysis saves automatically.</div></div>`;return;}
+  // Sort
+  const sort=document.getElementById("histSort")?.value||"newest";
+  const ratingOrder={"Strong Buy":4,"Buy":3,"Hold":2,"Avoid":1};
+  const list=[...rawList.map((h,i)=>({...h,_orig:i}))];
+  if(sort==="oldest") list.reverse();
+  else if(sort==="score_desc") list.sort((a,b)=>(b.fitScore||0)-(a.fitScore||0));
+  else if(sort==="score_asc") list.sort((a,b)=>(a.fitScore||0)-(b.fitScore||0));
+  else if(sort==="rating") list.sort((a,b)=>(ratingOrder[b.fitRating]||0)-(ratingOrder[a.fitRating]||0));
+  // newest is default (no sort needed)
+  const warn=rawList.length>=90?`<div style="background:#f59e0b18;border:1px solid #f59e0b44;border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:11px;color:#f59e0b">⚠ ${rawList.length}/100 entries used. Oldest entries will be removed after 100.</div>`:"";
+  el.innerHTML=warn+list.map((h)=>{
+  const i=h._orig;
     const c=rc(h.fitRating);
     return`<div class="hi" onclick="loadHist2(${i})">
       <div style="flex:1">
@@ -510,6 +532,47 @@ function renderHistory(){
       <button onclick="event.stopPropagation();delHist(${i})" style="background:none;border:none;color:#ef4444;font-size:15px;cursor:pointer;padding:4px 2px">🗑</button>
     </div>`;
   }).join("");
+}
+
+// ── Export history as JSON file ───────────────────────────
+function exportHistory(){
+  const list=loadHist();
+  if(!list.length){alert("No history to export.");return;}
+  const blob=new Blob([JSON.stringify({version:"ISA_v3",exportedAt:new Date().toISOString(),count:list.length,history:list},null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download=`ISA_history_${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),3000);
+}
+
+// ── Import history from JSON file ─────────────────────────
+function importHistory(event){
+  const file=event.target.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const parsed=JSON.parse(e.target.result);
+      // Accept both raw array and wrapped format
+      const incoming=Array.isArray(parsed)?parsed:(parsed.history||[]);
+      if(!incoming.length){alert("No history found in file.");return;}
+      const existing=loadHist();
+      // Merge: incoming entries update existing ones for same ticker, new ones added
+      const merged=[...incoming];
+      existing.forEach(ex=>{
+        if(!merged.find(m=>m.ticker===ex.ticker)) merged.push(ex);
+      });
+      merged.sort((a,b)=>new Date(b.savedAt||0)-new Date(a.savedAt||0));
+      saveHist(merged.slice(0,100));
+      updateHistCount();
+      renderHistory();
+      alert("✓ Imported "+incoming.length+" entries. Total: "+Math.min(merged.length,100));
+    }catch(err){alert("Import failed: "+err.message);}
+  };
+  reader.readAsText(file);
+  event.target.value=""; // reset so same file can be imported again
 }
 // ── Hardcoded score recalculator (no API needed) ─────────────────────────────
 function recalcScore(d){
