@@ -198,6 +198,7 @@ SCORING RULES (calculate exactly):
 FUNDAMENTAL (max 70): Promoter>50%+8, PromIncreasing+5, FIIIncreasing+5, CFO+ve+8, CFO>Inv+Fin+7, Debt/Reserve<50%+8, PATmargin>10%+8 or 5-10%+4, RevYOY+ve+8, PATyoy+ve+8, MCap/Sales<3x+5 or 3-5x+3, QoQ+ve 3/4qtrs+3, PE<30+3 or 30-50+1
 TECHNICAL (max 30): Above200DMA+8, Above50DMA+5, RSI40-65+7 or 30-40/65-70+4, MACDbullish+5, NearS1(3%)+5
 COMMENTARY (max 15, min -15): GuidanceRaised+5 or maintained+2 or cut-8, StrongOrderBook+4, MarginExpansion+4, DebtReduction+3, MgmtChange-5, RegulatoryIssue-6, AuditorConcern-8, PromoterPledge-6
+IMPORTANT: revenueGuidance/marginGuidance/demandOutlook/majorEvent fields inside fundamental{} are REQUIRED. Use exact allowed values.
 
 fitScore = fundamentalScore + technicalScore + commentaryScore (clamp 0-100)
 Rating: >=75 Strong Buy, >=55 Buy, >=35 Hold, else Avoid. PAT<=5% forces Avoid.
@@ -308,7 +309,20 @@ async function analyze(){
         max_tokens:3000,
         tools:[{type:"web_search_20250305",name:"web_search",max_uses:3}],
         system:SYS,
-        messages:[{role:"user",content:`Analyse: ${q}. Find shareholding%, quarterly P&L, cash flows, debt, RSI, 50DMA, 200DMA, S/R levels, and latest concall guidance. cfoVsOthers must be a string. All technical fields need real numbers. Return only JSON.`}]
+        messages:[{role:"user",content:`Analyse Indian stock: ${q}.
+
+Search for: shareholding pattern, quarterly P&L (last 4 quarters), cash flows, debt levels, RSI, 50DMA, 200DMA, support/resistance, and LATEST CONCALL or earnings commentary.
+
+MANDATORY - populate these exact fields inside fundamental{}:
+- revenueGuidance: MUST be exactly one of these words: "raised" or "maintained" or "cut" or "not given"
+- marginGuidance: MUST be exactly one of: "expanding" or "stable" or "contracting" or "not given"
+- demandOutlook: MUST be exactly one of: "strong" or "moderate" or "weak"
+- majorEvent: string describing key recent event (acquisition, fundraise, demerger, new plant, regulatory action) or "none"
+- cfoVsOthers: MUST be a string like "CFO is higher" or "CFO is lower" — never a number
+
+For M&M example: revenueGuidance="maintained", marginGuidance="expanding", demandOutlook="strong", majorEvent="FY26 dividend raised 20%"
+
+All technical fields must have real numbers. Return only JSON.`}]
       })
     });
     if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e?.error?.message||`API error ${res.status}`);}
