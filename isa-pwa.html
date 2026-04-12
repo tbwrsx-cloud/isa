@@ -138,12 +138,12 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
       <button id="goBtn" class="abtn ag" style="width:auto;padding:9px 15px" onclick="analyze()">Go</button>
     </div>
     <div style="display:flex;gap:5px;flex-wrap:wrap">
-      <span class="chip" onclick="setQ('Reliance');analyze()">Reliance</span>
-      <span class="chip" onclick="setQ('Infosys');analyze()">Infosys</span>
-      <span class="chip" onclick="setQ('HDFC Bank');analyze()">HDFC Bank</span>
-      <span class="chip" onclick="setQ('Tata Motors');analyze()">Tata Motors</span>
-      <span class="chip" onclick="setQ('Zomato');analyze()">Zomato</span>
-      <span class="chip" onclick="setQ('ITC');analyze()">ITC</span>
+      <span class="chip" onclick="selectSym('RELIANCE','Reliance Industries','Energy')">Reliance</span>
+      <span class="chip" onclick="selectSym('INFY','Infosys','IT')">Infosys</span>
+      <span class="chip" onclick="selectSym('HDFCBANK','HDFC Bank','Banking')">HDFC Bank</span>
+      <span class="chip" onclick="selectSym('TATAMOTORS','Tata Motors','Auto')">Tata Motors</span>
+      <span class="chip" onclick="selectSym('ZOMATO','Zomato','Food Tech')">Zomato</span>
+      <span class="chip" onclick="selectSym('ITC','ITC','FMCG')">ITC</span>
     </div>
   </div>
 
@@ -318,7 +318,12 @@ window.addEventListener("load",async()=>{
   const si=document.getElementById("scripInput");
   if(si){
     si.addEventListener("keydown",e=>{if(e.key==="Enter"){const dd=document.getElementById("symDD");if(dd)dd.remove();analyze();}});
-    si.addEventListener("input",e=>{e.target.dataset.sym="";e.target.dataset.name="";showSuggestions(e.target.value);});
+    si.addEventListener("input",e=>{
+      // Clear stored symbol when user types something new
+      e.target.dataset.sym="";
+      e.target.dataset.name="";
+      showSuggestions(e.target.value);
+    });
     si.addEventListener("blur",hideSuggestions);
   }
   if("serviceWorker"in navigator){const sw=`self.addEventListener('install',()=>self.skipWaiting());self.addEventListener('activate',()=>clients.claim());self.addEventListener('fetch',e=>{if(e.request.url.includes('anthropic.com')||e.request.url.includes('upstox.com'))return;e.respondWith(fetch(e.request).catch(()=>new Response('Offline')));});`;navigator.serviceWorker.register(URL.createObjectURL(new Blob([sw],{type:"application/javascript"}))).catch(()=>{});}
@@ -422,83 +427,111 @@ async function loadNSEDB(){
 
 // Fuzzy search in bundled DB — runs instantly, no API
 // Local search on bundled DB (instant fallback)
+// ── Search & Dropdown ─────────────────────────────────────────
 function localSearch(query){
   const q=query.toLowerCase().trim();
-  if(!q)return [];
+  if(!q||!NSE_DB.length)return [];
   const results=[];
   for(const [sym,name,sector] of NSE_DB){
-    const symL=sym.toLowerCase(), nameL=name.toLowerCase();
+    const symL=sym.toLowerCase();
+    const nameL=name.toLowerCase();
     let score=0;
-    if(symL===q||nameL===q) score=100;
-    else if(symL.startsWith(q)||nameL.startsWith(q)) score=80;
-    else if(symL.includes(q)||nameL.includes(q)) score=60;
-    else { const words=nameL.split(" "); if(words.some(w=>w.startsWith(q))) score=50; }
-    if(score>0) results.push({score,trading_symbol:sym,name,sector});
-  }
-  return results.sort((a,b)=>b.score-a.score).slice(0,8);
-}
-
-// Search uses local bundled DB only (Upstox search API not available via browser)
-let searchTimer=null;
-async function searchSymbol(query){
-  const q=query.trim();
-  if(!q||q.length<2)return [];
-  return localSearch(q);
-}
-
-// Render dropdown results
-function renderDD(results){
-  let dd=document.getElementById("symDD");
-  if(!results||!results.length){if(dd)dd.remove();return;}
-  if(!dd){
-    dd=document.createElement("div");
-    dd.id="symDD";
-    const inp=document.getElementById("scripInput");
-    const wrap=inp.parentElement;
-    wrap.style.position="relative";
-    wrap.appendChild(dd);
-  }
-  dd.style.cssText="position:absolute;left:0;right:70px;top:100%;background:#111827;border:1px solid #00d4aa55;border-top:none;border-radius:0 0 10px 10px;z-index:9999;max-height:280px;overflow-y:auto;box-shadow:0 8px 32px #00000099";
-  // Cache instrument keys from search results for faster quote lookup
-  results.forEach(r=>{
-    if(r.instrument_key&&r.trading_symbol){
-      instrKeyCache[r.trading_symbol.toUpperCase()]=r.instrument_key;
+    if(symL===q||nameL===q) score=100;                          // exact
+    else if(symL.startsWith(q)) score=90;                       // symbol starts with
+    else if(nameL.startsWith(q)) score=80;                      // name starts with
+    else if(symL.includes(q)) score=70;                         // symbol contains
+    else if(nameL.includes(q)) score=60;                        // name contains
+    else {
+      const words=nameL.split(/\s+/);
+      if(words.some(w=>w.startsWith(q))) score=50;              // word starts with
     }
-  });
-  dd.innerHTML=results.map(r=>`
-    <div onclick="selectSym('${r.trading_symbol}','${(r.name||r.trading_symbol).replace(/['"]/g,"")}','${r.sector||r.industry||""}')"
-      style="display:flex;justify-content:space-between;align-items:center;padding:11px 13px;cursor:pointer;border-bottom:1px solid #1e2d45"
-      onmouseover="this.style.background='#1e2d45'" onmouseout="this.style.background='transparent'">
-      <div style="flex:1;min-width:0">
-        <div style="font-weight:700;font-size:13px;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.name||r.trading_symbol}</div>
-        <div style="color:#64748b;font-size:10px;margin-top:1px">${r.sector||r.industry||"NSE Equity"}</div>
-      </div>
-      <span style="color:#00d4aa;font-family:monospace;font-size:11px;font-weight:700;flex-shrink:0;margin-left:8px">${r.trading_symbol}</span>
-    </div>`).join("");
+    if(score>0) results.push({score,trading_symbol:sym,name,sector:sector||"NSE"});
+  }
+  return results.sort((a,b)=>b.score-a.score).slice(0,10);
 }
 
-// Live dropdown — instant local search
+let searchTimer=null;
+function searchSymbol(query){
+  return localSearch(query);
+}
+
+// Render dropdown
+function renderDD(results){
+  // Remove old dropdown
+  const old=document.getElementById("symDD");
+  if(old)old.remove();
+  if(!results||!results.length)return;
+
+  const dd=document.createElement("div");
+  dd.id="symDD";
+  // Append to body so it's not clipped by parent overflow
+  document.body.appendChild(dd);
+
+  // Position below input
+  const inp=document.getElementById("scripInput");
+  const rect=inp.getBoundingClientRect();
+  dd.style.cssText=`position:fixed;left:${rect.left}px;top:${rect.bottom}px;width:${rect.width+70}px;background:#111827;border:1px solid #00d4aa66;border-top:2px solid #00d4aa;border-radius:0 0 12px 12px;z-index:99999;max-height:300px;overflow-y:auto;box-shadow:0 8px 32px #000000cc`;
+
+  dd.innerHTML=results.map(r=>{
+    const safeSym=r.trading_symbol.replace(/['"&]/g,"");
+    const safeName=(r.name||r.trading_symbol).replace(/['"&]/g,"");
+    return`<div onclick="selectSym('${safeSym}','${safeName}','${r.sector||""}')"
+      style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;cursor:pointer;border-bottom:1px solid #1e2d45;active:background:#1e2d45"
+      ontouchstart="this.style.background='#1e2d45'" ontouchend="this.style.background='transparent'"
+      onmouseover="this.style.background='#1e2d45'" onmouseout="this.style.background='transparent'">
+      <div style="flex:1;min-width:0;margin-right:10px">
+        <div style="font-weight:700;font-size:13px;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.name||r.trading_symbol}</div>
+        <div style="color:#64748b;font-size:10px;margin-top:2px">${r.sector||"NSE Equity"}</div>
+      </div>
+      <span style="color:#00d4aa;font-family:monospace;font-size:12px;font-weight:700;flex-shrink:0">${r.trading_symbol}</span>
+    </div>`;
+  }).join("");
+}
+
+// Show dropdown as user types
 function showSuggestions(query){
-  const dd=document.getElementById("symDD");
-  if(!query||query.length<1){if(dd)dd.remove();return;}
+  const old=document.getElementById("symDD");
+  if(!query||query.length<1){if(old)old.remove();return;}
+  if(!NSE_DB.length){
+    // DB still loading — show a loading indicator
+    if(!old){
+      const dd=document.createElement("div");
+      dd.id="symDD";
+      document.body.appendChild(dd);
+      const inp=document.getElementById("scripInput");
+      const rect=inp.getBoundingClientRect();
+      dd.style.cssText=`position:fixed;left:${rect.left}px;top:${rect.bottom}px;width:${rect.width+70}px;background:#111827;border:1px solid #1e2d45;border-radius:0 0 10px 10px;z-index:99999;padding:12px 14px;color:#64748b;font-size:12px`;
+      dd.textContent="Loading stock list…";
+    }
+    return;
+  }
   const results=localSearch(query);
   if(results.length) renderDD(results);
-  else if(dd) dd.remove();
+  else {
+    // No match — show hint
+    const dd=document.createElement("div");
+    dd.id="symDD";
+    if(old)old.remove();
+    document.body.appendChild(dd);
+    const inp=document.getElementById("scripInput");
+    const rect=inp.getBoundingClientRect();
+    dd.style.cssText=`position:fixed;left:${rect.left}px;top:${rect.bottom}px;width:${rect.width+70}px;background:#111827;border:1px solid #1e2d45;border-radius:0 0 10px 10px;z-index:99999;padding:12px 14px;color:#64748b;font-size:12px`;
+    dd.innerHTML=`No match found. Try exact NSE symbol (e.g. TITAN, INFY) or press Go.`;
+  }
+}
+
+function hideSuggestions(){
+  setTimeout(()=>{const dd=document.getElementById("symDD");if(dd)dd.remove();},300);
 }
 
 function selectSym(sym,name,sector){
   const dd=document.getElementById("symDD");
   if(dd)dd.remove();
-  // Show "Company Name (SYMBOL)" in input for clarity
-  document.getElementById("scripInput").value=`${name} (${sym})`;
-  // Store resolved symbol for Go button
-  document.getElementById("scripInput").dataset.sym=sym;
-  document.getElementById("scripInput").dataset.name=name;
-  analyzeSymbol(sym,name);
-}
-
-function hideSuggestions(){
-  setTimeout(()=>{const dd=document.getElementById("symDD");if(dd)dd.remove();},200);
+  const inp=document.getElementById("scripInput");
+  inp.value=sym; // Always show clean NSE symbol in input
+  inp.dataset.sym=sym;
+  inp.dataset.name=name||sym;
+  analyzeSymbol(sym,name||sym);
 }
 
 
@@ -1002,36 +1035,48 @@ function switchTab(t){
   if(t==="history")renderHistory();
   if(t==="gtt"){if(getAlgoT())showGTTMain();else{document.getElementById("gttLogin").style.display="block";document.getElementById("gttMain").style.display="none";}}
 }
-// ── Main analyze entry (with symbol search) ──────────────────
+// ── Main analyze entry ───────────────────────────────────────
 async function analyze(){
   const inp=document.getElementById("scripInput");
+  const dd=document.getElementById("symDD");
+  if(dd)dd.remove();
+
+  // PRIORITY 1: Symbol already resolved from dropdown → use it directly
+  if(inp.dataset.sym&&inp.dataset.sym.trim()){
+    const sym=inp.dataset.sym.trim();
+    const name=inp.dataset.name||sym;
+    inp.dataset.sym="";
+    inp.dataset.name="";
+    analyzeSymbol(sym,name);
+    return;
+  }
+
   const input=inp.value.trim();
   if(!input)return;
   if(!getAT()){showError("Upstox Analytics token not set. Go to ⚙ Settings.");return;}
-  // Hide dropdown
-  const dd=document.getElementById("symDD");if(dd)dd.remove();
-  // If symbol already resolved via dropdown selection, use it directly
-  if(inp.dataset.sym){
-    const sym=inp.dataset.sym, name=inp.dataset.name||sym;
-    inp.dataset.sym=""; inp.dataset.name="";
-    analyzeSymbol(sym,name); return;
+
+  // PRIORITY 2: Exact NSE symbol typed (all caps, no spaces)
+  const isExactSymbol=/^[A-Z0-9&._-]+$/.test(input.toUpperCase())&&input.length<=20;
+  if(isExactSymbol){
+    analyzeSymbol(input.toUpperCase(),input.toUpperCase());
+    return;
   }
-  // Search bundled DB
+
+  // PRIORITY 3: Search local DB
   const results=localSearch(input);
-  if(results.length>0){
-    // Exact symbol match
-    const exact=results.find(r=>r.trading_symbol.toLowerCase()===input.toLowerCase());
-    if(exact){analyzeSymbol(exact.trading_symbol,exact.name);return;}
-    // Single result
-    if(results.length===1){analyzeSymbol(results[0].trading_symbol,results[0].name);return;}
-    // Top result if score>=80 (starts with match)
-    if(results[0].score>=80){analyzeSymbol(results[0].trading_symbol,results[0].name);return;}
-    // Show dropdown and let user pick
+  if(results.length===1){
+    // Only one match — go directly
+    analyzeSymbol(results[0].trading_symbol,results[0].name);
+    return;
+  }
+  if(results.length>1){
+    // Multiple — show dropdown for user to pick
     showSuggestions(input);
     return;
   }
-  // Not in DB — try as direct NSE symbol
-  analyzeSymbol(input.toUpperCase(),input);
+
+  // PRIORITY 4: Nothing found — try as direct symbol
+  analyzeSymbol(input.toUpperCase(),input.toUpperCase());
 }
 
 function showLoading(){switchTab("analyse");["emptyState","errorState","resultState"].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display="none";});document.getElementById("loadingState").style.display="block";const b=document.getElementById("goBtn");b.disabled=true;b.textContent="…";}
