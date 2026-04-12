@@ -178,8 +178,9 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
       <div class="card">
         <div class="st">ℹ About</div>
         <div style="color:#64748b;font-size:12px;line-height:1.7">
-          <b style="color:#94a3b8">IndiaStock Analyser v2</b><br/>
-          AI-powered fundamental + technical analysis for NSE/BSE stocks using Anthropic Claude with live web search.<br/><br/>
+          <b style="color:#94a3b8">IndiaStock Analyser v3</b><br/>
+          AI-powered analysis: Fundamental (60%) + Technical (20%) + Commentary (20%) scoring.
+Claude AI with live web search. Transparent score breakdown.<br/><br/>
           All data stored locally. Not financial advice.
         </div>
       </div>
@@ -189,11 +190,50 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
 </div>
 
 <script>
-// ── Compact system prompt (~60% shorter) ──────────────────────────────────────
-const SYS = `Expert Indian stock analyst. Search web for latest data on the given NSE/BSE stock. Return ONLY a raw JSON object, no markdown, no backticks:
-{"company":"","ticker":"","exchange":"NSE/BSE","sector":"","currentPrice":0,"marketCap":"","mcapToSales":0,"peRatio":0,"fundamental":{"publicHolding":0,"promoterHolding":0,"promoterHoldingChange":0,"fiiHoldingChange":0,"cfOperations":0,"cfoPositive":true,"cfoVsOthers":"","debtToReserve":0,"revenueQoQ":[0,0,0,0],"revenueQoQLabels":["Q1FY24","Q2FY24","Q3FY24","Q4FY24"],"patMargin":0,"revenueGrowthYOY":[0,0],"revenueGrowthYOYLabels":["FY23","FY24"],"patGrowthYOY":[0,0],"patGrowthYOYLabels":["FY23","FY24"],"managementCommentary":""},"technical":{"trend":"Bullish/Bearish/Sideways","rsi":0,"macdSignal":"","support1":0,"support2":0,"resistance1":0,"resistance2":0,"entryZone":"","stopLoss":0,"target1":0,"target2":0,"potentialReturn":0,"riskReward":"","timeframe":"","movingAvg50":0,"movingAvg200":0,"above50DMA":true,"above200DMA":true,"technicalSummary":""},"fitScore":0,"fitRating":"Strong Buy/Buy/Hold/Avoid","fitSummary":"","redFlags":[],"positives":[],"dataNote":""}
-Rules: fitScore 0-100 (fundamental 70%, technical 30%). Strong Buy>=75, Buy>=55, Hold>=35, else Avoid. PAT<=5%->Avoid+redflag. debt/reserve>=50%->flag. mcapToSales>5->flag. Use real current data.`;
+// ── System prompt with hardcoded scoring rules ────────────────────────────────
+const SYS = `You are an expert Indian stock analyst. Search the web for latest data on the given NSE/BSE stock. Return ONLY a raw JSON object — no markdown, no backticks.
 
+SCORING RULES (apply exactly as written, total max 100):
+
+FUNDAMENTAL SCORE (70 pts max — scaled to 60% weight in display):
+Promoter holding >50% → +8
+Promoter holding increasing vs prev quarter → +5
+FII holding increasing → +5
+CFO positive (cash from operations > 0) → +8
+CFO > sum of investing + financing outflows combined → +7
+Debt/Reserve ratio <50% → +8
+PAT margin >10% → +8 | PAT margin 5-10% → +4 | PAT margin <=5% → 0
+Revenue YOY growth positive in both recent years → +8
+PAT YOY growth positive in both recent years → +8
+MCap/Sales <3x → +5 | MCap/Sales 3-5x → +3 | >5x → +0
+QoQ revenue positive in at least 3 of last 4 quarters → +3
+PE ratio <30 → +3 | PE 30-50 → +1
+
+TECHNICAL SCORE (30 pts max — scaled to 20% weight in display):
+Stock price above 200-day DMA → +8
+Stock price above 50-day DMA → +5
+RSI between 40-65 (sweet spot) → +7 | RSI 30-40 or 65-70 → +4 | RSI <30 or >70 → 0
+MACD bullish crossover → +5
+Stock price within 3% above support S1 level → +5
+
+COMMENTARY SCORE (-15 to +15 — scaled to 20% weight in display):
+Revenue guidance raised → +5 | guidance maintained → +2 | guidance cut → -8
+Strong order book mentioned → +4
+Margin expansion expected → +4
+Debt reduction plan announced → +3
+Management change (key executive) → -5
+Regulatory issue flagged → -6
+Auditor concern or qualification → -8
+Promoter pledge increase → -6
+
+FINAL fitScore = clamp(fundamentalScore + technicalScore + commentaryScore, 0, 100)
+RATING: >=75 Strong Buy | >=55 Buy | >=35 Hold | <35 Avoid
+FORCE OVERRIDE: if PAT margin <=5% then fitRating = "Avoid" regardless of score
+
+Return ONLY this JSON (no other text):
+{"company":"","ticker":"","exchange":"NSE/BSE","sector":"","currentPrice":0,"marketCap":"","mcapToSales":0,"peRatio":0,"fundamental":{"publicHolding":0,"promoterHolding":0,"promoterHoldingChange":0,"fiiHoldingChange":0,"cfOperations":0,"cfoPositive":true,"cfoVsOthers":"","debtToReserve":0,"revenueQoQ":[0,0,0,0],"revenueQoQLabels":["Q1FY25","Q2FY25","Q3FY25","Q4FY25"],"patMargin":0,"revenueGrowthYOY":[0,0],"revenueGrowthYOYLabels":["FY24","FY25"],"patGrowthYOY":[0,0],"patGrowthYOYLabels":["FY24","FY25"],"managementCommentary":"","revenueGuidance":"raised/maintained/cut/not given","marginGuidance":"expanding/stable/contracting/not given","demandOutlook":"strong/moderate/weak","majorEvent":"none or brief description"},"technical":{"trend":"Bullish/Bearish/Sideways","rsi":0,"macdSignal":"Bullish crossover/Bearish crossover/Neutral","support1":0,"support2":0,"resistance1":0,"resistance2":0,"entryZone":"","stopLoss":0,"target1":0,"target2":0,"potentialReturn":0,"riskReward":"1:X","timeframe":"Short/Medium-term","movingAvg50":0,"movingAvg200":0,"above50DMA":true,"above200DMA":true,"technicalSummary":""},"scoring":{"fundamentalScore":0,"technicalScore":0,"commentaryScore":0,"fundamentalMax":70,"technicalMax":30,"commentaryRange":"±15","fundamentalBreakdown":["rule: +pts"],"technicalBreakdown":["rule: +pts"],"commentaryBreakdown":["rule: +/-pts"]},"fitScore":0,"fitRating":"Strong Buy/Buy/Hold/Avoid","fitSummary":"","redFlags":[],"positives":[],"dataNote":""}`;
+
+const STEPS=["Fetching shareholding & cash flows…","Analysing revenue & PAT trends…","Searching latest concall commentary…","Running technical analysis…","Applying scoring formula…"];
 const STEPS=["Fetching shareholding…","Analysing cash flows…","Computing P&L trends…","Running technical analysis…","Scoring fit to invest…"];
 let currentData=null,stepIv=null;
 
@@ -361,6 +401,52 @@ function buildResult(d){
   </div>
 </div>
 
+${d.scoring?`
+<div class="card" style="margin-bottom:11px">
+  <div class="st">⚡ Score Breakdown (${d.fitScore}/100)</div>
+  <div class="g3" style="margin-bottom:12px">
+    <div style="background:#111827;border-radius:8px;padding:10px;text-align:center">
+      <div style="color:#64748b;font-size:9px;letter-spacing:1px;margin-bottom:4px">FUNDAMENTAL</div>
+      <div style="font-size:22px;font-weight:800;font-family:monospace;color:#00d4aa">${d.scoring.fundamentalScore||0}</div>
+      <div style="color:#64748b;font-size:9px">/ 60 pts · 60%</div>
+    </div>
+    <div style="background:#111827;border-radius:8px;padding:10px;text-align:center">
+      <div style="color:#64748b;font-size:9px;letter-spacing:1px;margin-bottom:4px">TECHNICAL</div>
+      <div style="font-size:22px;font-weight:800;font-family:monospace;color:#38bdf8">${d.scoring.technicalScore||0}</div>
+      <div style="color:#64748b;font-size:9px">/ 20 pts · 20%</div>
+    </div>
+    <div style="background:#111827;border-radius:8px;padding:10px;text-align:center">
+      <div style="color:#64748b;font-size:9px;letter-spacing:1px;margin-bottom:4px">COMMENTARY</div>
+      <div style="font-size:22px;font-weight:800;font-family:monospace;color:${(d.scoring.commentaryScore||0)>=0?"#22c55e":"#ef4444"}">${(d.scoring.commentaryScore||0)>0?"+":""}${d.scoring.commentaryScore||0}</div>
+      <div style="color:#64748b;font-size:9px">/ 20 pts · 20%</div>
+    </div>
+  </div>
+  ${d.scoring.fundamentalBreakdown?.length?`<div style="margin-bottom:8px"><div style="color:#00d4aa;font-size:9px;font-weight:700;letter-spacing:1px;margin-bottom:5px">FUNDAMENTAL</div><div style="display:flex;flex-wrap:wrap;gap:4px">${d.scoring.fundamentalBreakdown.map(b=>`<span style="background:#00d4aa11;color:#00d4aa;border:1px solid #00d4aa22;border-radius:10px;padding:2px 8px;font-size:10px">${b}</span>`).join("")}</div></div>`:""}
+  ${d.scoring.technicalBreakdown?.length?`<div style="margin-bottom:8px"><div style="color:#38bdf8;font-size:9px;font-weight:700;letter-spacing:1px;margin-bottom:5px">TECHNICAL</div><div style="display:flex;flex-wrap:wrap;gap:4px">${d.scoring.technicalBreakdown.map(b=>`<span style="background:#38bdf811;color:#38bdf8;border:1px solid #38bdf822;border-radius:10px;padding:2px 8px;font-size:10px">${b}</span>`).join("")}</div></div>`:""}
+  ${d.scoring.commentaryBreakdown?.length?`<div><div style="color:#8b5cf6;font-size:9px;font-weight:700;letter-spacing:1px;margin-bottom:5px">COMMENTARY</div><div style="display:flex;flex-wrap:wrap;gap:4px">${d.scoring.commentaryBreakdown.map(b=>`<span style="background:#8b5cf611;color:#8b5cf6;border:1px solid #8b5cf622;border-radius:10px;padding:2px 8px;font-size:10px">${b}</span>`).join("")}</div></div>`:""}
+</div>`:""}
+
+${d.scoring?`<div class="card" style="margin-bottom:11px">
+  <div class="st">⚡ Score Breakdown</div>
+  <div class="g3" style="margin-bottom:11px">
+    <div class="pb"><div class="pl">FUNDAMENTAL — 60% WEIGHT</div><div class="pv" style="color:#38bdf8">${d.scoring.fundamentalScore||0}<span style="font-size:9px;color:#64748b">/70</span></div></div>
+    <div class="pb"><div class="pl">TECHNICAL — 20% WEIGHT</div><div class="pv" style="color:#a78bfa">${d.scoring.technicalScore||0}<span style="font-size:9px;color:#64748b">/30</span></div></div>
+    <div class="pb"><div class="pl">COMMENTARY — 20% WEIGHT</div><div class="pv" style="color:${(d.scoring.commentaryScore||0)>=0?"#22c55e":"#ef4444"}">${(d.scoring.commentaryScore||0)>0?"+":""}${d.scoring.commentaryScore||0}<span style="font-size:9px;color:#64748b">±15</span></div></div>
+  </div>
+  <div style="margin-bottom:8px">
+    <div style="color:#64748b;font-size:10px;margin-bottom:5px;letter-spacing:1px">FUNDAMENTAL — 60% WEIGHT</div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px">${(d.scoring.fundamentalBreakdown||[]).map(b=>`<span style="background:#38bdf811;color:#38bdf8;border:1px solid #38bdf822;border-radius:10px;padding:2px 7px;font-size:10px">${b}</span>`).join("")}</div>
+  </div>
+  <div style="margin-bottom:8px">
+    <div style="color:#64748b;font-size:10px;margin-bottom:5px;letter-spacing:1px">TECHNICAL — 20% WEIGHT</div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px">${(d.scoring.technicalBreakdown||[]).map(b=>`<span style="background:#a78bfa11;color:#a78bfa;border:1px solid #a78bfa22;border-radius:10px;padding:2px 7px;font-size:10px">${b}</span>`).join("")}</div>
+  </div>
+  <div>
+    <div style="color:#64748b;font-size:10px;margin-bottom:5px;letter-spacing:1px">COMMENTARY — 20% WEIGHT</div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px">${(d.scoring.commentaryBreakdown||[]).map(b=>`<span style="background:${b.includes("-")?"#ef444411":"#22c55e11"};color:${b.includes("-")?"#ef4444":"#22c55e"};border:1px solid ${b.includes("-")?"#ef444433":"#22c55e33"};border-radius:10px;padding:2px 7px;font-size:10px">${b}</span>`).join("")}</div>
+  </div>
+</div>`:""}
+
 <div class="g2" style="margin-bottom:11px">
   ${d.redFlags?.length?`<div class="fbox"><div style="color:#ef4444;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:6px">⚠ RED FLAGS</div>${d.redFlags.map(f=>`<div style="color:#fca5a5;font-size:11px;margin-bottom:3px">• ${f}</div>`).join("")}</div>`:"<div></div>"}
   ${d.positives?.length?`<div class="pbox2"><div style="color:#22c55e;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:6px">✓ POSITIVES</div>${d.positives.map(p=>`<div style="color:#86efac;font-size:11px;margin-bottom:3px">• ${p}</div>`).join("")}</div>`:"<div></div>"}
@@ -387,8 +473,26 @@ function buildResult(d){
     <div><div style="color:#64748b;font-size:10px;margin-bottom:6px">PAT YOY</div>${bars(d.fundamental.patGrowthYOY,d.fundamental.patGrowthYOYLabels,50,"#22c55e")}</div>
   </div>
   <div class="cbox">
-    <div style="color:#00d4aa;font-size:10px;letter-spacing:2px;margin-bottom:4px;font-weight:700">MANAGEMENT COMMENTARY</div>
-    <div style="color:#94a3b8;font-size:12px;line-height:1.6">${d.fundamental.managementCommentary}</div>
+    <div style="color:#00d4aa;font-size:10px;letter-spacing:2px;margin-bottom:7px;font-weight:700">MANAGEMENT COMMENTARY</div>
+    <div style="color:#94a3b8;font-size:12px;line-height:1.6;margin-bottom:9px">${d.fundamental.managementCommentary}</div>
+    <div class="g2" style="gap:6px">
+      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px">
+        <div style="color:#64748b;font-size:9px;letter-spacing:1px;margin-bottom:2px">REVENUE GUIDANCE</div>
+        <div style="font-weight:700;font-size:11px;color:${d.fundamental.revenueGuidance==="raised"?"#22c55e":d.fundamental.revenueGuidance==="cut"?"#ef4444":"#f59e0b"}">${(d.fundamental.revenueGuidance||"--").toUpperCase()}</div>
+      </div>
+      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px">
+        <div style="color:#64748b;font-size:9px;letter-spacing:1px;margin-bottom:2px">MARGIN GUIDANCE</div>
+        <div style="font-weight:700;font-size:11px;color:${d.fundamental.marginGuidance==="expanding"?"#22c55e":d.fundamental.marginGuidance==="contracting"?"#ef4444":"#f59e0b"}">${(d.fundamental.marginGuidance||"--").toUpperCase()}</div>
+      </div>
+      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px">
+        <div style="color:#64748b;font-size:9px;letter-spacing:1px;margin-bottom:2px">DEMAND OUTLOOK</div>
+        <div style="font-weight:700;font-size:11px;color:${d.fundamental.demandOutlook==="strong"?"#22c55e":d.fundamental.demandOutlook==="weak"?"#ef4444":"#f59e0b"}">${(d.fundamental.demandOutlook||"--").toUpperCase()}</div>
+      </div>
+      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px">
+        <div style="color:#64748b;font-size:9px;letter-spacing:1px;margin-bottom:2px">MAJOR EVENT</div>
+        <div style="font-weight:700;font-size:10px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.fundamental.majorEvent||"--"}</div>
+      </div>
+    </div>
   </div>
 </div>
 
