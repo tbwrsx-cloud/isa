@@ -18,68 +18,60 @@ const ml=document.createElement("link");ml.rel="manifest";ml.href=URL.createObje
 html,body{height:100%;overflow:hidden}
 body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-serif;font-size:14px}
 #app{height:100vh;display:flex;flex-direction:column;overflow:hidden}
-#setupScreen{position:fixed;inset:0;background:#0a0e1a;z-index:999;display:flex;flex-direction:column;align-items:center;padding:20px;overflow-y:auto}
-.sc{background:#111827;border:1px solid #1e2d45;border-radius:16px;padding:22px 18px;width:100%;max-width:440px;margin:auto}
-.s-inp{background:#0a0e1a;border:1px solid #1e2d45;border-radius:8px;padding:11px 38px 11px 12px;color:#e2e8f0;font-size:12px;width:100%;outline:none;font-family:monospace}
+#setupScreen{position:fixed;inset:0;background:#0a0e1a;z-index:999;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:28px 24px}
+.setup-card{background:#111827;border:1px solid #1e2d45;border-radius:16px;padding:28px 22px;width:100%;max-width:420px}
+.setup-logo{text-align:center;margin-bottom:24px}
+.s-inp{background:#0a0e1a;border:1px solid #1e2d45;border-radius:8px;padding:12px 42px 12px 13px;color:#e2e8f0;font-size:13px;width:100%;outline:none;font-family:monospace}
 .s-inp:focus{border-color:#00d4aa}
-.s-wrap{position:relative;margin-bottom:10px}
-.eye{position:absolute;right:9px;top:50%;transform:translateY(-50%);background:none;border:none;color:#64748b;font-size:16px;cursor:pointer;padding:0}
-.s-hint{background:#00d4aa0d;border:1px solid #00d4aa22;border-radius:7px;padding:10px;margin-bottom:14px;font-size:11px;color:#64748b;line-height:1.5}
+.s-hint{background:#00d4aa0d;border:1px solid #00d4aa22;border-radius:8px;padding:12px;margin-bottom:18px;font-size:11px;color:#64748b;line-height:1.6}
 .s-hint a{color:#00d4aa;text-decoration:none}
-.btn-launch{background:#00d4aa;color:#000;border:none;border-radius:9px;padding:13px;font-weight:800;font-size:14px;width:100%;cursor:pointer}
-.s-err{color:#ef4444;font-size:11px;margin-top:5px;text-align:center;min-height:14px}
-.s-lbl{color:#94a3b8;font-size:11px;margin-bottom:4px;display:block;font-weight:600}
-.s-sec{color:#00d4aa;font-size:10px;font-weight:700;letter-spacing:2px;margin:14px 0 9px;text-transform:uppercase;border-top:1px solid #1e2d45;padding-top:12px}
+.s-wrap{position:relative;margin-bottom:14px}
+.eye{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:#64748b;font-size:18px;cursor:pointer;padding:4px}
+.btn-launch{background:#00d4aa;color:#000;border:none;border-radius:9px;padding:14px;font-weight:800;font-size:14px;width:100%;cursor:pointer}
+.s-err{color:#ef4444;font-size:12px;margin-top:8px;text-align:center;min-height:16px}
 #mainApp{display:none;flex-direction:column;height:100%}
-#hdr{background:linear-gradient(135deg,#0d1929,#0a0e1a);border-bottom:1px solid #1e2d45;padding:11px 12px 9px;flex-shrink:0}
+#hdr{background:linear-gradient(135deg,#0d1929,#0a0e1a);border-bottom:1px solid #1e2d45;padding:13px 13px 11px;flex-shrink:0}
 #tabs{display:flex;border-bottom:1px solid #1e2d45;background:#111827;flex-shrink:0}
 #content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:30px}
-.tb{flex:1;padding:10px 0;background:none;border:none;border-bottom:2px solid transparent;color:#64748b;font-weight:700;font-size:11px;cursor:pointer}
+.tb{flex:1;padding:11px 0;background:none;border:none;border-bottom:2px solid transparent;color:#64748b;font-weight:700;font-size:12px;cursor:pointer}
 .tb.active{color:#00d4aa;border-bottom-color:#00d4aa}
-.card{background:#161d2e;border:1px solid #1e2d45;border-radius:11px;padding:13px 12px;margin-bottom:10px}
-.st{color:#00d4aa;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:10px;font-family:monospace;text-transform:uppercase}
-.mr{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #1e2d45}
-.ml{color:#64748b;font-size:12px}.mv{font-family:monospace;font-weight:600;font-size:12px;color:#e2e8f0}
+.card{background:#161d2e;border:1px solid #1e2d45;border-radius:11px;padding:14px 13px;margin-bottom:11px}
+.st{color:#00d4aa;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:11px;font-family:monospace;text-transform:uppercase}
+.mr{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #1e2d45}
+.ml{color:#64748b;font-size:12px}
+.mv{font-family:monospace;font-weight:600;font-size:12px;color:#e2e8f0}
 .mv.g{color:#22c55e}.mv.b{color:#ef4444}.mv.w{color:#f59e0b}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
-.bdg{border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;font-family:monospace;display:inline-block;margin-right:4px;margin-bottom:3px}
-.pb{background:#111827;border-radius:7px;padding:7px 4px;text-align:center}
-.pb .pl{color:#64748b;font-size:9px;margin-bottom:2px}
-.pb .pv{font-weight:700;font-size:12px;font-family:monospace}
-.tbox{background:linear-gradient(135deg,#0f2a1e,#0a1f1a);border:1px solid #22c55e33;border-radius:9px;padding:11px;margin-bottom:9px}
-.cbox{background:#111827;border-left:3px solid #00d4aa;border-radius:6px;padding:10px;margin-top:10px}
-.obox{background:#111827;border-left:3px solid #38bdf8;border-radius:6px;padding:10px;margin-top:8px}
-.fbox{background:#ef444410;border:1px solid #ef444444;border-radius:9px;padding:10px}
-.pbox2{background:#22c55e10;border:1px solid #22c55e44;border-radius:9px;padding:10px}
-.mbar{margin-bottom:7px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.bdg{border-radius:4px;padding:2px 9px;font-size:11px;font-weight:700;font-family:monospace;display:inline-block;margin-right:4px;margin-bottom:3px}
+.pb{background:#111827;border-radius:7px;padding:8px 5px;text-align:center}
+.pb .pl{color:#64748b;font-size:10px;margin-bottom:3px}
+.pb .pv{font-weight:700;font-size:13px;font-family:monospace}
+.tbox{background:linear-gradient(135deg,#0f2a1e,#0a1f1a);border:1px solid #22c55e33;border-radius:9px;padding:12px;margin-bottom:10px}
+.cbox{background:#111827;border-left:3px solid #00d4aa;border-radius:6px;padding:11px;margin-top:11px}
+.obox{background:#111827;border-left:3px solid #38bdf8;border-radius:6px;padding:11px;margin-top:9px}
+.fbox{background:#ef444410;border:1px solid #ef444444;border-radius:9px;padding:11px}
+.pbox2{background:#22c55e10;border:1px solid #22c55e44;border-radius:9px;padding:11px}
+.mbar{margin-bottom:8px}
 .mbt{background:#1e2d45;border-radius:3px;height:5px;margin-top:2px}
 .mbf{border-radius:3px;height:5px}
 .abtn{border:none;border-radius:8px;padding:10px 0;font-weight:700;font-size:12px;cursor:pointer;width:100%}
-.ag{background:#00d4aa;color:#000}.ag:disabled{background:#1e2d45;color:#64748b;cursor:not-allowed}
+.ag{background:#00d4aa;color:#000}
+.ag:disabled{background:#1e2d45;color:#64748b;cursor:not-allowed}
 .ar{background:#22c55e18;color:#22c55e;border:1px solid #22c55e44}
 .ah{background:#00d4aa18;color:#00d4aa;border:1px solid #00d4aa44}
-.ap{background:#8b5cf618;color:#8b5cf6;border:1px solid #8b5cf644}
-.inp{background:#111827;border:1px solid #1e2d45;border-radius:8px;padding:9px 11px;color:#e2e8f0;font-size:13px;width:100%;outline:none}
+.inp{background:#111827;border:1px solid #1e2d45;border-radius:8px;padding:10px 12px;color:#e2e8f0;font-size:13px;width:100%;outline:none}
 .inp:focus{border-color:#00d4aa}
 .chip{background:#00d4aa18;border:1px solid #00d4aa33;border-radius:20px;padding:3px 10px;color:#00d4aa;font-size:10px;cursor:pointer;white-space:nowrap}
-.hi{background:#161d2e;border:1px solid #1e2d45;border-radius:10px;padding:11px;margin-bottom:9px;display:flex;align-items:center;gap:10px;cursor:pointer}
+.hi{background:#161d2e;border:1px solid #1e2d45;border-radius:10px;padding:12px;margin-bottom:10px;display:flex;align-items:center;gap:11px;cursor:pointer}
 .hi:active{background:#1e2d45}
 .spin{font-size:30px;display:inline-block;animation:spin 1.8s linear infinite}
 @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
-.empty{text-align:center;padding:50px 20px;color:#64748b}
+.empty{text-align:center;padding:55px 20px;color:#64748b}
 .ebox{background:#ef444415;border:1px solid #ef444444;border-radius:9px;padding:12px;margin:12px;color:#ef4444;font-size:12px;line-height:1.5}
-.hero{background:linear-gradient(135deg,#111827,#0f1f35);border:1px solid #1e2d45;border-radius:13px;padding:14px;margin-bottom:10px}
+.hero{background:linear-gradient(135deg,#111827,#0f1f35);border:1px solid #1e2d45;border-radius:13px;padding:15px;margin-bottom:11px}
 .disc{color:#64748b;font-size:10px;text-align:center;line-height:1.7;padding:4px 14px 10px}
-.sbadge{display:inline-flex;align-items:center;gap:3px;font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600}
-.sf{background:#00d4aa18;color:#00d4aa;border:1px solid #00d4aa33}
-.sa{background:#8b5cf618;color:#8b5cf6;border:1px solid #8b5cf633}
-.gtt-inp{background:#111827;border:1px solid #1e2d45;border-radius:7px;padding:9px;color:#e2e8f0;font-size:13px;width:100%;outline:none;font-family:monospace}
-.gtt-inp:focus{border-color:#00d4aa}
-.sdot{width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:3px}
-.ulogin{background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;border:none;border-radius:8px;padding:11px;font-weight:700;font-size:13px;width:100%;cursor:pointer;margin-bottom:7px}
-.gtt-item{background:#161d2e;border:1px solid #1e2d45;border-radius:9px;padding:11px;margin-bottom:8px}
 ::-webkit-scrollbar{width:3px}
 ::-webkit-scrollbar-thumb{background:#1e2d45;border-radius:2px}
 </style>
@@ -87,33 +79,24 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
 <body>
 <div id="app">
 
-<!-- Setup -->
+<!-- Setup Screen -->
 <div id="setupScreen">
-  <div class="sc">
-    <div style="text-align:center;margin-bottom:18px">
-      <span style="font-size:38px;display:block;margin-bottom:5px">📊</span>
-      <div style="color:#00d4aa;font-weight:800;font-size:19px">IndiaStock Analyser</div>
-      <div style="color:#64748b;font-size:11px;margin-top:2px">v4 · Upstox + Claude AI · One-time setup</div>
+  <div class="setup-card">
+    <div class="setup-logo">
+      <span style="font-size:46px;display:block;margin-bottom:8px">📊</span>
+      <div style="color:#00d4aa;font-weight:800;font-size:21px">IndiaStock Analyser</div>
+      <div style="color:#64748b;font-size:12px;margin-top:3px">NSE / BSE · AI-powered · One-time setup</div>
     </div>
-
-    <div class="s-sec" style="border-top:none;padding-top:0;margin-top:0">🤖 Claude AI (for commentary)</div>
-    <label class="s-lbl">Anthropic API Key <span style="color:#ef4444">*</span></label>
-    <div class="s-wrap"><input id="sCK" class="s-inp" type="password" placeholder="sk-ant-api03-…" autocomplete="off"/><button class="eye" onclick="tEye('sCK')">👁</button></div>
-    <div class="s-hint">🔒 Stored only on device. Get at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> → API Keys</div>
-
-    <div class="s-sec">📈 Upstox Analytics (live market data)</div>
-    <label class="s-lbl">Analytics Access Token <span style="color:#ef4444">*</span></label>
-    <div class="s-wrap"><input id="sAT" class="s-inp" type="password" placeholder="Paste analytics token…" autocomplete="off"/><button class="eye" onclick="tEye('sAT')">👁</button></div>
-    <div class="s-hint">Generate at <a href="https://account.upstox.com/developer/apps" target="_blank">account.upstox.com/developer</a> → Analytics → Generate Token. Valid 1 year.</div>
-
-    <div class="s-sec">📋 Upstox Algo (GTT orders — optional)</div>
-    <label class="s-lbl">API Key</label>
-    <div class="s-wrap"><input id="sAlgoK" class="s-inp" type="password" placeholder="Algo app API key…" autocomplete="off"/><button class="eye" onclick="tEye('sAlgoK')">👁</button></div>
-    <label class="s-lbl">API Secret</label>
-    <div class="s-wrap"><input id="sAlgoS" class="s-inp" type="password" placeholder="Algo app API secret…" autocomplete="off"/><button class="eye" onclick="tEye('sAlgoS')">👁</button></div>
-    <div class="s-hint">From Upstox Developer → Algo Trading app. Used only for placing GTT orders.</div>
-
-    <button class="btn-launch" onclick="saveSetup()">Save &amp; Launch →</button>
+    <label style="color:#94a3b8;font-size:12px;margin-bottom:6px;display:block">Anthropic API Key</label>
+    <div class="s-wrap">
+      <input id="apiKeyInput" class="s-inp" type="password" placeholder="sk-ant-api03-…" autocomplete="off" spellcheck="false"/>
+      <button class="eye" onclick="toggleEye('apiKeyInput','e1')" id="e1">👁</button>
+    </div>
+    <div class="s-hint">
+      <span style="color:#f59e0b;font-weight:700">🔒 Stored only on this device</span> — never sent anywhere except Anthropic's API.<br/><br/>
+      Get your free key at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> → API Keys → Create Key.
+    </div>
+    <button class="btn-launch" onclick="saveKey()">Save Key &amp; Launch →</button>
     <div class="s-err" id="setupErr"></div>
   </div>
 </div>
@@ -121,125 +104,84 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
 <!-- Main App -->
 <div id="mainApp">
   <div id="hdr">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1px">
-      <div style="display:flex;align-items:center;gap:6px">
-        <span style="font-size:15px">📊</span>
-        <span style="color:#00d4aa;font-weight:800;font-size:15px">IndiaStock</span>
-        <span style="color:#64748b;font-size:13px;font-weight:300">v4</span>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+      <div style="display:flex;align-items:center;gap:7px">
+        <span style="font-size:17px">📊</span>
+        <span style="color:#00d4aa;font-weight:800;font-size:16px">IndiaStock</span>
+        <span style="color:#64748b;font-size:16px;font-weight:300">Analyser</span>
       </div>
-      <div style="display:flex;align-items:center;gap:6px">
-        <span id="statusBadge" style="font-size:10px;color:#64748b"></span>
-        <button onclick="switchTab('settings')" style="background:none;border:none;color:#64748b;font-size:15px;cursor:pointer">⚙</button>
+      <div style="display:flex;align-items:center;gap:7px">
+        <span style="display:flex;align-items:center;gap:4px;font-size:11px;color:#22c55e"><span style="width:6px;height:6px;border-radius:50%;background:#22c55e;display:inline-block"></span>Key set</span>
+        <button onclick="resetKey()" style="font-size:11px;color:#64748b;background:none;border:none;cursor:pointer;text-decoration:underline">Change</button>
       </div>
     </div>
-    <div style="color:#64748b;font-size:10px;margin-bottom:10px">Upstox live data · Formula score · AI commentary</div>
-    <div style="display:flex;gap:7px;margin-bottom:7px">
-      <input id="scripInput" class="inp" placeholder="Search by name or NSE symbol…" style="flex:1;font-size:12px"/>
-      <button id="goBtn" class="abtn ag" style="width:auto;padding:9px 15px" onclick="analyze()">Go</button>
+    <div style="color:#64748b;font-size:10px;margin-bottom:11px">NSE/BSE · AI + Live Web Search · History saved locally</div>
+    <div style="display:flex;gap:7px;margin-bottom:8px">
+      <input id="scripInput" class="inp" placeholder="Scrip name or ticker…" style="flex:1"/>
+      <button id="goBtn" class="abtn ag" style="width:auto;padding:10px 18px" onclick="analyze()">Go</button>
     </div>
     <div style="display:flex;gap:5px;flex-wrap:wrap">
-      <span class="chip" onclick="selectSym('RELIANCE','Reliance Industries','Energy')">Reliance</span>
-      <span class="chip" onclick="selectSym('INFY','Infosys','IT')">Infosys</span>
-      <span class="chip" onclick="selectSym('HDFCBANK','HDFC Bank','Banking')">HDFC Bank</span>
-      <span class="chip" onclick="selectSym('TATAMOTORS','Tata Motors','Auto')">Tata Motors</span>
-      <span class="chip" onclick="selectSym('ZOMATO','Zomato','Food Tech')">Zomato</span>
-      <span class="chip" onclick="selectSym('ITC','ITC','FMCG')">ITC</span>
+      <span class="chip" onclick="setQ('Infosys')">Infosys</span>
+      <span class="chip" onclick="setQ('RELIANCE')">RELIANCE</span>
+      <span class="chip" onclick="setQ('HDFC Bank')">HDFC Bank</span>
+      <span class="chip" onclick="setQ('Tata Motors')">Tata Motors</span>
+      <span class="chip" onclick="setQ('Zomato')">Zomato</span>
+      <span class="chip" onclick="setQ('ITC')">ITC</span>
+      <span class="chip" onclick="setQ('Wipro')">Wipro</span>
     </div>
   </div>
 
   <div id="tabs">
-    <button class="tb active" id="tab-analyse" onclick="switchTab('analyse')">📊 Analyse</button>
+    <button class="tb active" id="tab-analyse" onclick="switchTab('analyse')">📊 Analysis</button>
     <button class="tb" id="tab-history" onclick="switchTab('history')">🗂 History (<span id="histCount">0</span>)</button>
-    <button class="tb" id="tab-gtt" onclick="switchTab('gtt')">📋 GTT</button>
-    <button class="tb" id="tab-settings" onclick="switchTab('settings')">⚙ Setup</button>
+    <button class="tb" id="tab-settings" onclick="switchTab('settings')">⚙ Settings</button>
   </div>
 
   <div id="content">
-    <!-- Analyse -->
     <div id="view-analyse">
       <div class="empty" id="emptyState">
-        <div style="font-size:40px;margin-bottom:10px">🇮🇳</div>
-        <div style="font-size:13px">Enter NSE symbol to begin</div>
-        <div style="font-size:11px;margin-top:3px">Live Upstox data · Transparent formula score</div>
+        <div style="font-size:42px;margin-bottom:11px">🇮🇳</div>
+        <div style="font-size:13px">Enter any NSE / BSE scrip to begin</div>
+        <div style="font-size:11px;margin-top:4px">History saved permanently on your device</div>
       </div>
-      <div id="loadingState" style="display:none;text-align:center;padding:50px 0">
+      <div id="loadingState" style="display:none;text-align:center;padding:55px 0">
         <div class="spin">⚙️</div>
-        <div id="progressTxt" style="color:#00d4aa;font-size:12px;font-family:monospace;margin-top:12px"></div>
+        <div id="progressTxt" style="color:#00d4aa;font-size:12px;font-family:monospace;margin-top:13px"></div>
       </div>
       <div id="errorState" style="display:none"></div>
-      <div id="resultState" style="display:none;padding:0 11px"></div>
+      <div id="resultState" style="display:none;padding:0 12px"></div>
     </div>
 
-    <!-- History -->
-    <div id="view-history" style="display:none;padding:12px"><div id="historyList"></div></div>
-
-    <!-- GTT -->
-    <div id="view-gtt" style="display:none;padding:12px">
-      <div id="gttLogin" style="display:none" class="card">
-        <div class="st">🔐 Login Required for GTT</div>
-        <div style="color:#64748b;font-size:12px;margin-bottom:12px;line-height:1.5">Login with Upstox to place and manage GTT orders. Token is valid for 1 trading day.</div>
-        <button class="ulogin" onclick="upstoxLogin()">🔗 Login with Upstox</button>
-        <div style="text-align:center;margin-top:5px">
-          <button onclick="document.getElementById('manualTokenWrap').style.display='block'" style="background:none;border:none;color:#64748b;font-size:11px;cursor:pointer;text-decoration:underline">Paste token manually</button>
-        </div>
-        <div id="manualTokenWrap" style="display:none;margin-top:10px">
-          <div class="s-wrap"><input id="manualTok" class="inp" type="password" placeholder="Upstox access token…"/></div>
-          <button onclick="saveManualToken()" style="background:#00d4aa;color:#000;border:none;border-radius:7px;padding:9px;font-weight:700;font-size:12px;width:100%;cursor:pointer">Save Token</button>
-        </div>
-      </div>
-      <div id="gttMain" style="display:none">
-        <div class="g2" style="margin-bottom:12px">
-          <button onclick="loadGTTOrders()" class="abtn ah">🔄 Refresh</button>
-          <button onclick="toggleNewGTT()" class="abtn ag">+ New GTT</button>
-        </div>
-        <div id="newGTTWrap" style="display:none" class="card">
-          <div class="st">Place GTT Order</div>
-          <div class="g2" style="margin-bottom:9px">
-            <button id="btnBuy" onclick="setGTTType('BUY')" style="background:#22c55e33;color:#22c55e;border:1px solid #22c55e44;border-radius:7px;padding:9px;font-weight:700;cursor:pointer">BUY</button>
-            <button id="btnSell" onclick="setGTTType('SELL')" style="background:#111827;color:#64748b;border:1px solid #1e2d45;border-radius:7px;padding:9px;font-weight:700;cursor:pointer">SELL</button>
-          </div>
-          <label class="s-lbl">Symbol</label><input id="gSym" class="gtt-inp" style="margin-bottom:8px" placeholder="RELIANCE"/>
-          <label class="s-lbl">Trigger Price (₹)</label><input id="gTrig" class="gtt-inp" style="margin-bottom:8px" type="number"/>
-          <label class="s-lbl">Limit Price (₹)</label><input id="gLim" class="gtt-inp" style="margin-bottom:8px" type="number"/>
-          <label class="s-lbl">Quantity</label><input id="gQty" class="gtt-inp" style="margin-bottom:11px" type="number" value="1"/>
-          <button onclick="placeGTT()" style="background:#00d4aa;color:#000;border:none;border-radius:8px;padding:11px;font-weight:800;font-size:13px;width:100%;cursor:pointer">Confirm &amp; Place</button>
-          <div id="gttMsg" style="font-size:11px;text-align:center;margin-top:6px;min-height:14px"></div>
-        </div>
-        <div id="gttList"></div>
-      </div>
+    <div id="view-history" style="display:none;padding:13px">
+      <div id="historyList"></div>
     </div>
 
-    <!-- Settings -->
-    <div id="view-settings" style="display:none;padding:12px">
+    <div id="view-settings" style="display:none;padding:14px">
       <div class="card">
-        <div class="st">🤖 Claude API Key</div>
-        <div class="s-wrap" style="margin-bottom:8px"><input id="setCK" class="inp" type="password" placeholder="sk-ant-…" autocomplete="off" style="padding-right:36px"/><button class="eye" onclick="tEye('setCK')" style="position:absolute;right:9px;top:50%;transform:translateY(-50%);background:none;border:none;color:#64748b;font-size:16px;cursor:pointer">👁</button></div>
-        <button onclick="upd('claude')" style="background:#00d4aa;color:#000;border:none;border-radius:7px;padding:9px;font-weight:700;font-size:12px;width:100%;cursor:pointer">Update</button>
+        <div class="st">⚙ API Key</div>
+        <div style="color:#64748b;font-size:12px;margin-bottom:13px;line-height:1.6">Update your Anthropic API key. The key is stored only on this device.</div>
+        <div class="s-wrap" style="margin-bottom:11px">
+          <input id="settingsKey" class="inp" type="password" placeholder="sk-ant-api03-…" autocomplete="off" spellcheck="false" style="padding-right:42px"/>
+          <button class="eye" onclick="toggleEye('settingsKey','e2')" id="e2">👁</button>
+        </div>
+        <button onclick="updateKey()" style="background:#00d4aa;color:#000;border:none;border-radius:8px;padding:11px;font-weight:700;font-size:13px;width:100%;cursor:pointer;margin-bottom:9px">Update Key</button>
+        <button onclick="clearAll()" style="background:#ef444418;color:#ef4444;border:1px solid #ef444433;border-radius:8px;padding:11px;font-weight:700;font-size:13px;width:100%;cursor:pointer">🗑 Clear All Data &amp; Reset</button>
+        <div style="margin-top:12px;border-top:1px solid #1e2d45;padding-top:12px">
+          <div style="color:#94a3b8;font-size:11px;margin-bottom:8px;font-weight:700">HISTORY MIGRATION</div>
+          <div style="color:#64748b;font-size:11px;margin-bottom:8px;line-height:1.5">If your old history did not load automatically, tap below to force migrate it.</div>
+          <button onclick="forceMigrate()" style="background:#f59e0b18;color:#f59e0b;border:1px solid #f59e0b44;border-radius:8px;padding:11px;font-weight:700;font-size:13px;width:100%;cursor:pointer;margin-bottom:8px">🔄 Force Migrate Old History</button>
+          <button onclick="showStorageDebug()" style="background:#38bdf818;color:#38bdf8;border:1px solid #38bdf844;border-radius:8px;padding:10px;font-weight:700;font-size:12px;width:100%;cursor:pointer">🔍 Show Storage Debug Info</button>
+          <div id="migrateMsg" style="font-size:11px;text-align:center;margin-top:7px;min-height:14px;line-height:1.5"></div>
+        </div>
+        <div id="settingsMsg" style="color:#22c55e;font-size:12px;text-align:center;margin-top:7px;min-height:16px"></div>
       </div>
       <div class="card">
-        <div class="st">📈 Upstox Analytics Token</div>
-        <div class="s-wrap" style="margin-bottom:8px"><input id="setAT" class="inp" type="password" placeholder="Analytics token…" autocomplete="off" style="padding-right:36px"/><button class="eye" onclick="tEye('setAT')" style="position:absolute;right:9px;top:50%;transform:translateY(-50%);background:none;border:none;color:#64748b;font-size:16px;cursor:pointer">👁</button></div>
-        <button onclick="upd('analytics')" style="background:#00d4aa;color:#000;border:none;border-radius:7px;padding:9px;font-weight:700;font-size:12px;width:100%;cursor:pointer">Update</button>
-      </div>
-      <div class="card">
-        <div class="st">📋 Upstox Algo (GTT)</div>
-        <label class="s-lbl">API Key</label>
-        <div class="s-wrap" style="margin-bottom:8px"><input id="setAlgoK" class="inp" type="password" placeholder="Algo API key…" autocomplete="off" style="padding-right:36px"/><button class="eye" onclick="tEye('setAlgoK')" style="position:absolute;right:9px;top:50%;transform:translateY(-50%);background:none;border:none;color:#64748b;font-size:16px;cursor:pointer">👁</button></div>
-        <label class="s-lbl">API Secret</label>
-        <div class="s-wrap" style="margin-bottom:8px"><input id="setAlgoS" class="inp" type="password" placeholder="Algo API secret…" autocomplete="off" style="padding-right:36px"/><button class="eye" onclick="tEye('setAlgoS')" style="position:absolute;right:9px;top:50%;transform:translateY(-50%);background:none;border:none;color:#64748b;font-size:16px;cursor:pointer">👁</button></div>
-        <button onclick="upd('algo')" style="background:#00d4aa;color:#000;border:none;border-radius:7px;padding:9px;font-weight:700;font-size:12px;width:100%;cursor:pointer;margin-bottom:8px">Update Algo Credentials</button>
-        <button class="ulogin" style="margin-bottom:0" onclick="upstoxLogin()">🔗 Login with Upstox (daily token)</button>
-      </div>
-      <div class="card">
-        <div class="st">🔄 History Tools</div>
-        <button onclick="forceMigrate()" style="background:#f59e0b18;color:#f59e0b;border:1px solid #f59e0b44;border-radius:7px;padding:9px;font-weight:700;font-size:12px;width:100%;cursor:pointer;margin-bottom:7px">Force Migrate Old History</button>
-        <button onclick="showDebug()" style="background:#38bdf818;color:#38bdf8;border:1px solid #38bdf844;border-radius:7px;padding:9px;font-weight:700;font-size:12px;width:100%;cursor:pointer;margin-bottom:7px">🔍 Storage Debug</button>
-        <button onclick="clearAll()" style="background:#ef444418;color:#ef4444;border:1px solid #ef444433;border-radius:7px;padding:9px;font-weight:700;font-size:12px;width:100%;cursor:pointer">🗑 Clear All Data</button>
-        <div id="setMsg" style="font-size:11px;text-align:center;margin-top:7px;min-height:14px"></div>
-      </div>
-      <div class="card">
-        <div class="st">ℹ About v4</div>
-        <div style="color:#64748b;font-size:12px;line-height:1.7">Data: Upstox Analytics (live)<br/>Score: Hardcoded formula (transparent)<br/>Commentary: Claude AI + 1 web search (~$0.002)<br/>GTT Orders: Upstox Algo API<br/><br/>Not financial advice.</div>
+        <div class="st">ℹ About</div>
+        <div style="color:#64748b;font-size:12px;line-height:1.7">
+          <b style="color:#94a3b8">IndiaStock Analyser v2</b><br/>
+          AI-powered fundamental + technical analysis for NSE/BSE stocks using Anthropic Claude with live web search.<br/><br/>
+          All data stored locally. Not financial advice.
+        </div>
       </div>
     </div>
   </div>
@@ -247,798 +189,56 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
 </div>
 
 <script>
-// ── Config ────────────────────────────────────────────────────
-const REDIR = "https://tbwrsx-cloud.github.io/isa/isa-pwa.html";
-const UPSTOX = "https://api.upstox.com/v2";
-const STEPS = ["Fetching live price from Upstox…","Loading 200-day price history…","Calculating RSI, MACD, DMAs…","Finding support & resistance…","Fetching fundamentals from Screener…","Getting AI commentary…","Finalising fit score…"];
+// ── Compact system prompt (~60% shorter) ──────────────────────────────────────
+const SYS = `Expert Indian stock analyst. Search web for latest data on the given NSE/BSE stock. Return ONLY a raw JSON object, no markdown, no backticks:
+{"company":"","ticker":"","exchange":"NSE/BSE","sector":"","currentPrice":0,"marketCap":"","mcapToSales":0,"peRatio":0,"fundamental":{"publicHolding":0,"promoterHolding":0,"promoterHoldingChange":0,"fiiHoldingChange":0,"cfOperations":0,"cfoPositive":true,"cfoVsOthers":"","debtToReserve":0,"revenueQoQ":[0,0,0,0],"revenueQoQLabels":["Q1FY24","Q2FY24","Q3FY24","Q4FY24"],"patMargin":0,"revenueGrowthYOY":[0,0],"revenueGrowthYOYLabels":["FY23","FY24"],"patGrowthYOY":[0,0],"patGrowthYOYLabels":["FY23","FY24"],"managementCommentary":""},"technical":{"trend":"Bullish/Bearish/Sideways","rsi":0,"macdSignal":"","support1":0,"support2":0,"resistance1":0,"resistance2":0,"entryZone":"","stopLoss":0,"target1":0,"target2":0,"potentialReturn":0,"riskReward":"","timeframe":"","movingAvg50":0,"movingAvg200":0,"above50DMA":true,"above200DMA":true,"technicalSummary":""},"fitScore":0,"fitRating":"Strong Buy/Buy/Hold/Avoid","fitSummary":"","redFlags":[],"positives":[],"dataNote":""}
+Rules: fitScore 0-100 (fundamental 70%, technical 30%). Strong Buy>=75, Buy>=55, Hold>=35, else Avoid. PAT<=5%->Avoid+redflag. debt/reserve>=50%->flag. mcapToSales>5->flag. Use real current data.`;
 
-const CSYS = `You are an expert Indian stock analyst specialising in concall and management commentary analysis.
+const STEPS=["Fetching shareholding…","Analysing cash flows…","Computing P&L trends…","Running technical analysis…","Scoring fit to invest…"];
+let currentData=null,stepIv=null;
 
-Search the web for the LATEST earnings call transcript, concall notes, or quarterly result press release for the given NSE stock. Look at sites like screener.in, trendlyne.com, moneycontrol.com, economictimes.com, bseindia.com announcements.
-
-Analyse the following specific parameters from the management commentary:
-1. REVENUE GUIDANCE: Did they raise, maintain or cut guidance? Any specific revenue/growth target mentioned?
-2. MARGIN GUIDANCE: EBITDA/PAT margin direction. Cost reduction plans?
-3. DEMAND OUTLOOK: Strong/moderate/weak demand commentary. Capacity utilisation?
-4. ORDER BOOK: New order wins, deal pipeline size, order book at highs/lows?
-5. DEBT & CAPEX: Debt reduction plans, capex guidance, fundraising plans?
-6. RED FLAG SIGNALS: Guidance cut, "challenging environment" language, management change, auditor concern, promoter pledge increase, regulatory issues, inventory buildup?
-7. POSITIVE SIGNALS: Guidance raised, strong order book, margin expansion expected, debt-free target, large client wins, government contracts?
-8. COMMENTARY SCORE: Score 0-15 based on: guidance raised+5, maintained+2, cut-8; strong order book+4; margin expansion+4; debt reduction+3; management change-5; regulatory issue-6; auditor concern-8; promoter pledge increase-6.
-
-Return ONLY raw JSON, no markdown, no backticks:
-{"managementCommentary":"2-3 specific sentences with actual numbers/targets from latest concall or result announcement","revenueGuidance":"raised/maintained/cut/not given","marginGuidance":"expanding/stable/contracting/not given","demandOutlook":"strong/moderate/weak","orderBook":"strong/moderate/weak/na","commentaryScore":0,"guidanceChange":"upgraded/maintained/downgraded/na","redFlags":["specific red flags found - max 4"],"positives":["specific positives found - max 4"],"technicalSummary":"2 sentences on current technical setup and near term outlook","fitSummary":"2-3 sentences overall investment summary combining fundamentals and commentary","majorEvent":"any major recent event like acquisition merger fundraise or regulatory action or none"}`;
-
-// ── Storage ───────────────────────────────────────────────────
-const ls = { g:k=>localStorage.getItem(k)||"", s:(k,v)=>localStorage.setItem(k,v), d:k=>localStorage.removeItem(k), gj:k=>{try{return JSON.parse(localStorage.getItem(k)||"[]")}catch(_){return[]}}, sj:(k,v)=>localStorage.setItem(k,JSON.stringify(v)) };
-const getCK=()=>ls.g("isa_ck"), getAT=()=>ls.g("isa_at"), getAlgoK=()=>ls.g("isa_algok"), getAlgoS=()=>ls.g("isa_algos"), getAlgoT=()=>ls.g("isa_algot");
-
-// ── Setup ─────────────────────────────────────────────────────
-function tEye(id){const i=document.getElementById(id);if(i)i.type=i.type==="password"?"text":"password";}
-
-function saveSetup(){
-  const ck=document.getElementById("sCK").value.trim();
-  const at=document.getElementById("sAT").value.trim();
-  if(!ck.startsWith("sk-ant-")){document.getElementById("setupErr").textContent="Invalid Claude key";return;}
-  if(!at){document.getElementById("setupErr").textContent="Analytics token required";return;}
-  ls.s("isa_ck",ck); ls.s("isa_at",at);
-  const ak=document.getElementById("sAlgoK").value.trim();
-  const as_=document.getElementById("sAlgoS").value.trim();
-  if(ak) ls.s("isa_algok",ak);
-  if(as_) ls.s("isa_algos",as_);
-  launch();
+// ── Key management ────────────────────────────────────────────────────────────
+const getKey=()=>localStorage.getItem("isa_k")||"";
+const setKey=k=>localStorage.setItem("isa_k",k.trim());
+function saveKey(){
+  const k=document.getElementById("apiKeyInput").value.trim();
+  if(!k.startsWith("sk-ant-")){document.getElementById("setupErr").textContent="Invalid key — must start with sk-ant-";return;}
+  setKey(k);launchApp();
 }
-
-function upd(type){
-  const msg=document.getElementById("setMsg");
-  if(type==="claude"){const k=document.getElementById("setCK").value.trim();if(!k.startsWith("sk-ant-")){msg.style.color="#ef4444";msg.textContent="Invalid key";return;}ls.s("isa_ck",k);document.getElementById("setCK").value="";}
-  else if(type==="analytics"){const t=document.getElementById("setAT").value.trim();if(!t){msg.style.color="#ef4444";msg.textContent="Empty token";return;}ls.s("isa_at",t);document.getElementById("setAT").value="";updateStatus();}
-  else if(type==="algo"){const k=document.getElementById("setAlgoK").value.trim();const s=document.getElementById("setAlgoS").value.trim();if(k)ls.s("isa_algok",k);if(s)ls.s("isa_algos",s);document.getElementById("setAlgoK").value="";document.getElementById("setAlgoS").value="";}
-  msg.style.color="#22c55e";msg.textContent="✓ Saved!";setTimeout(()=>msg.textContent="",2500);
+function updateKey(){
+  const k=document.getElementById("settingsKey").value.trim();
+  const m=document.getElementById("settingsMsg");
+  if(!k.startsWith("sk-ant-")){m.style.color="#ef4444";m.textContent="Invalid key format.";return;}
+  setKey(k);document.getElementById("settingsKey").value="";
+  m.style.color="#22c55e";m.textContent="✓ Key updated!";
+  setTimeout(()=>m.textContent="",3000);
 }
+function resetKey(){if(confirm("Change API key?")){document.getElementById("mainApp").style.display="none";document.getElementById("setupScreen").style.display="flex";document.getElementById("apiKeyInput").value="";}}
+function clearAll(){if(confirm("Clear all data including history and key?")){localStorage.clear();location.reload();}}
+function toggleEye(id,btnId){const i=document.getElementById(id);i.type=i.type==="password"?"text":"password";}
+function launchApp(){document.getElementById("setupScreen").style.display="none";document.getElementById("mainApp").style.display="flex";updateHistCount();}
 
-function launch(){
-  document.getElementById("setupScreen").style.display="none";
-  document.getElementById("mainApp").style.display="flex";
-  updateHistCount(); updateStatus(); handleOAuth();
-}
-
-function updateStatus(){
-  const el=document.getElementById("statusBadge");if(!el)return;
-  const at=getAT(), algoT=getAlgoT();
-  if(at&&algoT) el.innerHTML=`<span class="sdot" style="background:#22c55e"></span>Data+GTT`;
-  else if(at) el.innerHTML=`<span class="sdot" style="background:#f59e0b"></span>Data only`;
-  else el.innerHTML=`<span class="sdot" style="background:#ef4444"></span>No token`;
-}
-
-window.addEventListener("load",async()=>{
-  // Load NSE symbol DB first (from cache or GitHub)
-  await loadNSEDB();
-  if(getCK()&&getAT()) launch();
-  const si=document.getElementById("scripInput");
-  if(si){
-    si.addEventListener("keydown",e=>{if(e.key==="Enter"){const dd=document.getElementById("symDD");if(dd)dd.remove();analyze();}});
-    si.addEventListener("input",e=>{
-      // Clear stored symbol when user types something new
-      e.target.dataset.sym="";
-      e.target.dataset.name="";
-      showSuggestions(e.target.value);
-    });
-    si.addEventListener("blur",hideSuggestions);
+// ── Init ──────────────────────────────────────────────────────────────────────
+window.addEventListener("load",()=>{
+  if(getKey())launchApp();
+  document.getElementById("apiKeyInput").addEventListener("keydown",e=>{if(e.key==="Enter")saveKey();});
+  document.getElementById("scripInput").addEventListener("keydown",e=>{if(e.key==="Enter")analyze();});
+  if("serviceWorker"in navigator){
+    const sw=`self.addEventListener('install',()=>self.skipWaiting());self.addEventListener('activate',()=>clients.claim());self.addEventListener('fetch',e=>{if(e.request.url.includes('anthropic.com'))return;e.respondWith(fetch(e.request).catch(()=>new Response('Offline')));});`;
+    navigator.serviceWorker.register(URL.createObjectURL(new Blob([sw],{type:"application/javascript"}))).catch(()=>{});
   }
-  if("serviceWorker"in navigator){const sw=`self.addEventListener('install',()=>self.skipWaiting());self.addEventListener('activate',()=>clients.claim());self.addEventListener('fetch',e=>{if(e.request.url.includes('anthropic.com')||e.request.url.includes('upstox.com'))return;e.respondWith(fetch(e.request).catch(()=>new Response('Offline')));});`;navigator.serviceWorker.register(URL.createObjectURL(new Blob([sw],{type:"application/javascript"}))).catch(()=>{});}
 });
 
-// ── OAuth ─────────────────────────────────────────────────────
-function upstoxLogin(){
-  const k=getAlgoK();if(!k){alert("Set Algo API key in Settings first.");return;}
-  window.location.href=`https://api.upstox.com/v2/login/authorization/dialog?response_type=code&client_id=${k}&redirect_uri=${encodeURIComponent(REDIR)}`;
-}
-function handleOAuth(){
-  const p=new URLSearchParams(window.location.search);
-  const code=p.get("code");if(!code)return;
-  window.history.replaceState({},"",window.location.pathname);
-  exchangeToken(code);
-}
-async function exchangeToken(code){
-  const k=getAlgoK(),s=getAlgoS();if(!k||!s)return;
-  try{
-    const r=await fetch(`${UPSTOX}/login/authorization/token`,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded","Accept":"application/json"},body:new URLSearchParams({code,client_id:k,client_secret:s,redirect_uri:REDIR,grant_type:"authorization_code"})});
-    const d=await r.json();
-    if(d.access_token){ls.s("isa_algot",d.access_token);updateStatus();switchTab("gtt");}
-  }catch(e){console.error(e);}
-}
-function saveManualToken(){const t=document.getElementById("manualTok")?.value.trim();if(!t)return;ls.s("isa_algot",t);updateStatus();showGTTMain();}
-
-// ── Upstox API (price + historical only) ─────────────────────
-async function upGet(ep){
-  const r=await fetch(`${UPSTOX}${ep}`,{headers:{"Authorization":`Bearer ${getAT()}`,"Accept":"application/json"}});
-  if(!r.ok)throw new Error(`Upstox API error ${r.status}: ${r.statusText}. Check your Analytics token in Settings.`);
-  return r.json();
-}
-// instrument_key cache: sym -> full ISIN-based key e.g. NSE_EQ|INE002A01018
-const instrKeyCache={};
-
-// Get instrument key — from cache (set by search), or fallback to symbol-based
-// Upstox actually accepts BOTH NSE_EQ|SYMBOL and NSE_EQ|ISIN in some endpoints
-// but the safest approach is to resolve from search first
-function instrKey(sym){
-  return instrKeyCache[sym.toUpperCase()]||`NSE_EQ|${sym.toUpperCase()}`;
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(t){
+  ["analyse","history","settings"].forEach(x=>{
+    document.getElementById("view-"+x).style.display=x===t?"block":"none";
+    document.getElementById("tab-"+x).classList.toggle("active",x===t);
+  });
+  if(t==="history")renderHistory();
 }
 
-// Resolve instrument key via Upstox search — stores ISIN key in cache
-async function resolveInstrKey(sym){
-  // Use cached ISIN key if available (set when user picks from dropdown)
-  const cached=instrKeyCache[sym.toUpperCase()];
-  if(cached)return cached;
-  // Default: symbol-based key works for quotes on most Upstox accounts
-  return `NSE_EQ|${sym.toUpperCase()}`;
-}
-
-
-// ── Symbol search — fuzzy name to NSE symbol ──────────────────
-// ── NSE Stock Database (bundled) ─────────────────────────────
-// NSE symbols loaded from nse-symbols.json (same GitHub domain, no CORS)
-let NSE_DB=[];
-const NSE_DB_URL='./nse-symbols.json';
-const NSE_DB_KEY='isa_nse_db';
-const NSE_DB_AGE_KEY='isa_nse_db_age';
-const NSE_DB_TTL=7*24*60*60*1000; // 7 days
-
-async function loadNSEDB(){
-  // 1. Try localStorage cache first (fastest)
-  try{
-    const age=parseInt(localStorage.getItem(NSE_DB_AGE_KEY)||'0');
-    const cached=localStorage.getItem(NSE_DB_KEY);
-    if(cached&&Date.now()-age<NSE_DB_TTL){
-      NSE_DB=JSON.parse(cached);
-      console.log(`NSE DB from cache: ${NSE_DB.length} stocks`);
-      return;
-    }
-  }catch(_){}
-  // 2. Fetch our curated JSON from same GitHub repo (no CORS, fast)
-  try{
-    const r=await fetch(NSE_DB_URL,{signal:AbortSignal.timeout(8000)});
-    if(r.ok){
-      const data=await r.json();
-      NSE_DB=data;
-      localStorage.setItem(NSE_DB_KEY,JSON.stringify(data));
-      localStorage.setItem(NSE_DB_AGE_KEY,Date.now().toString());
-      console.log(`NSE DB from GitHub: ${NSE_DB.length} stocks`);
-      return;
-    }
-  }catch(e){console.log('GitHub DB fetch failed:',e.message);}
-  // NSE CSV handled via nse-symbols.json (2131 stocks pre-built)
-  // 3. Fallback: small hardcoded list
-  NSE_DB=[
-    ["RELIANCE","Reliance Industries","Energy"],["INFY","Infosys","IT"],
-    ["TCS","Tata Consultancy Services","IT"],["HDFCBANK","HDFC Bank","Banking"],
-    ["ICICIBANK","ICICI Bank","Banking"],["SBIN","State Bank of India","Banking"],
-    ["BHARTIARTL","Bharti Airtel","Telecom"],["WIPRO","Wipro","IT"],
-    ["TITAN","Titan Company","Consumer"],["ITC","ITC","FMCG"],
-    ["AXISBANK","Axis Bank","Banking"],["KOTAKBANK","Kotak Mahindra Bank","Banking"],
-    ["LT","Larsen & Toubro","Infrastructure"],["BAJFINANCE","Bajaj Finance","NBFC"],
-    ["TATAMOTORS","Tata Motors","Auto"],["ZOMATO","Zomato","Food Tech"],
-    ["HCLTECH","HCL Technologies","IT"],["SUNPHARMA","Sun Pharmaceutical","Pharma"],
-    ["MARUTI","Maruti Suzuki","Auto"],["NTPC","NTPC","Power"],
-  ];
-  console.log('Using fallback NSE DB');
-}
-
-// Fuzzy search in bundled DB — runs instantly, no API
-// Local search on bundled DB (instant fallback)
-// ── Search & Dropdown ─────────────────────────────────────────
-function localSearch(query){
-  const q=query.toLowerCase().trim();
-  if(!q||!NSE_DB.length)return [];
-  const results=[];
-  for(const [sym,name,sector] of NSE_DB){
-    const symL=sym.toLowerCase();
-    const nameL=name.toLowerCase();
-    let score=0;
-    if(symL===q||nameL===q) score=100;                          // exact
-    else if(symL.startsWith(q)) score=90;                       // symbol starts with
-    else if(nameL.startsWith(q)) score=80;                      // name starts with
-    else if(symL.includes(q)) score=70;                         // symbol contains
-    else if(nameL.includes(q)) score=60;                        // name contains
-    else {
-      const words=nameL.split(/\s+/);
-      if(words.some(w=>w.startsWith(q))) score=50;              // word starts with
-    }
-    if(score>0) results.push({score,trading_symbol:sym,name,sector:sector||"NSE"});
-  }
-  return results.sort((a,b)=>b.score-a.score).slice(0,10);
-}
-
-let searchTimer=null;
-function searchSymbol(query){
-  return localSearch(query);
-}
-
-// Render dropdown
-function renderDD(results){
-  // Remove old dropdown
-  const old=document.getElementById("symDD");
-  if(old)old.remove();
-  if(!results||!results.length)return;
-
-  const dd=document.createElement("div");
-  dd.id="symDD";
-  // Append to body so it's not clipped by parent overflow
-  document.body.appendChild(dd);
-
-  // Position below input
-  const inp=document.getElementById("scripInput");
-  const rect=inp.getBoundingClientRect();
-  dd.style.cssText=`position:fixed;left:${rect.left}px;top:${rect.bottom}px;width:${rect.width+70}px;background:#111827;border:1px solid #00d4aa66;border-top:2px solid #00d4aa;border-radius:0 0 12px 12px;z-index:99999;max-height:300px;overflow-y:auto;box-shadow:0 8px 32px #000000cc`;
-
-  dd.innerHTML=results.map(r=>{
-    const safeSym=r.trading_symbol.replace(/['"&]/g,"");
-    const safeName=(r.name||r.trading_symbol).replace(/['"&]/g,"");
-    return`<div onclick="selectSym('${safeSym}','${safeName}','${r.sector||""}')"
-      style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;cursor:pointer;border-bottom:1px solid #1e2d45;active:background:#1e2d45"
-      ontouchstart="this.style.background='#1e2d45'" ontouchend="this.style.background='transparent'"
-      onmouseover="this.style.background='#1e2d45'" onmouseout="this.style.background='transparent'">
-      <div style="flex:1;min-width:0;margin-right:10px">
-        <div style="font-weight:700;font-size:13px;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.name||r.trading_symbol}</div>
-        <div style="color:#64748b;font-size:10px;margin-top:2px">${r.sector||"NSE Equity"}</div>
-      </div>
-      <span style="color:#00d4aa;font-family:monospace;font-size:12px;font-weight:700;flex-shrink:0">${r.trading_symbol}</span>
-    </div>`;
-  }).join("");
-}
-
-// Show dropdown as user types
-function showSuggestions(query){
-  const old=document.getElementById("symDD");
-  if(!query||query.length<1){if(old)old.remove();return;}
-  if(!NSE_DB.length){
-    // DB still loading — show a loading indicator
-    if(!old){
-      const dd=document.createElement("div");
-      dd.id="symDD";
-      document.body.appendChild(dd);
-      const inp=document.getElementById("scripInput");
-      const rect=inp.getBoundingClientRect();
-      dd.style.cssText=`position:fixed;left:${rect.left}px;top:${rect.bottom}px;width:${rect.width+70}px;background:#111827;border:1px solid #1e2d45;border-radius:0 0 10px 10px;z-index:99999;padding:12px 14px;color:#64748b;font-size:12px`;
-      dd.textContent="Loading stock list…";
-    }
-    return;
-  }
-  const results=localSearch(query);
-  if(results.length) renderDD(results);
-  else {
-    // No match — show hint
-    const dd=document.createElement("div");
-    dd.id="symDD";
-    if(old)old.remove();
-    document.body.appendChild(dd);
-    const inp=document.getElementById("scripInput");
-    const rect=inp.getBoundingClientRect();
-    dd.style.cssText=`position:fixed;left:${rect.left}px;top:${rect.bottom}px;width:${rect.width+70}px;background:#111827;border:1px solid #1e2d45;border-radius:0 0 10px 10px;z-index:99999;padding:12px 14px;color:#64748b;font-size:12px`;
-    dd.innerHTML=`No match found. Try exact NSE symbol (e.g. TITAN, INFY) or press Go.`;
-  }
-}
-
-function hideSuggestions(){
-  setTimeout(()=>{const dd=document.getElementById("symDD");if(dd)dd.remove();},300);
-}
-
-function selectSym(sym,name,sector){
-  const dd=document.getElementById("symDD");
-  if(dd)dd.remove();
-  const inp=document.getElementById("scripInput");
-  inp.value=sym; // Always show clean NSE symbol in input
-  inp.dataset.sym=sym;
-  inp.dataset.name=name||sym;
-  analyzeSymbol(sym,name||sym);
-}
-
-
-async function fetchQuote(sym){
-  const symUp=sym.toUpperCase();
-  const symKey=encodeURIComponent(`NSE_EQ|${symUp}`);
-
-  // Step 1: Try LTP endpoint (fastest, accepts symbol format)
-  try{
-    const d=await upGet(`/market-quote/ltp?instrument_key=${symKey}`);
-    if(d.data&&Object.keys(d.data).length>0){
-      const ltpData=d.data[Object.keys(d.data)[0]];
-      // Cache real instrument_token if returned
-      if(ltpData.instrument_token){
-        instrKeyCache[symUp]=ltpData.instrument_token;
-      }
-      // Step 2: Get full quote with confirmed key
-      try{
-        const confirmedKey=encodeURIComponent(ltpData.instrument_token||`NSE_EQ|${symUp}`);
-        const full=await upGet(`/market-quote/quotes?instrument_key=${confirmedKey}`);
-        if(full.data&&Object.keys(full.data).length>0){
-          return full.data[Object.keys(full.data)[0]];
-        }
-      }catch(_){}
-      // Return just LTP data — price will work, other fields default
-      return {last_price:ltpData.last_price||0, ohlc:{}, volume:0, instrument_token:ltpData.instrument_token};
-    }
-  }catch(e1){console.log("LTP failed:",e1.message);}
-
-  // Step 3: Try full quote directly
-  try{
-    const d=await upGet(`/market-quote/quotes?instrument_key=${symKey}`);
-    if(d.data&&Object.keys(d.data).length>0){
-      return d.data[Object.keys(d.data)[0]];
-    }
-  }catch(e2){console.log("Full quote failed:",e2.message);}
-
-  // Step 4: Try with cached ISIN key
-  const ik=await resolveInstrKey(symUp);
-  if(ik!==`NSE_EQ|${symUp}`){
-    try{
-      const d=await upGet(`/market-quote/quotes?instrument_key=${encodeURIComponent(ik)}`);
-      if(d.data&&Object.keys(d.data).length>0){
-        return d.data[Object.keys(d.data)[0]];
-      }
-    }catch(e3){console.log("ISIN quote failed:",e3.message);}
-  }
-
-  throw new Error(`"${symUp}" not found on Upstox. This may be a newly listed or demerged stock not yet available via API. Try TATAMOTORS for Tata Motors.`);
-}
-
-async function fetchHistory(sym){
-  const symUp=sym.toUpperCase();
-  const ik=await resolveInstrKey(symUp);
-  const k=encodeURIComponent(ik);
-  const to=new Date().toISOString().slice(0,10);
-  const from=new Date(Date.now()-310*864e5).toISOString().slice(0,10);
-  try{
-    const d=await upGet(`/historical-candle/${k}/day/${to}/${from}`);
-    if(d.data?.candles?.length>0)return d.data.candles;
-  }catch(e1){}
-  // Retry with previous day as to_date (in case market closed today)
-  try{
-    const to2=new Date(Date.now()-864e5).toISOString().slice(0,10);
-    const from2=new Date(Date.now()-311*864e5).toISOString().slice(0,10);
-    const d2=await upGet(`/historical-candle/${k}/day/${to2}/${from2}`);
-    if(d2.data?.candles?.length>0)return d2.data.candles;
-  }catch(e2){}
-  return [];
-}
-
-// ── Screener.in (fundamentals — free, no key) ────────────────
-async function fetchFundamentals(sym){
-  const symUp=sym.toUpperCase();
-  // Screener.in uses NSE symbol directly
-  const screenerUrl=`https://www.screener.in/api/company/${symUp}/?format=json`;
-  const proxies=[
-    `https://api.allorigins.win/get?url=${encodeURIComponent(screenerUrl)}`,
-    `https://corsproxy.io/?${encodeURIComponent(screenerUrl)}`,
-    `https://thingproxy.freeboard.io/fetch/${screenerUrl}`,
-  ];
-  for(const url of proxies){
-    try{
-      const r=await fetch(url,{signal:AbortSignal.timeout(10000)});
-      if(!r.ok)continue;
-      const wrapper=await r.json();
-      const raw=wrapper.contents||wrapper;
-      const data=typeof raw==="string"?JSON.parse(raw):raw;
-      // Validate we got real data
-      if(data&&(data.name||data.bse_id||data.consolidated_peer_benchmarking)){
-        return data;
-      }
-    }catch(_){continue;}
-  }
-  // Final fallback: try without /api/ path (Screener HTML API)
-  try{
-    const altUrl=`https://www.screener.in/company/${symUp}/consolidated/`;
-    const r=await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(altUrl)}`,
-      {signal:AbortSignal.timeout(10000)});
-    if(r.ok){
-      const w=await r.json();
-      // Parse key ratios from HTML if JSON fails
-      const html=w.contents||"";
-      if(html.includes("Promoter"))return {_html:html,name:symUp};
-    }
-  }catch(_){}
-  return null;
-}
-
-// Parse screener data into our format
-function parseScreener(data,sym){
-  if(!data||data._html)return {};
-  try{
-    const now=new Date();
-    const fyYear=now.getMonth()>=3?now.getFullYear()+1:now.getFullYear();
-    // Screener ratios array
-    const getRatio=(name)=>{
-      const arr=data.ratios||data.concise_ratios||[];
-      const r=arr.find(x=>(x.name||"").toLowerCase().includes(name.toLowerCase()));
-      const v=r?.values?.find(x=>x.ttm)?.ttm||r?.values?.[0]?.value;
-      return parseFloat(v)||0;
-    };
-    const getQ=(field)=>(data.quarterly_results||[]).map(q=>parseFloat(q[field]||0));
-    const getA=(field)=>(data.annual_results||data.results||[]).map(q=>parseFloat(q[field]||0));
-    // Shareholding
-    const shList=data.shareholding?.quarterly||data.shareholding_pattern||[];
-    const sh0=shList[0]||{},sh1=shList[1]||{};
-    const getSH=(o,keys)=>{for(const k of keys){const v=o[k];if(v!=null)return parseFloat(v)||0;}return 0;};
-    const promoter=getSH(sh0,["Promoters","promoter","promoter_and_promoter_group"]);
-    const fii=getSH(sh0,["FII","fii","Foreign Institutions","foreign_institutions"]);
-    const pub=getSH(sh0,["Public","public"]);
-    const promoterPrev=getSH(sh1,["Promoters","promoter","promoter_and_promoter_group"]);
-    const fiiPrev=getSH(sh1,["FII","fii","Foreign Institutions"]);
-    // Financials
-    const pe=parseFloat(data.pe||getRatio("p/e")||getRatio("pe")||0);
-    const mcap=parseFloat(data.market_cap||0);
-    const salesArr=getA("Sales");
-    const profArr=getA("Net Profit");
-    const cfOps=parseFloat(data.cash_from_operations||getRatio("cash from operations")||0);
-    const cfInv=parseFloat(data.cash_from_investing||0);
-    const cfFin=parseFloat(data.cash_from_financing||0);
-    const debtEq=parseFloat(data.debt_to_equity||getRatio("debt / equity")||0);
-    const patM=parseFloat(data.net_profit_margin||getRatio("net profit margin")||0);
-    const sales=salesArr[0]||0;
-    // QoQ growth
-    const qS=getQ("Sales").slice(0,5);
-    const qG=qS.map((v,i)=>i===qS.length-1?0:qS[i+1]>0?Math.round((v-qS[i+1])/qS[i+1]*1000)/10:0).slice(0,4);
-    const qL=[`Q1FY${String(fyYear).slice(2)}`,`Q2FY${String(fyYear).slice(2)}`,`Q3FY${String(fyYear).slice(2)}`,`Q4FY${String(fyYear).slice(2)}`];
-    // YoY growth
-    const rg=salesArr.length>=2?[Math.round((salesArr[0]-salesArr[1])/(salesArr[1]||1)*1000)/10,Math.round((salesArr[1]-(salesArr[2]||salesArr[1]))/(salesArr[2]||salesArr[1]||1)*1000)/10]:[0,0];
-    const pg=profArr.length>=2?[Math.round((profArr[0]-profArr[1])/(Math.abs(profArr[1])||1)*1000)/10,Math.round((profArr[1]-(profArr[2]||profArr[1]))/(Math.abs(profArr[2]||profArr[1])||1)*1000)/10]:[0,0];
-    const fy2=`FY${String(fyYear-2).slice(2)}-${String(fyYear-1).slice(2)}`,fy1=`FY${String(fyYear-1).slice(2)}-${String(fyYear).slice(2)}`;
-    return{
-      company:data.name||sym,sector:data.industry||"--",
-      peRatio:Math.round(pe*10)/10,
-      marketCap:mcap>0?`Rs.${Math.round(mcap)} Cr`:"N/A",
-      mcapToSales:sales>0?Math.round(mcap/sales*10)/10:0,
-      promoterHolding:Math.round(promoter*10)/10,publicHolding:Math.round(pub*10)/10,fiiHolding:Math.round(fii*10)/10,
-      promoterHoldingChange:Math.round((promoter-promoterPrev)*10)/10,
-      fiiHoldingChange:Math.round((fii-fiiPrev)*10)/10,
-      cfOperations:Math.round(cfOps),cfoPositive:cfOps>0,
-      cfoVsOthers:cfOps>0&&cfOps>Math.abs(cfInv)+Math.abs(cfFin)?"CFO is higher":"CFO is lower",
-      debtToReserve:Math.round(debtEq*100),patMargin:Math.round(patM*10)/10,
-      revenueQoQ:qG.length?qG:[0,0,0,0],revenueQoQLabels:qL,
-      revenueGrowthYOY:[rg[0]||0,rg[1]||0],revenueGrowthYOYLabels:[fy2,fy1],
-      patGrowthYOY:[pg[0]||0,pg[1]||0],patGrowthYOYLabels:[fy2,fy1],
-      screenerLoaded:true
-    };
-  }catch(e){console.error("Screener parse error",e);return{};}
-}
-
-
-// ── Technical calcs ───────────────────────────────────────────
-function ema(prices,p){if(prices.length<p)return null;const k=2/(p+1);let e=prices.slice(0,p).reduce((a,b)=>a+b,0)/p;for(let i=p;i<prices.length;i++)e=prices[i]*k+e*(1-k);return Math.round(e*100)/100;}
-function sma(prices,p){if(prices.length<p)return null;return Math.round(prices.slice(-p).reduce((a,b)=>a+b,0)/p*100)/100;}
-function rsi(closes,p=14){
-  if(closes.length<p+1)return 50;
-  let g=0,l=0;
-  for(let i=1;i<=p;i++){const d=closes[i]-closes[i-1];if(d>0)g+=d;else l-=d;}
-  let ag=g/p,al=l/p;
-  for(let i=p+1;i<closes.length;i++){const d=closes[i]-closes[i-1];ag=(ag*(p-1)+Math.max(d,0))/p;al=(al*(p-1)+Math.max(-d,0))/p;}
-  return al===0?100:Math.round(100-100/(1+ag/al));
-}
-function macdSignal(closes){
-  const e12=ema(closes,12),e26=ema(closes,26);
-  if(!e12||!e26)return "Neutral";
-  return e12>e26?"Bullish crossover":"Bearish crossover";
-}
-function sr(candles){
-  const r=candles.slice(0,60);
-  const hs=r.map(c=>c[2]).sort((a,b)=>b-a);
-  const ls=r.map(c=>c[3]).sort((a,b)=>a-b);
-  return{s1:Math.round(ls[Math.floor(ls.length*.1)]*100)/100,s2:Math.round(ls[Math.floor(ls.length*.05)]*100)/100,r1:Math.round(hs[Math.floor(hs.length*.1)]*100)/100,r2:Math.round(hs[Math.floor(hs.length*.05)]*100)/100};
-}
-
-// ── Score formula ─────────────────────────────────────────────
-function calcScore(f){
-  let s=0;const bd=[];
-  const add=(pts,label)=>{s+=pts;bd.push(`${label}: +${pts}`);};
-  if(f.promoterHolding>50)add(8,"Promoter >50%");
-  if(f.promoterHoldingChange>0)add(5,"Promoter increasing");
-  if(f.fiiHoldingChange>0)add(5,"FII increasing");
-  if(f.cfoPositive)add(8,"CFO positive");
-  if(f.cfoVsOthers?.toLowerCase().includes("higher"))add(7,"CFO>Inv+Fin");
-  if(f.debtToReserve<50)add(8,"Debt/Reserve <50%");
-  if(f.patMargin>10)add(8,"PAT margin >10%");
-  else if(f.patMargin>5)add(4,"PAT margin 5-10%");
-  if((f.revenueGrowthYOY||[]).every(v=>v>0))add(8,"Revenue growth YOY");
-  if((f.patGrowthYOY||[]).every(v=>v>0))add(8,"PAT growth YOY");
-  if(f.mcapToSales<3)add(5,"MCap/Sales <3x");
-  else if(f.mcapToSales<5)add(3,"MCap/Sales 3-5x");
-  if((f.revenueQoQ||[]).filter(v=>v>0).length>=3)add(3,"QoQ revenue 3/4 positive");
-  if(f.peRatio>0&&f.peRatio<30)add(3,"PE <30");
-  else if(f.peRatio>=30&&f.peRatio<50)add(1,"PE 30-50");
-  if(f.above200DMA)add(8,"Above 200 DMA");
-  if(f.above50DMA)add(5,"Above 50 DMA");
-  const r=f.rsi||50;
-  if(r>=40&&r<=65)add(7,"RSI 40-65");
-  else if((r>=30&&r<40)||(r>65&&r<=70))add(4,"RSI 30-40/65-70");
-  if(f.macdSignal?.includes("Bullish"))add(5,"MACD bullish");
-  if(f.support1>0&&f.currentPrice>f.support1&&(f.currentPrice-f.support1)/f.support1<0.03)add(5,"Near support S1");
-  s=Math.min(s,100);
-  let rating,forced=false;
-  if(f.patMargin<=5){rating="Avoid";forced=true;}
-  else if(s>=75)rating="Strong Buy";
-  else if(s>=55)rating="Buy";
-  else if(s>=35)rating="Hold";
-  else rating="Avoid";
-  return{score:s,rating,breakdown:bd,forced};
-}
-
-// ── Claude commentary ─────────────────────────────────────────
-async function getCommentary(sym,score,fd){
-  const k=getCK();if(!k)return null;
-  // Auto-calculate current Indian financial quarter (results lag 1 quarter)
-  const now = new Date();
-  const month = now.getMonth()+1; // 1-12
-  const calYear = now.getFullYear();
-  // Indian FY starts April. FY year = calendar year of Jan-Mar end.
-  const fy = month >= 4 ? calYear+1 : calYear; // FY26 means Apr2025-Mar2026
-  const fyShort = String(fy).slice(2); // "26"
-  const fyPrev = String(fy-1).slice(2); // "25"
-  // Current quarter (results lag ~2 months so fetch previous quarter)
-  let curQ, prevQ, fyLabel, fyPrevLabel;
-  if(month>=4&&month<=6){curQ="Q1";prevQ="Q4";fyLabel=`FY${fyShort}`;fyPrevLabel=`FY${fyPrev}`;}
-  else if(month>=7&&month<=9){curQ="Q2";prevQ="Q1";fyLabel=`FY${fyShort}`;fyPrevLabel=fyLabel;}
-  else if(month>=10&&month<=12){curQ="Q3";prevQ="Q2";fyLabel=`FY${fyShort}`;fyPrevLabel=fyLabel;}
-  else{curQ="Q4";prevQ="Q3";fyLabel=`FY${fyShort}`;fyPrevLabel=fyLabel;}
-  // Most recently announced results quarter
-  const latestQ = prevQ;
-  const latestFY = prevQ==="Q4" ? fyPrevLabel : fyLabel;
-  const searchYear = now.getFullYear();
-
-  const prompt=`NSE Stock: ${sym}
-Company fundamentals: Price Rs.${fd.currentPrice} | PE ${fd.peRatio}x | MCap ${fd.marketCap} | PAT Margin ${fd.patMargin}% | Debt/Reserve ${fd.debtToReserve}%
-Shareholding: Promoter ${fd.promoterHolding}% (${fd.promoterHoldingChange>0?"+":""}${fd.promoterHoldingChange}% chg) | FII ${fd.fiiHoldingChange>0?"+":""}${fd.fiiHoldingChange}% chg
-Formula score: ${score.score}/100 (${score.rating})
-
-Search for: "${sym} concall ${latestQ} ${latestFY} management commentary earnings transcript"
-Also search: "${sym} quarterly results guidance revenue outlook ${searchYear}"
-
-Today is ${now.toDateString()}. The most recently announced quarter should be around ${latestQ} ${latestFY}.
-Find the most recent concall transcript or result announcement. Extract specific management commentary on revenue guidance, margin outlook, demand, order book, capex, and any red flags or positive signals. Return JSON only.`;
-  try{
-    const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":k,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:900,tools:[{type:"web_search_20250305",name:"web_search",max_uses:2}],system:CSYS,messages:[{role:"user",content:prompt}]})});
-    if(!r.ok)return null;
-    const d=await r.json();
-    const txt=(d.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
-    return exJSON(txt);
-  }catch(_){return null;}
-}
-function exJSON(t){
-  let s=t.replace(/```json|```/gi,"").trim();
-  try{return JSON.parse(s);}catch(_){}
-  const a=s.indexOf("{"),b=s.lastIndexOf("}");
-  if(a!==-1&&b>a)try{return JSON.parse(s.slice(a,b+1));}catch(_){}
-  return null;
-}
-
-// ── Analyze ───────────────────────────────────────────────────
-let curData=null,stepIv=null;
-
-async function analyzeSymbol(sym, companyName){
-  // Called after symbol is confirmed
-  if(!getAT()){showError("Upstox Analytics token not set. Go to ⚙ Settings.");return;}
-  showLoading();
-  let si=0;document.getElementById("progressTxt").textContent=STEPS[0];
-  stepIv=setInterval(()=>{si=(si+1)%STEPS.length;document.getElementById("progressTxt").textContent=STEPS[si];},2500);
-  try{
-    // 1. Live quote from Upstox
-    progSet(0);
-    const quote=await fetchQuote(sym);
-    const ltp=quote.last_price||quote.ohlc?.close||0;
-    const ohlc=quote.ohlc||{};
-    if(!ltp)throw new Error(`Could not get live price for ${sym}. Check symbol name.`);
-
-    // 2. Historical from Upstox (for technicals)
-    progSet(1);
-    const candles=await fetchHistory(sym);
-    const closes=candles.map(c=>c[4]).reverse();
-
-    // 3. Technicals — calculated locally
-    progSet(2);
-    const RSI=rsi(closes);
-    const MACD=macdSignal(closes);
-    const dma50=sma(closes,50)||0;
-    const dma200=sma(closes,200)||0;
-    const above50=dma50>0&&ltp>dma50;
-    const above200=dma200>0&&ltp>dma200;
-
-    // 4. Support & Resistance
-    progSet(3);
-    const levels=sr(candles);
-    const sl=levels.s2||Math.round(ltp*0.93*100)/100;
-    const t1=levels.r1||Math.round(ltp*1.1*100)/100;
-    const t2=levels.r2||Math.round(ltp*1.2*100)/100;
-    const potRet=Math.round((t2-ltp)/ltp*100);
-    const rPct=ltp-sl,rwPct=t1-ltp;
-    const rr=rPct>0?`1:${Math.round(rwPct/rPct*10)/10}`:"1:2";
-    const entry=`Rs.${levels.s1||Math.round(ltp*0.98)}-Rs.${Math.round((levels.s1||ltp)*1.02)}`;
-
-    // 5. Fundamentals from Screener.in (free, no key needed)
-    progSet(4);
-    const screenerRaw=await fetchFundamentals(sym);
-    const screenerData=parseScreener(screenerRaw,sym);
-    const screenerOk=screenerData.screenerLoaded||false;
-
-    // Build combined fd — Upstox for price/technicals, Screener for fundamentals
-    const fd={
-      // Price from Upstox (always reliable)
-      currentPrice:ltp,
-      weekHigh52:ohlc.high||ltp,
-      weekLow52:ohlc.low||ltp,
-      volume:quote.volume||0,
-      // Fundamentals from Screener (with fallback defaults)
-      company:screenerData.company||sym,
-      sector:screenerData.sector||"--",
-      marketCap:screenerData.marketCap||"N/A",
-      mcapToSales:screenerData.mcapToSales||0,
-      peRatio:screenerData.peRatio||0,
-      promoterHolding:screenerData.promoterHolding||0,
-      publicHolding:screenerData.publicHolding||0,
-      fiiHolding:screenerData.fiiHolding||0,
-      promoterHoldingChange:screenerData.promoterHoldingChange||0,
-      fiiHoldingChange:screenerData.fiiHoldingChange||0,
-      cfOperations:screenerData.cfOperations||0,
-      cfoPositive:screenerData.cfoPositive||false,
-      cfoVsOthers:screenerData.cfoVsOthers||"N/A",
-      debtToReserve:screenerData.debtToReserve||0,
-      patMargin:screenerData.patMargin||0,
-      revenueQoQ:screenerData.revenueQoQ||[0,0,0,0],
-      revenueQoQLabels:screenerData.revenueQoQLabels||["Q1","Q2","Q3","Q4"],
-      revenueGrowthYOY:screenerData.revenueGrowthYOY||[0,0],
-      revenueGrowthYOYLabels:screenerData.revenueGrowthYOYLabels||["FY23","FY24"],
-      patGrowthYOY:screenerData.patGrowthYOY||[0,0],
-      patGrowthYOYLabels:screenerData.patGrowthYOYLabels||["FY23","FY24"],
-      // Technicals from local calculation (always reliable)
-      rsi:RSI,
-      macdSignal:MACD,
-      above50DMA:above50,
-      above200DMA:above200,
-      movingAvg50:dma50,
-      movingAvg200:dma200,
-      support1:levels.s1,
-      support2:levels.s2,
-      resistance1:levels.r1,
-      resistance2:levels.r2,
-      entryZone:entry,
-      stopLoss:sl,
-      target1:t1,
-      target2:t2,
-      potentialReturn:potRet,
-      riskReward:rr,
-      timeframe:RSI<40?"Short-term (1-3 months)":"Medium-term (3-6 months)",
-      trend:above200&&above50?"Bullish":!above200&&!above50?"Bearish":"Sideways",
-      screenerLoaded:screenerOk
-    };
-
-    // 6. Score
-    progSet(5);const scoring=calcScore(fd);
-
-    // 7. Commentary
-    progSet(6);const ai=await getCommentary(sym,scoring,fd);
-
-    // Incorporate commentary score (15 pts max) into final score
-    const commScore = Math.min(Math.max(ai?.commentaryScore||0, -15), 15);
-    const baseScore = scoring.score;
-    // Reweight: fundamental+technical = 85%, commentary = 15%
-    const finalScore = Math.min(Math.max(Math.round(baseScore * 0.85 + commScore), 0), 100);
-    let finalRating = scoring.rating;
-    if(ai?.patMargin<=5||scoring.forced) finalRating="Avoid";
-    else if(finalScore>=75) finalRating="Strong Buy";
-    else if(finalScore>=55) finalRating="Buy";
-    else if(finalScore>=35) finalRating="Hold";
-    else finalRating="Avoid";
-
-    const final={
-      symbol:sym, ticker:sym, company:fd.company||sym, exchange:"NSE", sector:fd.sector||"--",
-      ...fd,
-      fitScore:finalScore,
-      fitScoreBase:baseScore,
-      commentaryScore:commScore,
-      fitRating:finalRating,
-      scoreBreakdown:scoring.breakdown, scoringMethod:"formula",
-      managementCommentary:ai?.managementCommentary||"Commentary unavailable.",
-      revenueGuidance:ai?.revenueGuidance||"not given",
-      marginGuidance:ai?.marginGuidance||"not given",
-      demandOutlook:ai?.demandOutlook||"--",
-      orderBook:ai?.orderBook||"--",
-      guidanceChange:ai?.guidanceChange||"na",
-      majorEvent:ai?.majorEvent||"none",
-      technicalSummary:ai?.technicalSummary||`${sym} trades ${above200?"above":"below"} 200DMA. RSI at ${RSI}.`,
-      fitSummary:ai?.fitSummary||`${sym} scores ${finalScore}/100 on formula-based analysis.`,
-      redFlags:ai?.redFlags||[],
-      positives:ai?.positives||[],
-      dataNote:`Price & technicals: Upstox live. Fundamentals: ${screenerOk?"Screener.in":"unavailable — check symbol"}. Score: formula(85%) + concall(15%).`,
-      savedAt:new Date().toLocaleString("en-IN")
-    };
-    curData=final;addToHist(final);showResult(final);
-  }catch(e){showError(e.message||"Analysis failed.");console.error(e);}
-  finally{clearInterval(stepIv);const b=document.getElementById("goBtn");if(b){b.disabled=false;b.textContent="Go";}}
-}
-
-function progSet(i){clearInterval(stepIv);const el=document.getElementById("progressTxt");if(el)el.textContent=STEPS[i]||"";}
-
-// ── History ───────────────────────────────────────────────────
-function loadHist(){
-  try{
-    const n=localStorage.getItem("isa_h");if(n&&n!=="[]")return JSON.parse(n);
-    const o=localStorage.getItem("isa_history");if(o&&o!=="[]"){const p=JSON.parse(o);if(p.length){localStorage.setItem("isa_h",o);localStorage.removeItem("isa_history");return p;}}
-    return[];
-  }catch(_){return[];}
-}
-const saveHist=l=>{try{localStorage.setItem("isa_h",JSON.stringify(l));}catch(_){}};
-function addToHist(d){
-  const l=loadHist();
-  const e={ticker:d.ticker||d.symbol,company:d.company||d.ticker,fitScore:d.fitScore,fitRating:d.fitRating,scoringMethod:d.scoringMethod||"ai",currentPrice:d.currentPrice,peRatio:d.peRatio,savedAt:d.savedAt||new Date().toLocaleString("en-IN"),fullData:d};
-  saveHist([e,...l.filter(x=>x.ticker!==(d.ticker||d.symbol))].slice(0,30));
-  updateHistCount();
-}
-function recalc(fd){try{const sc=calcScore(fd);fd.fitScore=sc.score;fd.fitRating=sc.rating;fd.scoreBreakdown=sc.breakdown;fd.scoringMethod="formula";return fd;}catch(_){return fd;}}
-const updateHistCount=()=>{const el=document.getElementById("histCount");if(el)el.textContent=loadHist().length;};
-function renderHistory(){
-  const list=loadHist(),el=document.getElementById("historyList");
-  if(!list.length){el.innerHTML=`<div class="empty"><div style="font-size:32px;margin-bottom:8px">🗂</div><div>No analyses yet.</div></div>`;return;}
-  el.innerHTML=list.map((h,i)=>{
-    const c=rc(h.fitRating);
-    const m=h.scoringMethod==="formula"?`<span class="sbadge sf">⚡Formula</span>`:`<span class="sbadge sa">🤖AI</span>`;
-    return`<div class="hi" onclick="loadHistItem(${i})"><div style="flex:1"><div style="font-weight:700;font-size:13px;margin-bottom:4px">${h.company||h.ticker}</div><div style="margin-bottom:3px">${bdg(h.ticker,"#38bdf8")}${bdg(h.fitRating,c)}</div><div style="display:flex;align-items:center;gap:5px">${m}<span style="color:#64748b;font-size:10px">Rs.${h.currentPrice} · ${h.savedAt}</span></div></div><div style="text-align:center;min-width:40px"><div style="font-size:22px;font-weight:800;font-family:monospace;color:${c};line-height:1">${h.fitScore}</div><div style="color:#64748b;font-size:10px">/100</div></div><button onclick="event.stopPropagation();delHist(${i})" style="background:none;border:none;color:#ef4444;font-size:14px;cursor:pointer;padding:3px">🗑</button></div>`;
-  }).join("");
-}
-function loadHistItem(i){
-  const l=loadHist();if(!l[i]?.fullData)return;
-  let d=recalc(l[i].fullData);
-  l[i].fitScore=d.fitScore;l[i].fitRating=d.fitRating;l[i].scoringMethod="formula";l[i].fullData=d;
-  saveHist(l);curData=d;showResult(d);switchTab("analyse");
-}
-function delHist(i){const l=loadHist();l.splice(i,1);saveHist(l);updateHistCount();renderHistory();}
-
-// ── GTT ───────────────────────────────────────────────────────
-let gttT="BUY";
-function setGTTType(t){
-  gttT=t;
-  const bb=document.getElementById("btnBuy"),sb=document.getElementById("btnSell");
-  if(t==="BUY"){bb.style.cssText="background:#22c55e33;color:#22c55e;border:1px solid #22c55e44;border-radius:7px;padding:9px;font-weight:700;cursor:pointer";sb.style.cssText="background:#111827;color:#64748b;border:1px solid #1e2d45;border-radius:7px;padding:9px;font-weight:700;cursor:pointer";}
-  else{sb.style.cssText="background:#ef444433;color:#ef4444;border:1px solid #ef444444;border-radius:7px;padding:9px;font-weight:700;cursor:pointer";bb.style.cssText="background:#111827;color:#64748b;border:1px solid #1e2d45;border-radius:7px;padding:9px;font-weight:700;cursor:pointer";}
-}
-function toggleNewGTT(){const el=document.getElementById("newGTTWrap");el.style.display=el.style.display==="none"?"block":"none";}
-function fillGTT(sym,trig,lim){document.getElementById("gSym").value=sym||"";document.getElementById("gTrig").value=trig||"";document.getElementById("gLim").value=lim||"";document.getElementById("newGTTWrap").style.display="block";switchTab("gtt");}
-
-async function placeGTT(){
-  const tok=getAlgoT();if(!tok){alert("Login to Upstox first.");return;}
-  const sym=document.getElementById("gSym").value.trim().toUpperCase();
-  const trig=parseFloat(document.getElementById("gTrig").value);
-  const lim=parseFloat(document.getElementById("gLim").value);
-  const qty=parseInt(document.getElementById("gQty").value);
-  const msg=document.getElementById("gttMsg");
-  if(!sym||!trig||!lim||!qty){msg.style.color="#ef4444";msg.textContent="Fill all fields.";return;}
-  msg.style.color="#64748b";msg.textContent="Placing…";
-  try{
-    const r=await fetch(`${UPSTOX}/orders/gtt`,{method:"POST",headers:{"Authorization":`Bearer ${tok}`,"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify({type:"SINGLE",condition:{instrument_token:instrKey(sym),exchange:"NSE",trigger_values:[trig],last_traded_price:trig},orders:[{instrument_token:instrKey(sym),exchange:"NSE",transaction_type:gttT,product:"D",order_type:"LIMIT",quantity:qty,price:lim}]})});
-    const d=await r.json();
-    if(d.status==="success"||d.data?.id){msg.style.color="#22c55e";msg.textContent=`✓ GTT placed! ID:${d.data?.id||"ok"}`;setTimeout(loadGTTOrders,1500);}
-    else throw new Error(d.message||d.errors?.[0]?.message||"Failed");
-  }catch(e){msg.style.color="#ef4444";msg.textContent="Error: "+e.message;}
-}
-
-async function loadGTTOrders(){
-  const tok=getAlgoT();const el=document.getElementById("gttList");
-  if(!tok){el.innerHTML=`<div class="empty">Login to view GTT orders</div>`;return;}
-  el.innerHTML=`<div style="text-align:center;padding:20px;color:#64748b;font-size:12px">Loading…</div>`;
-  try{
-    const r=await fetch(`${UPSTOX}/orders/gtt`,{headers:{"Authorization":`Bearer ${tok}`,"Accept":"application/json"}});
-    const d=await r.json();const ords=d.data||[];
-    if(!ords.length){el.innerHTML=`<div class="empty"><div style="font-size:13px">No open GTT orders</div></div>`;return;}
-    el.innerHTML=ords.map(o=>{
-      const c=o.condition||{},ord=o.orders?.[0]||{};
-      const tc=ord.transaction_type==="BUY"?"#22c55e":"#ef4444";
-      return`<div class="gtt-item"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:7px"><div><span style="font-weight:700;font-size:13px">${ord.instrument_token?.split("|")[1]||"--"}</span><span class="bdg" style="background:${tc}22;color:${tc};border:1px solid ${tc}44;margin-left:5px">${ord.transaction_type}</span></div><button onclick="cancelGTT('${o.id}')" style="background:#ef444418;color:#ef4444;border:1px solid #ef444433;border-radius:6px;padding:3px 9px;font-size:11px;cursor:pointer;font-weight:700">Cancel</button></div><div class="g3"><div><div style="color:#64748b;font-size:10px">Trigger</div><div style="font-family:monospace;font-weight:700;color:#f59e0b">₹${c.trigger_values?.[0]||0}</div></div><div><div style="color:#64748b;font-size:10px">Limit</div><div style="font-family:monospace;font-weight:700">₹${ord.price||0}</div></div><div><div style="color:#64748b;font-size:10px">Qty</div><div style="font-family:monospace;font-weight:700">${ord.quantity||0}</div></div></div><div style="color:#64748b;font-size:10px;margin-top:5px">ID:${o.id} · ${o.status||"ACTIVE"}</div></div>`;
-    }).join("");
-  }catch(e){el.innerHTML=`<div class="ebox">Failed: ${e.message}</div>`;}
-}
-async function cancelGTT(id){if(!confirm(`Cancel GTT ${id}?`))return;try{await fetch(`${UPSTOX}/orders/gtt/${id}`,{method:"DELETE",headers:{"Authorization":`Bearer ${getAlgoT()}`,"Accept":"application/json"}});loadGTTOrders();}catch(e){alert("Cancel failed: "+e.message);}}
-
-function showGTTMain(){document.getElementById("gttLogin").style.display="none";document.getElementById("gttMain").style.display="block";loadGTTOrders();}
-
-// ── UI helpers ────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 const rc=r=>r?.includes("Strong Buy")?"#22c55e":r?.includes("Buy")?"#00d4aa":r?.includes("Hold")?"#f59e0b":"#ef4444";
 const bdg=(l,c)=>`<span class="bdg" style="background:${c}22;color:${c};border:1px solid ${c}44">${l}</span>`;
 const mrow=(l,v,t)=>`<div class="mr"><span class="ml">${l}</span><span class="mv ${t}">${v}</span></div>`;
@@ -1046,236 +246,365 @@ const miniBar=(l,v,max,col)=>{const pct=Math.min(Math.abs(v)/max*100,100),neg=v<
 const pbox=(l,v,c,b)=>`<div class="pb"${b?` style="border:1px solid ${c}44"`:""}><div class="pl">${l}</div><div class="pv" style="color:${c}">${v}</div></div>`;
 const setQ=s=>document.getElementById("scripInput").value=s;
 
-function switchTab(t){
-  ["analyse","history","gtt","settings"].forEach(x=>{document.getElementById("view-"+x).style.display=x===t?"block":"none";document.getElementById("tab-"+x).classList.toggle("active",x===t);});
-  if(t==="history")renderHistory();
-  if(t==="gtt"){if(getAlgoT())showGTTMain();else{document.getElementById("gttLogin").style.display="block";document.getElementById("gttMain").style.display="none";}}
+// ── LocalStorage history ──────────────────────────────────────────────────────
+const loadHist=()=>{
+  try{
+    const n=localStorage.getItem("isa_h");
+    if(n&&n!=="[]"){return JSON.parse(n);}
+    const o=localStorage.getItem("isa_history");
+    if(o&&o!=="[]"){
+      const p=JSON.parse(o);
+      if(p.length){localStorage.setItem("isa_h",o);localStorage.removeItem("isa_history");return p;}
+    }
+    return[];
+  }catch(_){return[];}
+};
+const saveHist=l=>{try{localStorage.setItem("isa_h",JSON.stringify(l));}catch(_){}};
+function addToHist(d){
+  const l=loadHist();
+  const e={ticker:d.ticker,company:d.company,fitScore:d.fitScore,fitRating:d.fitRating,currentPrice:d.currentPrice,peRatio:d.peRatio,savedAt:new Date().toLocaleString("en-IN"),fullData:d};
+  saveHist([e,...l.filter(x=>x.ticker!==d.ticker)].slice(0,30));
+  updateHistCount();
 }
-// ── Main analyze entry ───────────────────────────────────────
+const updateHistCount=()=>{const el=document.getElementById("histCount");if(el)el.textContent=loadHist().length;};
+
+// ── Robust JSON extractor ─────────────────────────────────────────────────────
+function extractJSON(text){
+  let s=text.replace(/```json|```/gi,"").trim();
+  try{return JSON.parse(s);}catch(_){}
+  const start=s.indexOf("{");
+  const end=s.lastIndexOf("}");
+  if(start!==-1&&end!==-1&&end>start){try{return JSON.parse(s.slice(start,end+1));}catch(_){}}
+  const matches=s.match(/\{[\s\S]*\}/g);
+  if(matches){for(let i=matches.length-1;i>=0;i--){try{return JSON.parse(matches[i]);}catch(_){}}}
+  throw new Error("Could not parse response. Please try again.");
+}
+
+// ── Analyze ───────────────────────────────────────────────────────────────────
 async function analyze(){
-  const inp=document.getElementById("scripInput");
-  const dd=document.getElementById("symDD");
-  if(dd)dd.remove();
-
-  // PRIORITY 1: Symbol already resolved from dropdown → use it directly
-  if(inp.dataset.sym&&inp.dataset.sym.trim()){
-    const sym=inp.dataset.sym.trim();
-    const name=inp.dataset.name||sym;
-    inp.dataset.sym="";
-    inp.dataset.name="";
-    analyzeSymbol(sym,name);
-    return;
+  const q=document.getElementById("scripInput").value.trim();
+  if(!q)return;
+  const key=getKey();
+  if(!key){alert("No API key. Go to Settings.");return;}
+  showLoading();
+  let si=0;document.getElementById("progressTxt").textContent=STEPS[0];
+  stepIv=setInterval(()=>{si=(si+1)%STEPS.length;document.getElementById("progressTxt").textContent=STEPS[si];},2200);
+  try{
+    const res=await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      body:JSON.stringify({
+        model:"claude-haiku-4-5-20251001",
+        max_tokens:2000,
+        tools:[{type:"web_search_20250305",name:"web_search"}],
+        system:SYS,
+        messages:[{role:"user",content:`Analyse Indian stock: ${q}. Search for latest shareholding, quarterly results, cash flows, debt ratios and technical price levels. Return only JSON.`}]
+      })
+    });
+    if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e?.error?.message||`API error ${res.status}`);}
+    const result=await res.json();
+    const text=(result.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
+    const parsed=extractJSON(text);
+    currentData=parsed;addToHist(parsed);showResult(parsed);
+  }catch(e){
+    showError(e.message||"Check API key and internet connection.");
+    console.error(e);
+  }finally{
+    clearInterval(stepIv);
+    const btn=document.getElementById("goBtn");
+    if(btn){btn.disabled=false;btn.textContent="Go";}
   }
-
-  const input=inp.value.trim();
-  if(!input)return;
-  if(!getAT()){showError("Upstox Analytics token not set. Go to ⚙ Settings.");return;}
-
-  // PRIORITY 2: Search local DB first
-  const results=localSearch(input);
-  if(results.length===1){
-    analyzeSymbol(results[0].trading_symbol,results[0].name);
-    return;
-  }
-  if(results.length>1){
-    // Multiple matches — show dropdown
-    showSuggestions(input);
-    return;
-  }
-
-  // PRIORITY 3: Not in local DB — try as direct NSE symbol anyway
-  // User may know exact symbol that is not in our local list
-  analyzeSymbol(input.toUpperCase(),input.toUpperCase());
 }
 
-function showLoading(){switchTab("analyse");["emptyState","errorState","resultState"].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display="none";});document.getElementById("loadingState").style.display="block";const b=document.getElementById("goBtn");b.disabled=true;b.textContent="…";}
-function showError(msg){document.getElementById("loadingState").style.display="none";document.getElementById("errorState").style.display="block";document.getElementById("errorState").innerHTML=`<div class="ebox">⚠ ${msg}</div>`;}
-function showResult(d){document.getElementById("loadingState").style.display="none";document.getElementById("resultState").style.display="block";document.getElementById("resultState").innerHTML=buildResult(d);drawGauge(d.fitScore);}
+// ── Show states ───────────────────────────────────────────────────────────────
+function showLoading(){
+  switchTab("analyse");
+  ["emptyState","errorState","resultState"].forEach(id=>document.getElementById(id).style.display="none");
+  document.getElementById("loadingState").style.display="block";
+  const b=document.getElementById("goBtn");b.disabled=true;b.textContent="…";
+}
+function showError(msg){
+  document.getElementById("loadingState").style.display="none";
+  document.getElementById("errorState").style.display="block";
+  document.getElementById("errorState").innerHTML=`<div class="ebox">⚠ ${msg}</div>`;
+}
+function showResult(d){
+  document.getElementById("loadingState").style.display="none";
+  document.getElementById("resultState").style.display="block";
+  document.getElementById("resultState").innerHTML=buildResult(d);
+  drawGauge(d.fitScore);
+}
 
+// ── Build result HTML ─────────────────────────────────────────────────────────
 function buildResult(d){
   const col=rc(d.fitRating);
   const bars=(arr,lbs,max,c)=>(arr||[]).map((v,i)=>miniBar(lbs?.[i]||`Q${i+1}`,v,max,c)).join("");
-  const meth=d.scoringMethod==="formula"?`<span class="sbadge sf">⚡ Formula scored</span>`:`<span class="sbadge sa">🤖 AI scored</span>`;
   return`
 <div class="hero">
   <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
     <div style="flex:1">
-      <div style="font-weight:800;font-size:17px;margin-bottom:5px">${d.company||d.ticker}</div>
-      <div style="margin-bottom:7px">${bdg(d.ticker,"#38bdf8")}${bdg(d.exchange||"NSE","#64748b")}${bdg(d.sector||"--","#f59e0b")}</div>
-      <div style="color:#64748b;font-size:12px">CMP <span style="color:#e2e8f0;font-weight:700;font-family:monospace;font-size:16px">Rs.${d.currentPrice}</span></div>
-      <div style="color:#64748b;font-size:11px;margin-top:1px">52W H:${d.weekHigh52} L:${d.weekLow52}</div>
-      <div style="color:#64748b;font-size:11px">PE:${d.peRatio}x · P/S:${d.mcapToSales}x · ${d.marketCap}</div>
+      <div style="font-weight:800;font-size:18px;margin-bottom:7px">${d.company}</div>
+      <div style="margin-bottom:8px">${bdg(d.ticker,"#38bdf8")}${bdg(d.exchange,"#64748b")}${bdg(d.sector,"#f59e0b")}</div>
+      <div style="color:#64748b;font-size:12px">CMP <span style="color:#e2e8f0;font-weight:700;font-family:monospace;font-size:17px">Rs.${d.currentPrice}</span></div>
+      <div style="color:#64748b;font-size:11px;margin-top:2px">MCap:${d.marketCap} · PE:${d.peRatio}x · P/S:${d.mcapToSales}x</div>
     </div>
     <div style="text-align:center">
-      <canvas id="gauge" width="104" height="104"></canvas>
-      <div style="margin-top:2px">${bdg(d.fitRating,col)}</div>
-      <div style="margin-top:3px">${meth}</div>
+      <canvas id="gauge" width="108" height="108"></canvas>
+      <div style="margin-top:3px">${bdg(d.fitRating,col)}</div>
+      <div style="color:#64748b;font-size:10px;margin-top:2px">FIT SCORE</div>
     </div>
   </div>
-  <div style="margin-top:10px;color:#94a3b8;font-size:12px;line-height:1.5;border-top:1px solid #1e2d45;padding-top:8px">${d.fitSummary||""}</div>
-  <div class="g2" style="margin-top:10px">
-    <button class="abtn ar" onclick="downloadReport()">📄 Report</button>
-    <button class="abtn ap" onclick="fillGTT('${d.ticker}',${d.support1||0},${d.support1?Math.round(d.support1*.995*100)/100:0})">📋 GTT Order</button>
+  <div style="margin-top:11px;color:#94a3b8;font-size:12px;line-height:1.6;border-top:1px solid #1e2d45;padding-top:9px">${d.fitSummary}</div>
+  <div class="g2" style="margin-top:11px">
+    <button class="abtn ar" onclick="downloadReport()">📄 Download Report</button>
+    <button class="abtn ah" onclick="switchTab('history')">🗂 History</button>
   </div>
 </div>
 
-${d.scoreBreakdown?.length?`<div class="card">
-  <div class="st">⚡ Score Breakdown</div>
-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:10px">
-    <div style="background:#111827;border-radius:7px;padding:8px;text-align:center">
-      <div style="color:#64748b;font-size:9px;margin-bottom:2px">FORMULA</div>
-      <div style="color:#00d4aa;font-weight:800;font-size:16px;font-family:monospace">${d.fitScoreBase||"--"}</div>
-      <div style="color:#64748b;font-size:9px">/100 · 85%</div>
-    </div>
-    <div style="background:#111827;border-radius:7px;padding:8px;text-align:center">
-      <div style="color:#64748b;font-size:9px;margin-bottom:2px">COMMENTARY</div>
-      <div style="color:${(d.commentaryScore||0)>0?"#22c55e":(d.commentaryScore||0)<0?"#ef4444":"#64748b"};font-weight:800;font-size:16px;font-family:monospace">${(d.commentaryScore||0)>0?"+":""}${d.commentaryScore||0}</div>
-      <div style="color:#64748b;font-size:9px">/15 · 15%</div>
-    </div>
-    <div style="background:#111827;border-radius:7px;padding:8px;text-align:center">
-      <div style="color:#64748b;font-size:9px;margin-bottom:2px">FINAL</div>
-      <div style="color:${d.fitScore>=75?"#22c55e":d.fitScore>=55?"#00d4aa":d.fitScore>=35?"#f59e0b":"#ef4444"};font-weight:800;font-size:16px;font-family:monospace">${d.fitScore}</div>
-      <div style="color:#64748b;font-size:9px">/100</div>
-    </div>
-  </div>
-  <div style="display:flex;flex-wrap:wrap;gap:4px">${d.scoreBreakdown.map(b=>`<span style="background:#00d4aa11;color:#00d4aa;border:1px solid #00d4aa22;border-radius:12px;padding:2px 8px;font-size:10px">${b}</span>`).join("")}</div>
-</div>`:""}
-
-<div class="g2" style="margin-bottom:10px">
-  ${d.redFlags?.length?`<div class="fbox"><div style="color:#ef4444;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:5px">⚠ RED FLAGS</div>${d.redFlags.map(f=>`<div style="color:#fca5a5;font-size:11px;margin-bottom:3px">• ${f}</div>`).join("")}</div>`:"<div></div>"}
-  ${d.positives?.length?`<div class="pbox2"><div style="color:#22c55e;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:5px">✓ POSITIVES</div>${d.positives.map(p=>`<div style="color:#86efac;font-size:11px;margin-bottom:3px">• ${p}</div>`).join("")}</div>`:"<div></div>"}
+<div class="g2" style="margin-bottom:11px">
+  ${d.redFlags?.length?`<div class="fbox"><div style="color:#ef4444;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:6px">⚠ RED FLAGS</div>${d.redFlags.map(f=>`<div style="color:#fca5a5;font-size:11px;margin-bottom:3px">• ${f}</div>`).join("")}</div>`:"<div></div>"}
+  ${d.positives?.length?`<div class="pbox2"><div style="color:#22c55e;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:6px">✓ POSITIVES</div>${d.positives.map(p=>`<div style="color:#86efac;font-size:11px;margin-bottom:3px">• ${p}</div>`).join("")}</div>`:"<div></div>"}
 </div>
 
 <div class="card">
   <div class="st">⬡ Fundamental</div>
-  ${mrow("Promoter",d.promoterHolding+"%",d.promoterHolding>50?"g":"")}
-  ${mrow("Promoter Chg",(d.promoterHoldingChange>0?"+":"")+d.promoterHoldingChange+"%",d.promoterHoldingChange<-2?"b":d.promoterHoldingChange>0?"g":"")}
-  ${mrow("Public",d.publicHolding+"%","")}
-  ${mrow("FII Chg",(d.fiiHoldingChange>0?"+":"")+d.fiiHoldingChange+"%",d.fiiHoldingChange>0?"g":"b")}
-  ${mrow("CFO Positive?",d.cfoPositive?"✓ Yes":"✗ No",d.cfoPositive?"g":"b")}
-  ${mrow("CFO vs Inv+Fin",d.cfoVsOthers,d.cfoVsOthers?.toLowerCase().includes("higher")?"g":"")}
-  ${mrow("Debt/Reserve",d.debtToReserve+"%",d.debtToReserve>=50?"b":"g")}
-  ${mrow("PAT Margin",d.patMargin+"%",d.patMargin<=5?"b":d.patMargin>=10?"g":"w")}
+  ${mrow("Promoter Holding",d.fundamental.promoterHolding+"%",d.fundamental.promoterHolding>50?"g":"")}
+  ${mrow("Promoter Change",(d.fundamental.promoterHoldingChange>0?"+":"")+d.fundamental.promoterHoldingChange+"%",d.fundamental.promoterHoldingChange<-2?"b":d.fundamental.promoterHoldingChange>=0?"g":"")}
+  ${mrow("Public Holding",d.fundamental.publicHolding+"%","")}
+  ${mrow("FII Change",(d.fundamental.fiiHoldingChange>0?"+":"")+d.fundamental.fiiHoldingChange+"%",d.fundamental.fiiHoldingChange>0?"g":"b")}
+  ${mrow("CFO Positive?",d.fundamental.cfoPositive?"✓ Yes":"✗ No",d.fundamental.cfoPositive?"g":"b")}
+  ${mrow("CFO vs Inv+Fin",d.fundamental.cfoVsOthers,d.fundamental.cfoVsOthers?.toLowerCase().includes("higher")?"g":"")}
+  ${mrow("Debt/Reserve",d.fundamental.debtToReserve+"%",d.fundamental.debtToReserve>=50?"b":"g")}
+  ${mrow("PAT Margin",d.fundamental.patMargin+"%",d.fundamental.patMargin<=5?"b":d.fundamental.patMargin>=10?"g":"w")}
   ${mrow("MCap/Sales",d.mcapToSales+"x",d.mcapToSales>5?"b":d.mcapToSales<=3?"g":"")}
-  ${mrow("PE",d.peRatio+"x","")}
-  <div style="margin-top:12px"><div style="color:#64748b;font-size:10px;margin-bottom:6px">QoQ REVENUE GROWTH (%)</div>${bars(d.revenueQoQ,d.revenueQoQLabels,30,"#00d4aa")}</div>
-  <div class="g2" style="margin-top:10px;gap:12px">
-    <div><div style="color:#64748b;font-size:10px;margin-bottom:5px">REVENUE YOY</div>${bars(d.revenueGrowthYOY,d.revenueGrowthYOYLabels,50,"#38bdf8")}</div>
-    <div><div style="color:#64748b;font-size:10px;margin-bottom:5px">PAT YOY</div>${bars(d.patGrowthYOY,d.patGrowthYOYLabels,50,"#22c55e")}</div>
+  ${mrow("PE Ratio",d.peRatio+"x","")}
+  <div style="margin-top:13px">
+    <div style="color:#64748b;font-size:10px;margin-bottom:7px;letter-spacing:1px">QUARTERLY REVENUE GROWTH (QoQ %)</div>
+    ${bars(d.fundamental.revenueQoQ,d.fundamental.revenueQoQLabels,30,"#00d4aa")}
+  </div>
+  <div class="g2" style="margin-top:11px;gap:14px">
+    <div><div style="color:#64748b;font-size:10px;margin-bottom:6px">REVENUE YOY</div>${bars(d.fundamental.revenueGrowthYOY,d.fundamental.revenueGrowthYOYLabels,50,"#38bdf8")}</div>
+    <div><div style="color:#64748b;font-size:10px;margin-bottom:6px">PAT YOY</div>${bars(d.fundamental.patGrowthYOY,d.fundamental.patGrowthYOYLabels,50,"#22c55e")}</div>
   </div>
   <div class="cbox">
-    <div style="color:#00d4aa;font-size:10px;letter-spacing:2px;margin-bottom:7px;font-weight:700">MANAGEMENT COMMENTARY</div>
-    <div style="color:#94a3b8;font-size:12px;line-height:1.5;margin-bottom:10px">${d.managementCommentary||"N/A"}</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
-      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px">
-        <div style="color:#64748b;font-size:9px;margin-bottom:2px;letter-spacing:1px">REVENUE GUIDANCE</div>
-        <div style="font-weight:700;font-size:11px;color:${d.revenueGuidance==="raised"?"#22c55e":d.revenueGuidance==="cut"?"#ef4444":"#f59e0b"}">${(d.revenueGuidance||"--").toUpperCase()}</div>
-      </div>
-      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px">
-        <div style="color:#64748b;font-size:9px;margin-bottom:2px;letter-spacing:1px">MARGIN GUIDANCE</div>
-        <div style="font-weight:700;font-size:11px;color:${d.marginGuidance==="expanding"?"#22c55e":d.marginGuidance==="contracting"?"#ef4444":"#f59e0b"}">${(d.marginGuidance||"--").toUpperCase()}</div>
-      </div>
-      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px">
-        <div style="color:#64748b;font-size:9px;margin-bottom:2px;letter-spacing:1px">DEMAND OUTLOOK</div>
-        <div style="font-weight:700;font-size:11px;color:${d.demandOutlook==="strong"?"#22c55e":d.demandOutlook==="weak"?"#ef4444":"#f59e0b"}">${(d.demandOutlook||"--").toUpperCase()}</div>
-      </div>
-      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px">
-        <div style="color:#64748b;font-size:9px;margin-bottom:2px;letter-spacing:1px">ORDER BOOK</div>
-        <div style="font-weight:700;font-size:11px;color:${d.orderBook==="strong"?"#22c55e":d.orderBook==="weak"?"#ef4444":"#94a3b8"}">${(d.orderBook||"--").toUpperCase()}</div>
-      </div>
-    </div>
-    ${d.commentaryScore!==undefined?`<div style="display:flex;justify-content:space-between;align-items:center;background:#0a0e1a;border-radius:6px;padding:7px 8px">
-      <span style="color:#64748b;font-size:10px">Commentary Score</span>
-      <span style="font-family:monospace;font-weight:700;font-size:12px;color:${d.commentaryScore>0?"#22c55e":d.commentaryScore<0?"#ef4444":"#64748b"}">${d.commentaryScore>0?"+":""}${d.commentaryScore}/15</span>
-    </div>`:""}
-    ${d.majorEvent&&d.majorEvent!=="none"?`<div style="margin-top:7px;background:#f59e0b11;border:1px solid #f59e0b33;border-radius:6px;padding:7px 8px"><div style="color:#f59e0b;font-size:9px;margin-bottom:2px;font-weight:700;letter-spacing:1px">MAJOR EVENT</div><div style="color:#94a3b8;font-size:11px">${d.majorEvent}</div></div>`:""}
+    <div style="color:#00d4aa;font-size:10px;letter-spacing:2px;margin-bottom:4px;font-weight:700">MANAGEMENT COMMENTARY</div>
+    <div style="color:#94a3b8;font-size:12px;line-height:1.6">${d.fundamental.managementCommentary}</div>
   </div>
 </div>
 
 <div class="card">
   <div class="st">⬡ Technical</div>
-  <div class="g3" style="margin-bottom:10px">
-    <div class="pb"><div class="pl">TREND</div><div class="pv" style="color:${d.trend==="Bullish"?"#22c55e":d.trend==="Bearish"?"#ef4444":"#f59e0b"}">${d.trend}</div></div>
-    <div class="pb"><div class="pl">RSI(14)</div><div class="pv" style="color:${d.rsi>70?"#ef4444":d.rsi<30?"#22c55e":"#e2e8f0"}">${d.rsi}</div></div>
-    <div class="pb"><div class="pl">MACD</div><div class="pv" style="font-size:10px;color:${d.macdSignal?.includes("Bullish")?"#22c55e":"#ef4444"}">${d.macdSignal}</div></div>
+  <div class="g3" style="margin-bottom:11px">
+    <div class="pb"><div class="pl">TREND</div><div class="pv" style="color:${d.technical.trend==="Bullish"?"#22c55e":d.technical.trend==="Bearish"?"#ef4444":"#f59e0b"}">${d.technical.trend}</div></div>
+    <div class="pb"><div class="pl">RSI</div><div class="pv" style="color:${d.technical.rsi>70?"#ef4444":d.technical.rsi<30?"#22c55e":"#e2e8f0"}">${d.technical.rsi}</div></div>
+    <div class="pb"><div class="pl">MACD</div><div class="pv" style="font-size:10px;color:${d.technical.macdSignal?.includes("Bullish")?"#22c55e":d.technical.macdSignal?.includes("Bearish")?"#ef4444":"#f59e0b"}">${d.technical.macdSignal}</div></div>
   </div>
-  <div class="g4" style="margin-bottom:10px">
-    ${pbox("S1","Rs."+(d.support1||"--"),"#22c55e",true)}
-    ${pbox("S2","Rs."+(d.support2||"--"),"#22c55e",true)}
-    ${pbox("R1","Rs."+(d.resistance1||"--"),"#ef4444",true)}
-    ${pbox("R2","Rs."+(d.resistance2||"--"),"#ef4444",true)}
+  <div class="g4" style="margin-bottom:11px">
+    ${pbox("S1","Rs."+d.technical.support1,"#22c55e",true)}
+    ${pbox("S2","Rs."+d.technical.support2,"#22c55e",true)}
+    ${pbox("R1","Rs."+d.technical.resistance1,"#ef4444",true)}
+    ${pbox("R2","Rs."+d.technical.resistance2,"#ef4444",true)}
   </div>
   <div class="tbox">
-    <div style="color:#22c55e;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:8px">TRADE SETUP · ${d.timeframe}</div>
+    <div style="color:#22c55e;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:9px">TRADE SETUP · ${d.technical.timeframe}</div>
     <div class="g2">
-      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">ENTRY</div><div style="color:#00d4aa;font-weight:700;font-family:monospace;font-size:12px">${d.entryZone}</div></div>
-      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">STOP LOSS</div><div style="color:#ef4444;font-weight:700;font-family:monospace;font-size:12px">Rs.${d.stopLoss}</div></div>
-      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">T1</div><div style="color:#22c55e;font-weight:700;font-family:monospace;font-size:12px">Rs.${d.target1}</div></div>
-      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">T2</div><div style="color:#22c55e;font-weight:700;font-family:monospace;font-size:12px">Rs.${d.target2}</div></div>
+      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">ENTRY ZONE</div><div style="color:#00d4aa;font-weight:700;font-family:monospace;font-size:12px">${d.technical.entryZone}</div></div>
+      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">STOP LOSS</div><div style="color:#ef4444;font-weight:700;font-family:monospace;font-size:12px">Rs.${d.technical.stopLoss}</div></div>
+      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">TARGET 1</div><div style="color:#22c55e;font-weight:700;font-family:monospace;font-size:12px">Rs.${d.technical.target1}</div></div>
+      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">TARGET 2</div><div style="color:#22c55e;font-weight:700;font-family:monospace;font-size:12px">Rs.${d.technical.target2}</div></div>
     </div>
-    <div style="display:flex;gap:14px;margin-top:8px;border-top:1px solid #22c55e22;padding-top:7px">
-      <div><span style="color:#64748b;font-size:11px">Return: </span><span style="color:#22c55e;font-weight:700;font-family:monospace">${d.potentialReturn}%</span></div>
-      <div><span style="color:#64748b;font-size:11px">R:R: </span><span style="color:#00d4aa;font-weight:700;font-family:monospace">${d.riskReward}</span></div>
+    <div style="display:flex;gap:16px;margin-top:9px;border-top:1px solid #22c55e22;padding-top:7px">
+      <div><span style="color:#64748b;font-size:11px">Return: </span><span style="color:#22c55e;font-weight:700;font-family:monospace">${d.technical.potentialReturn}%</span></div>
+      <div><span style="color:#64748b;font-size:11px">R:R: </span><span style="color:#00d4aa;font-weight:700;font-family:monospace">${d.technical.riskReward}</span></div>
     </div>
   </div>
-  <div class="g2" style="margin-bottom:8px">
-    <div class="pb"><div class="pl">50-Day MA</div><div class="pv" style="color:${d.above50DMA?"#22c55e":"#ef4444"}">Rs.${d.movingAvg50} ${d.above50DMA?"↑":"↓"}</div></div>
-    <div class="pb"><div class="pl">200-Day MA</div><div class="pv" style="color:${d.above200DMA?"#22c55e":"#ef4444"}">Rs.${d.movingAvg200} ${d.above200DMA?"↑":"↓"}</div></div>
+  <div class="g2" style="margin-bottom:9px">
+    <div class="pb"><div class="pl">50-Day MA</div><div class="pv" style="color:${d.technical.above50DMA?"#22c55e":"#ef4444"}">Rs.${d.technical.movingAvg50} ${d.technical.above50DMA?"↑":"↓"}</div></div>
+    <div class="pb"><div class="pl">200-Day MA</div><div class="pv" style="color:${d.technical.above200DMA?"#22c55e":"#ef4444"}">Rs.${d.technical.movingAvg200} ${d.technical.above200DMA?"↑":"↓"}</div></div>
   </div>
-  <div class="obox"><div style="color:#38bdf8;font-size:10px;letter-spacing:2px;margin-bottom:3px;font-weight:700">TECHNICAL OUTLOOK</div><div style="color:#94a3b8;font-size:12px;line-height:1.5">${d.technicalSummary}</div></div>
+  <div class="obox">
+    <div style="color:#38bdf8;font-size:10px;letter-spacing:2px;margin-bottom:4px;font-weight:700">TECHNICAL OUTLOOK</div>
+    <div style="color:#94a3b8;font-size:12px;line-height:1.6">${d.technical.technicalSummary}</div>
+  </div>
 </div>
 
-<div class="disc">${d.dataNote?`<div style="color:#f59e0b;margin-bottom:2px">ⓘ ${d.dataNote}</div>`:""}AI commentary · not financial advice · do your own research</div>`;
+<div class="disc">
+  ${d.dataNote?`<div style="color:#f59e0b;margin-bottom:3px">ⓘ ${d.dataNote}</div>`:""}
+  AI-generated · not financial advice · do your own research
+</div>`;
 }
 
+// ── Canvas Gauge ──────────────────────────────────────────────────────────────
 function drawGauge(score){
   requestAnimationFrame(()=>{
     const cv=document.getElementById("gauge");if(!cv)return;
-    const ctx=cv.getContext("2d"),cx=52,cy=52,r=41;
+    const ctx=cv.getContext("2d"),cx=54,cy=54,r=43;
     const col=score>=75?"#22c55e":score>=55?"#00d4aa":score>=35?"#f59e0b":"#ef4444";
-    ctx.clearRect(0,0,104,104);
-    ctx.beginPath();ctx.arc(cx,cy,r,0,2*Math.PI);ctx.strokeStyle="#1e2d45";ctx.lineWidth=7;ctx.stroke();
-    ctx.beginPath();ctx.arc(cx,cy,r,-Math.PI/2,-Math.PI/2+(score/100)*2*Math.PI);ctx.strokeStyle=col;ctx.lineWidth=7;ctx.lineCap="round";ctx.shadowColor=col;ctx.shadowBlur=6;ctx.stroke();ctx.shadowBlur=0;
-    ctx.fillStyle=col;ctx.font="bold 20px monospace";ctx.textAlign="center";ctx.fillText(score,cx,cy+5);
-    ctx.fillStyle="#64748b";ctx.font="9px monospace";ctx.fillText("/100",cx,cy+18);
+    ctx.clearRect(0,0,108,108);
+    ctx.beginPath();ctx.arc(cx,cy,r,0,2*Math.PI);ctx.strokeStyle="#1e2d45";ctx.lineWidth=8;ctx.stroke();
+    ctx.beginPath();ctx.arc(cx,cy,r,-Math.PI/2,-Math.PI/2+(score/100)*2*Math.PI);
+    ctx.strokeStyle=col;ctx.lineWidth=8;ctx.lineCap="round";ctx.shadowColor=col;ctx.shadowBlur=7;ctx.stroke();ctx.shadowBlur=0;
+    ctx.fillStyle=col;ctx.font="bold 21px monospace";ctx.textAlign="center";ctx.fillText(score,cx,cy+5);
+    ctx.fillStyle="#64748b";ctx.font="10px monospace";ctx.fillText("/100",cx,cy+19);
   });
 }
 
+// ── History ───────────────────────────────────────────────────────────────────
+function renderHistory(){
+  const list=loadHist();
+  const el=document.getElementById("historyList");
+  if(!list.length){el.innerHTML=`<div class="empty"><div style="font-size:34px;margin-bottom:10px">🗂</div><div style="font-size:13px">No saved analyses yet.</div><div style="font-size:11px;margin-top:3px">Every analysis saves automatically.</div></div>`;return;}
+  el.innerHTML=list.map((h,i)=>{
+    const c=rc(h.fitRating);
+    return`<div class="hi" onclick="loadHist2(${i})">
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:14px;margin-bottom:4px">${h.company}</div>
+        <div style="margin-bottom:3px">${bdg(h.ticker,"#38bdf8")}${bdg(h.fitRating,c)}</div>
+        <div style="color:#64748b;font-size:10px">Rs.${h.currentPrice} · PE:${h.peRatio}x · ${h.savedAt}</div>
+      </div>
+      <div style="text-align:center;min-width:42px">
+        <div style="font-size:24px;font-weight:800;font-family:monospace;color:${c};line-height:1">${h.fitScore}</div>
+        <div style="color:#64748b;font-size:10px">/100</div>
+      </div>
+      <button onclick="event.stopPropagation();delHist(${i})" style="background:none;border:none;color:#ef4444;font-size:15px;cursor:pointer;padding:4px 2px">🗑</button>
+    </div>`;
+  }).join("");
+}
+function loadHist2(i){const l=loadHist();if(!l[i]?.fullData)return;currentData=l[i].fullData;showResult(currentData);switchTab("analyse");}
+function delHist(i){const l=loadHist();l.splice(i,1);saveHist(l);updateHistCount();renderHistory();}
+
+// ── Download Report ───────────────────────────────────────────────────────────
 function downloadReport(){
-  if(!curData)return;
-  const d=curData,col=rc(d.fitRating),sc=d.fitScore>=75?"#22c55e":d.fitScore>=55?"#00d4aa":d.fitScore>=35?"#f59e0b":"#ef4444";
+  if(!currentData)return;
+  const d=currentData,col=rc(d.fitRating),sc=d.fitScore>=75?"#22c55e":d.fitScore>=55?"#00d4aa":d.fitScore>=35?"#f59e0b":"#ef4444";
   const bars=(arr,lbs,max,c)=>(arr||[]).map((v,i)=>{const pct=Math.min(Math.abs(v)/max*100,100),neg=v<0;return`<div style="margin-bottom:6px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px"><span style="color:#94a3b8">${lbs?.[i]||`Q${i+1}`}</span><span style="color:${neg?"#ef4444":"#22c55e"};font-family:monospace">${neg?"":"+"}${v}%</span></div><div style="background:#1e2d45;border-radius:3px;height:5px"><div style="width:${pct}%;background:${neg?"#ef4444":c};border-radius:3px;height:5px"></div></div></div>`;}).join("");
-  const bd=d.scoreBreakdown?.map(b=>`<div style="color:#00d4aa;font-size:11px;margin-bottom:3px">✓ ${b}</div>`).join("")||"";
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${d.ticker} Analysis - ${d.savedAt}</title>
-<style>*{box-sizing:border-box;margin:0;padding:0}body{background:#0a0e1a;color:#e2e8f0;font-family:Arial,sans-serif;font-size:13px;padding:16px}.c{background:#161d2e;border:1px solid #1e2d45;border-radius:9px;padding:14px;margin-bottom:10px}.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}.r{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #1e2d45;font-size:12px}.b{border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;font-family:monospace;display:inline-block;margin-right:4px}.bx{background:#111827;border-radius:6px;padding:7px 5px;text-align:center}.tr{background:linear-gradient(135deg,#0f2a1e,#0a1f1a);border:1px solid #22c55e33;border-radius:8px;padding:12px}@media print{@page{margin:8mm;size:A4}body{padding:8px}}</style>
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${d.company} Analysis</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{background:#0a0e1a;color:#e2e8f0;font-family:Arial,sans-serif;font-size:13px;padding:18px}.card{background:#161d2e;border:1px solid #1e2d45;border-radius:9px;padding:14px;margin-bottom:11px}.g2{display:grid;grid-template-columns:1fr 1fr;gap:11px}.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #1e2d45;font-size:12px}.bdg{border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;font-family:monospace;display:inline-block;margin-right:4px}.box{background:#111827;border-radius:7px;padding:8px 5px;text-align:center}.trade{background:linear-gradient(135deg,#0f2a1e,#0a1f1a);border:1px solid #22c55e33;border-radius:8px;padding:12px}@media print{@page{margin:8mm;size:A4}body{padding:8px}}</style>
 </head><body>
-<div class="c"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap"><div style="flex:1"><div style="font-weight:800;font-size:19px;margin-bottom:6px">${d.company||d.ticker}</div><div style="margin-bottom:7px"><span class="b" style="background:#38bdf822;color:#38bdf8;border:1px solid #38bdf844">${d.ticker}</span><span class="b" style="background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b44">${d.sector||"--"}</span></div><div style="color:#64748b;font-size:12px">CMP <span style="color:#e2e8f0;font-weight:700;font-family:monospace;font-size:16px">Rs.${d.currentPrice}</span></div><div style="color:#64748b;font-size:11px;margin-top:2px">MCap:${d.marketCap} | PE:${d.peRatio}x | P/S:${d.mcapToSales}x</div></div><div style="text-align:center"><div style="font-size:36px;font-weight:800;font-family:monospace;color:${sc}">${d.fitScore}<span style="font-size:13px;color:#64748b">/100</span></div><span class="b" style="background:${col}22;color:${col};border:1px solid ${col}44">${d.fitRating}</span><div style="color:#00d4aa;font-size:10px;margin-top:3px">⚡ Formula</div></div></div><div style="margin-top:10px;color:#94a3b8;font-size:12px;line-height:1.5;border-top:1px solid #1e2d45;padding-top:8px">${d.fitSummary}</div></div>
-${bd?`<div class="c"><div style="color:#00d4aa;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:8px">SCORE BREAKDOWN</div>${bd}</div>`:""}
-<div class="g2" style="margin-bottom:10px">${d.redFlags?.length?`<div style="background:#ef444410;border:1px solid #ef444433;border-radius:8px;padding:10px"><div style="color:#ef4444;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:5px">RED FLAGS</div>${d.redFlags.map(f=>`<div style="color:#fca5a5;font-size:11px;margin-bottom:3px">• ${f}</div>`).join("")}</div>`:"<div></div>"}${d.positives?.length?`<div style="background:#22c55e10;border:1px solid #22c55e33;border-radius:8px;padding:10px"><div style="color:#22c55e;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:5px">POSITIVES</div>${d.positives.map(p=>`<div style="color:#86efac;font-size:11px;margin-bottom:3px">• ${p}</div>`).join("")}</div>`:"<div></div>"}</div>
-<div class="c"><div style="color:#00d4aa;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:8px">FUNDAMENTAL</div><div class="g2"><div><div class="r"><span style="color:#64748b">Promoter</span><span style="color:${d.promoterHolding>50?"#22c55e":"#e2e8f0"};font-family:monospace">${d.promoterHolding}%</span></div><div class="r"><span style="color:#64748b">Promoter Chg</span><span style="color:${d.promoterHoldingChange>0?"#22c55e":"#ef4444"};font-family:monospace">${d.promoterHoldingChange>0?"+":""}${d.promoterHoldingChange}%</span></div><div class="r"><span style="color:#64748b">FII Chg</span><span style="color:${d.fiiHoldingChange>0?"#22c55e":"#ef4444"};font-family:monospace">${d.fiiHoldingChange>0?"+":""}${d.fiiHoldingChange}%</span></div><div class="r"><span style="color:#64748b">CFO+?</span><span style="color:${d.cfoPositive?"#22c55e":"#ef4444"};font-family:monospace">${d.cfoPositive?"Yes":"No"}</span></div></div><div><div class="r"><span style="color:#64748b">Debt/Reserve</span><span style="color:${d.debtToReserve>=50?"#ef4444":"#22c55e"};font-family:monospace">${d.debtToReserve}%</span></div><div class="r"><span style="color:#64748b">PAT Margin</span><span style="color:${d.patMargin<=5?"#ef4444":d.patMargin>=10?"#22c55e":"#f59e0b"};font-family:monospace">${d.patMargin}%</span></div><div class="r"><span style="color:#64748b">MCap/Sales</span><span style="color:${d.mcapToSales>5?"#ef4444":d.mcapToSales<=3?"#22c55e":"#e2e8f0"};font-family:monospace">${d.mcapToSales}x</span></div><div class="r"><span style="color:#64748b">PE</span><span style="font-family:monospace">${d.peRatio}x</span></div></div></div><div style="margin-top:10px"><div style="color:#64748b;font-size:10px;margin-bottom:6px">QoQ REVENUE</div>${bars(d.revenueQoQ,d.revenueQoQLabels,30,"#00d4aa")}</div><div class="g2" style="margin-top:8px"><div><div style="color:#64748b;font-size:10px;margin-bottom:5px">REVENUE YOY</div>${bars(d.revenueGrowthYOY,d.revenueGrowthYOYLabels,50,"#38bdf8")}</div><div><div style="color:#64748b;font-size:10px;margin-bottom:5px">PAT YOY</div>${bars(d.patGrowthYOY,d.patGrowthYOYLabels,50,"#22c55e")}</div></div><div style="background:#111827;border-left:3px solid #00d4aa;border-radius:5px;padding:9px;margin-top:9px"><div style="color:#00d4aa;font-size:10px;letter-spacing:2px;margin-bottom:3px;font-weight:700">MANAGEMENT</div><div style="color:#94a3b8;font-size:12px;line-height:1.5">${d.managementCommentary}</div></div></div>
-<div class="c"><div style="color:#00d4aa;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:8px">TECHNICAL</div><div class="g3" style="margin-bottom:10px"><div class="bx"><div style="color:#64748b;font-size:10px;margin-bottom:2px">TREND</div><div style="font-weight:700;font-family:monospace;color:${d.trend==="Bullish"?"#22c55e":d.trend==="Bearish"?"#ef4444":"#f59e0b"}">${d.trend}</div></div><div class="bx"><div style="color:#64748b;font-size:10px;margin-bottom:2px">RSI</div><div style="font-weight:700;font-family:monospace;color:${d.rsi>70?"#ef4444":d.rsi<30?"#22c55e":"#e2e8f0"}">${d.rsi}</div></div><div class="bx"><div style="color:#64748b;font-size:10px;margin-bottom:2px">MACD</div><div style="font-weight:700;font-size:11px;color:${d.macdSignal?.includes("Bullish")?"#22c55e":"#ef4444"}">${d.macdSignal}</div></div></div><div class="g4" style="margin-bottom:10px"><div class="bx" style="border:1px solid #22c55e44"><div style="color:#64748b;font-size:10px">S1</div><div style="color:#22c55e;font-weight:700;font-family:monospace">Rs.${d.support1}</div></div><div class="bx" style="border:1px solid #22c55e44"><div style="color:#64748b;font-size:10px">S2</div><div style="color:#22c55e;font-weight:700;font-family:monospace">Rs.${d.support2}</div></div><div class="bx" style="border:1px solid #ef444444"><div style="color:#64748b;font-size:10px">R1</div><div style="color:#ef4444;font-weight:700;font-family:monospace">Rs.${d.resistance1}</div></div><div class="bx" style="border:1px solid #ef444444"><div style="color:#64748b;font-size:10px">R2</div><div style="color:#ef4444;font-weight:700;font-family:monospace">Rs.${d.resistance2}</div></div></div><div class="tr" style="margin-bottom:8px"><div style="color:#22c55e;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:8px">TRADE SETUP | ${d.timeframe}</div><div class="g4"><div><div style="color:#64748b;font-size:10px;margin-bottom:2px">ENTRY</div><div style="color:#00d4aa;font-weight:700;font-family:monospace">${d.entryZone}</div></div><div><div style="color:#64748b;font-size:10px;margin-bottom:2px">SL</div><div style="color:#ef4444;font-weight:700;font-family:monospace">Rs.${d.stopLoss}</div></div><div><div style="color:#64748b;font-size:10px;margin-bottom:2px">T1</div><div style="color:#22c55e;font-weight:700;font-family:monospace">Rs.${d.target1}</div></div><div><div style="color:#64748b;font-size:10px;margin-bottom:2px">T2</div><div style="color:#22c55e;font-weight:700;font-family:monospace">Rs.${d.target2}</div></div></div><div style="display:flex;gap:16px;margin-top:8px;border-top:1px solid #22c55e22;padding-top:6px"><div><span style="color:#64748b;font-size:11px">Return: </span><span style="color:#22c55e;font-weight:700;font-family:monospace">${d.potentialReturn}%</span></div><div><span style="color:#64748b;font-size:11px">R:R: </span><span style="color:#00d4aa;font-weight:700;font-family:monospace">${d.riskReward}</span></div></div></div><div class="g2" style="margin-bottom:8px"><div class="bx"><div style="color:#64748b;font-size:10px;margin-bottom:2px">50-Day MA</div><div style="font-weight:700;font-family:monospace;color:${d.above50DMA?"#22c55e":"#ef4444"}">Rs.${d.movingAvg50} ${d.above50DMA?"↑":"↓"}</div></div><div class="bx"><div style="color:#64748b;font-size:10px;margin-bottom:2px">200-Day MA</div><div style="font-weight:700;font-family:monospace;color:${d.above200DMA?"#22c55e":"#ef4444"}">Rs.${d.movingAvg200} ${d.above200DMA?"↑":"↓"}</div></div></div><div style="background:#111827;border-left:3px solid #38bdf8;border-radius:5px;padding:9px"><div style="color:#38bdf8;font-size:10px;letter-spacing:2px;margin-bottom:3px;font-weight:700">TECHNICAL OUTLOOK</div><div style="color:#94a3b8;font-size:12px;line-height:1.5">${d.technicalSummary}</div></div></div>
-<div style="color:#64748b;font-size:10px;text-align:center;margin-top:8px;line-height:1.5">${d.dataNote?`<div style="color:#f59e0b;margin-bottom:2px">ⓘ ${d.dataNote}</div>`:""}IndiaStock Analyser v4 | ${d.savedAt} | Not financial advice</div>
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:11px;flex-wrap:wrap">
+    <div style="flex:1">
+      <div style="font-weight:800;font-size:20px;margin-bottom:7px">${d.company}</div>
+      <div style="margin-bottom:8px"><span class="bdg" style="background:#38bdf822;color:#38bdf8;border:1px solid #38bdf844">${d.ticker}</span><span class="bdg" style="background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b44">${d.sector}</span></div>
+      <div style="color:#64748b;font-size:12px">CMP <span style="color:#e2e8f0;font-weight:700;font-family:monospace;font-size:17px">Rs.${d.currentPrice}</span></div>
+      <div style="color:#64748b;font-size:11px;margin-top:2px">MCap:${d.marketCap} | PE:${d.peRatio}x | P/Sales:${d.mcapToSales}x</div>
+    </div>
+    <div style="text-align:center"><div style="font-size:38px;font-weight:800;font-family:monospace;color:${sc}">${d.fitScore}<span style="font-size:13px;color:#64748b">/100</span></div><span class="bdg" style="background:${col}22;color:${col};border:1px solid ${col}44">${d.fitRating}</span><div style="color:#64748b;font-size:10px;margin-top:2px">FIT-TO-INVEST</div></div>
+  </div>
+  <div style="margin-top:10px;color:#94a3b8;font-size:12px;line-height:1.5;border-top:1px solid #1e2d45;padding-top:9px">${d.fitSummary}</div>
+</div>
+<div class="g2" style="margin-bottom:11px">
+  ${d.redFlags?.length?`<div style="background:#ef444410;border:1px solid #ef444433;border-radius:8px;padding:11px"><div style="color:#ef4444;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:5px">RED FLAGS</div>${d.redFlags.map(f=>`<div style="color:#fca5a5;font-size:11px;margin-bottom:3px">• ${f}</div>`).join("")}</div>`:"<div></div>"}
+  ${d.positives?.length?`<div style="background:#22c55e10;border:1px solid #22c55e33;border-radius:8px;padding:11px"><div style="color:#22c55e;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:5px">POSITIVES</div>${d.positives.map(p=>`<div style="color:#86efac;font-size:11px;margin-bottom:3px">• ${p}</div>`).join("")}</div>`:"<div></div>"}
+</div>
+<div class="card"><div style="color:#00d4aa;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:9px;text-transform:uppercase">Fundamental Analysis</div>
+  <div class="g2"><div>
+    <div class="row"><span style="color:#64748b">Promoter Holding</span><span style="color:${d.fundamental.promoterHolding>50?"#22c55e":"#e2e8f0"};font-family:monospace">${d.fundamental.promoterHolding}%</span></div>
+    <div class="row"><span style="color:#64748b">Promoter Change</span><span style="color:${d.fundamental.promoterHoldingChange<-2?"#ef4444":d.fundamental.promoterHoldingChange>=0?"#22c55e":"#e2e8f0"};font-family:monospace">${d.fundamental.promoterHoldingChange>0?"+":""}${d.fundamental.promoterHoldingChange}%</span></div>
+    <div class="row"><span style="color:#64748b">FII Change</span><span style="color:${d.fundamental.fiiHoldingChange>0?"#22c55e":"#ef4444"};font-family:monospace">${d.fundamental.fiiHoldingChange>0?"+":""}${d.fundamental.fiiHoldingChange}%</span></div>
+    <div class="row"><span style="color:#64748b">CFO Positive?</span><span style="color:${d.fundamental.cfoPositive?"#22c55e":"#ef4444"};font-family:monospace">${d.fundamental.cfoPositive?"Yes":"No"}</span></div>
+  </div><div>
+    <div class="row"><span style="color:#64748b">Debt/Reserve</span><span style="color:${d.fundamental.debtToReserve>=50?"#ef4444":"#22c55e"};font-family:monospace">${d.fundamental.debtToReserve}%</span></div>
+    <div class="row"><span style="color:#64748b">PAT Margin</span><span style="color:${d.fundamental.patMargin<=5?"#ef4444":d.fundamental.patMargin>=10?"#22c55e":"#f59e0b"};font-family:monospace">${d.fundamental.patMargin}%</span></div>
+    <div class="row"><span style="color:#64748b">MCap/Sales</span><span style="color:${d.mcapToSales>5?"#ef4444":d.mcapToSales<=3?"#22c55e":"#e2e8f0"};font-family:monospace">${d.mcapToSales}x</span></div>
+    <div class="row"><span style="color:#64748b">PE Ratio</span><span style="font-family:monospace">${d.peRatio}x</span></div>
+  </div></div>
+  <div style="margin-top:11px"><div style="color:#64748b;font-size:10px;margin-bottom:7px">QoQ REVENUE GROWTH</div>${bars(d.fundamental.revenueQoQ,d.fundamental.revenueQoQLabels,30,"#00d4aa")}</div>
+  <div class="g2" style="margin-top:9px">
+    <div><div style="color:#64748b;font-size:10px;margin-bottom:6px">REVENUE YOY</div>${bars(d.fundamental.revenueGrowthYOY,d.fundamental.revenueGrowthYOYLabels,50,"#38bdf8")}</div>
+    <div><div style="color:#64748b;font-size:10px;margin-bottom:6px">PAT YOY</div>${bars(d.fundamental.patGrowthYOY,d.fundamental.patGrowthYOYLabels,50,"#22c55e")}</div>
+  </div>
+  <div style="background:#111827;border-left:3px solid #00d4aa;border-radius:5px;padding:10px;margin-top:9px"><div style="color:#00d4aa;font-size:10px;letter-spacing:2px;margin-bottom:4px;font-weight:700">MANAGEMENT COMMENTARY</div><div style="color:#94a3b8;font-size:12px;line-height:1.5">${d.fundamental.managementCommentary}</div></div>
+</div>
+<div class="card"><div style="color:#00d4aa;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:9px;text-transform:uppercase">Technical Analysis</div>
+  <div class="g3" style="margin-bottom:11px">
+    <div class="box"><div style="color:#64748b;font-size:10px;margin-bottom:2px">TREND</div><div style="font-weight:700;font-family:monospace;color:${d.technical.trend==="Bullish"?"#22c55e":d.technical.trend==="Bearish"?"#ef4444":"#f59e0b"}">${d.technical.trend}</div></div>
+    <div class="box"><div style="color:#64748b;font-size:10px;margin-bottom:2px">RSI</div><div style="font-weight:700;font-family:monospace;color:${d.technical.rsi>70?"#ef4444":d.technical.rsi<30?"#22c55e":"#e2e8f0"}">${d.technical.rsi}</div></div>
+    <div class="box"><div style="color:#64748b;font-size:10px;margin-bottom:2px">MACD</div><div style="font-weight:700;font-size:11px;color:${d.technical.macdSignal?.includes("Bullish")?"#22c55e":d.technical.macdSignal?.includes("Bearish")?"#ef4444":"#f59e0b"}">${d.technical.macdSignal}</div></div>
+  </div>
+  <div class="g4" style="margin-bottom:11px">
+    <div class="box" style="border:1px solid #22c55e44"><div style="color:#64748b;font-size:10px">S1</div><div style="color:#22c55e;font-weight:700;font-family:monospace">Rs.${d.technical.support1}</div></div>
+    <div class="box" style="border:1px solid #22c55e44"><div style="color:#64748b;font-size:10px">S2</div><div style="color:#22c55e;font-weight:700;font-family:monospace">Rs.${d.technical.support2}</div></div>
+    <div class="box" style="border:1px solid #ef444444"><div style="color:#64748b;font-size:10px">R1</div><div style="color:#ef4444;font-weight:700;font-family:monospace">Rs.${d.technical.resistance1}</div></div>
+    <div class="box" style="border:1px solid #ef444444"><div style="color:#64748b;font-size:10px">R2</div><div style="color:#ef4444;font-weight:700;font-family:monospace">Rs.${d.technical.resistance2}</div></div>
+  </div>
+  <div class="trade" style="margin-bottom:9px">
+    <div style="color:#22c55e;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:9px">TRADE SETUP | ${d.technical.timeframe}</div>
+    <div class="g4">
+      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">ENTRY</div><div style="color:#00d4aa;font-weight:700;font-family:monospace">${d.technical.entryZone}</div></div>
+      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">SL</div><div style="color:#ef4444;font-weight:700;font-family:monospace">Rs.${d.technical.stopLoss}</div></div>
+      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">T1</div><div style="color:#22c55e;font-weight:700;font-family:monospace">Rs.${d.technical.target1}</div></div>
+      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">T2</div><div style="color:#22c55e;font-weight:700;font-family:monospace">Rs.${d.technical.target2}</div></div>
+    </div>
+    <div style="display:flex;gap:18px;margin-top:9px;border-top:1px solid #22c55e22;padding-top:7px">
+      <div><span style="color:#64748b;font-size:11px">Return: </span><span style="color:#22c55e;font-weight:700;font-family:monospace">${d.technical.potentialReturn}%</span></div>
+      <div><span style="color:#64748b;font-size:11px">R:R: </span><span style="color:#00d4aa;font-weight:700;font-family:monospace">${d.technical.riskReward}</span></div>
+    </div>
+  </div>
+  <div class="g2" style="margin-bottom:9px">
+    <div class="box"><div style="color:#64748b;font-size:10px;margin-bottom:2px">50-Day MA</div><div style="font-weight:700;font-family:monospace;color:${d.technical.above50DMA?"#22c55e":"#ef4444"}">Rs.${d.technical.movingAvg50} ${d.technical.above50DMA?"↑":"↓"}</div></div>
+    <div class="box"><div style="color:#64748b;font-size:10px;margin-bottom:2px">200-Day MA</div><div style="font-weight:700;font-family:monospace;color:${d.technical.above200DMA?"#22c55e":"#ef4444"}">Rs.${d.technical.movingAvg200} ${d.technical.above200DMA?"↑":"↓"}</div></div>
+  </div>
+  <div style="background:#111827;border-left:3px solid #38bdf8;border-radius:5px;padding:10px"><div style="color:#38bdf8;font-size:10px;letter-spacing:2px;margin-bottom:4px;font-weight:700">TECHNICAL OUTLOOK</div><div style="color:#94a3b8;font-size:12px;line-height:1.5">${d.technical.technicalSummary}</div></div>
+</div>
+<div style="color:#64748b;font-size:10px;text-align:center;margin-top:9px;line-height:1.5">${d.dataNote?`<div style="color:#f59e0b;margin-bottom:3px">ⓘ ${d.dataNote}</div>`:""}IndiaStock Analyser | AI-generated | Not financial advice</div>
 </body></html>`;
-  const blob=new Blob([html],{type:"text/html"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`${d.ticker}_${new Date().toISOString().slice(0,10)}.html`;document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(url),3000);
+  const blob=new Blob([html],{type:"text/html"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;a.download=`${d.ticker}_${new Date().toISOString().slice(0,10)}.html`;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),3000);
 }
 
-// ── Migration & Debug ─────────────────────────────────────────
+// ── Force migration & debug ───────────────────────────────────────────────────
 function forceMigrate(){
-  const msg=document.getElementById("setMsg");
+  const msg=document.getElementById("migrateMsg");
   try{
-    const keys=["isa_history","isaHistory","isa-history","history"];let found=null,fk=null;
-    keys.forEach(k=>{const v=localStorage.getItem(k);if(v&&v!=="[]"&&!found)try{const p=JSON.parse(v);if(p?.length){found=p;fk=k;}}catch(_){}});
-    const cur=ls.gj("isa_h");
-    if(found){const merged=[...found,...cur.filter(c=>!found.find(f=>f.ticker===c.ticker))].slice(0,30);ls.sj("isa_h",merged);ls.d(fk);updateHistCount();msg.style.color="#22c55e";msg.textContent=`✓ Migrated ${found.length} from "${fk}"`;}
-    else{msg.style.color="#f59e0b";msg.textContent="No old history found.";}
-  }catch(e){msg.style.color="#ef4444";msg.textContent="Error: "+e.message;}
+    // Check all possible old keys
+    const keys=["isa_history","isaHistory","isa-history","history"];
+    let found=null, foundKey=null;
+    keys.forEach(k=>{
+      const v=localStorage.getItem(k);
+      if(v&&v!=="[]"&&v!=="null"&&!found){
+        try{const p=JSON.parse(v);if(p&&p.length){found=p;foundKey=k;}}catch(_){}
+      }
+    });
+    // Also check if isa_h already has data
+    const current=localStorage.getItem("isa_h");
+    const currentParsed=current?JSON.parse(current):[];
+    if(found){
+      // Merge old with current, old takes priority for deduplication
+      const merged=[...found,...currentParsed.filter(c=>!found.find(f=>f.ticker===c.ticker))].slice(0,30);
+      localStorage.setItem("isa_h",JSON.stringify(merged));
+      localStorage.removeItem(foundKey);
+      updateHistCount();
+      msg.style.color="#22c55e";
+      msg.textContent=`✓ Migrated ${found.length} analyses from "${foundKey}"`;
+    } else {
+      msg.style.color="#f59e0b";
+      msg.textContent="No old history found in any known storage key.";
+    }
+  }catch(e){
+    msg.style.color="#ef4444";
+    msg.textContent="Migration error: "+e.message;
+  }
 }
-function showDebug(){
-  const msg=document.getElementById("setMsg");let info=[];
-  for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i),v=localStorage.getItem(k);let d=v;try{const p=JSON.parse(v);d=Array.isArray(p)?`Array(${p.length})`:typeof p==="object"?"Object":v?.slice(0,20);}catch(_){d=v?.slice(0,20)||"empty";}info.push(`${k}: ${d}`);}
-  msg.style.color="#38bdf8";msg.innerHTML=info.length?info.join("<br/>"):"LocalStorage empty";
+
+function showStorageDebug(){
+  const msg=document.getElementById("migrateMsg");
+  let info=[];
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    const v=localStorage.getItem(k);
+    let display=v;
+    try{const p=JSON.parse(v);display=Array.isArray(p)?`Array(${p.length})`:typeof p==="object"?"Object":"string";}catch(_){display=v?.slice(0,30)||"empty";}
+    info.push(`${k}: ${display}`);
+  }
+  msg.style.color="#38bdf8";
+  msg.innerHTML=info.length?info.join("<br/>"):"LocalStorage is empty";
 }
-function clearAll(){if(confirm("Clear ALL data including history and keys?")){localStorage.clear();location.reload();}}
+
 </script>
 </body>
 </html>
