@@ -311,7 +311,9 @@ function updateStatus(){
   else el.innerHTML=`<span class="sdot" style="background:#ef4444"></span>No token`;
 }
 
-window.addEventListener("load",()=>{
+window.addEventListener("load",async()=>{
+  // Load NSE symbol DB first (from cache or GitHub)
+  await loadNSEDB();
   if(getCK()&&getAT()) launch();
   const si=document.getElementById("scripInput");
   if(si){
@@ -371,69 +373,52 @@ async function resolveInstrKey(sym){
 
 // ── Symbol search — fuzzy name to NSE symbol ──────────────────
 // ── NSE Stock Database (bundled) ─────────────────────────────
-const NSE_DB=[
-  ["RELIANCE","Reliance Industries","Energy"],["INFY","Infosys","IT"],
-  ["TCS","Tata Consultancy Services","IT"],["HDFCBANK","HDFC Bank","Banking"],
-  ["ICICIBANK","ICICI Bank","Banking"],["HINDUNILVR","Hindustan Unilever","FMCG"],
-  ["SBIN","State Bank of India","Banking"],["BHARTIARTL","Bharti Airtel","Telecom"],
-  ["KOTAKBANK","Kotak Mahindra Bank","Banking"],["LT","Larsen & Toubro","Infra"],
-  ["WIPRO","Wipro","IT"],["AXISBANK","Axis Bank","Banking"],
-  ["ASIANPAINT","Asian Paints","Paints"],["MARUTI","Maruti Suzuki","Auto"],
-  ["TITAN","Titan Company","Consumer"],["SUNPHARMA","Sun Pharmaceutical","Pharma"],
-  ["BAJFINANCE","Bajaj Finance","NBFC"],["BAJAJFINSV","Bajaj Finserv","Finance"],
-  ["ULTRACEMCO","UltraTech Cement","Cement"],["TATAMOTORS","Tata Motors","Auto"],
-  ["TATASTEEL","Tata Steel","Steel"],["JSWSTEEL","JSW Steel","Steel"],
-  ["NTPC","NTPC","Power"],["POWERGRID","Power Grid Corp","Power"],
-  ["ONGC","Oil & Natural Gas Corp","Energy"],["COALINDIA","Coal India","Mining"],
-  ["ITC","ITC","FMCG"],["DRREDDY","Dr Reddy Laboratories","Pharma"],
-  ["CIPLA","Cipla","Pharma"],["DIVISLAB","Divis Laboratories","Pharma"],
-  ["EICHERMOT","Eicher Motors","Auto"],["HEROMOTOCO","Hero MotoCorp","Auto"],
-  ["BAJAJ-AUTO","Bajaj Auto","Auto"],["M&M","Mahindra Mahindra","Auto"],
-  ["ADANIPORTS","Adani Ports","Ports"],["ADANIENT","Adani Enterprises","Conglomerate"],
-  ["ADANIGREEN","Adani Green Energy","Renewable"],["ADANIPOWER","Adani Power","Power"],
-  ["HINDALCO","Hindalco Industries","Metals"],["VEDL","Vedanta","Metals"],
-  ["GRASIM","Grasim Industries","Cement"],["INDUSINDBK","IndusInd Bank","Banking"],
-  ["BANKBARODA","Bank of Baroda","Banking"],["PNB","Punjab National Bank","Banking"],
-  ["CANBK","Canara Bank","Banking"],["HCLTECH","HCL Technologies","IT"],
-  ["TECHM","Tech Mahindra","IT"],["MPHASIS","Mphasis","IT"],
-  ["PERSISTENT","Persistent Systems","IT"],["LTIM","LTIMindtree","IT"],
-  ["COFORGE","Coforge","IT"],["ZOMATO","Zomato","Food Tech"],
-  ["PAYTM","Paytm","Fintech"],["NYKAA","Nykaa","Ecommerce"],
-  ["POLICYBZR","PolicyBazaar","Fintech"],["SWIGGY","Swiggy","Food Delivery"],
-  ["DMART","Avenue Supermarts","Retail"],["TRENT","Trent","Retail"],
-  ["PIDILITIND","Pidilite Industries","Chemicals"],["BERGEPAINT","Berger Paints","Paints"],
-  ["NESTLEIND","Nestle India","FMCG"],["BRITANNIA","Britannia Industries","FMCG"],
-  ["DABUR","Dabur India","FMCG"],["MARICO","Marico","FMCG"],
-  ["COLPAL","Colgate Palmolive","FMCG"],["TATACONSUM","Tata Consumer Products","FMCG"],
-  ["BIOCON","Biocon","Pharma"],["AUROPHARMA","Aurobindo Pharma","Pharma"],
-  ["LUPIN","Lupin","Pharma"],["TORNTPHARM","Torrent Pharmaceuticals","Pharma"],
-  ["IDEA","Vodafone Idea","Telecom"],["DLF","DLF","Real Estate"],
-  ["GODREJPROP","Godrej Properties","Real Estate"],["MUTHOOTFIN","Muthoot Finance","NBFC"],
-  ["CHOLAFIN","Cholamandalam Finance","NBFC"],["SHRIRAMFIN","Shriram Finance","NBFC"],
-  ["SBILIFE","SBI Life Insurance","Insurance"],["HDFCLIFE","HDFC Life Insurance","Insurance"],
-  ["LICI","Life Insurance Corporation","Insurance"],["IRCTC","IRCTC","Travel"],
-  ["INDIGO","IndiGo InterGlobe Aviation","Aviation"],["HAL","Hindustan Aeronautics","Defence"],
-  ["BEL","Bharat Electronics","Defence"],["BHEL","BHEL","Engineering"],
-  ["SIEMENS","Siemens India","Engineering"],["HAVELLS","Havells India","Electricals"],
-  ["POLYCAB","Polycab India","Cables"],["VOLTAS","Voltas","Consumer Durables"],
-  ["APOLLOHOSP","Apollo Hospitals","Healthcare"],["FORTIS","Fortis Healthcare","Healthcare"],
-  ["MAXHEALTH","Max Healthcare","Healthcare"],["METROPOLIS","Metropolis Healthcare","Diagnostics"],
-  ["DRLA","Dr Lal PathLabs","Diagnostics"],["RECLTD","REC","Finance"],
-  ["PFC","Power Finance Corp","Finance"],["IRFC","Indian Railway Finance","Finance"],
-  ["TATAPOWER","Tata Power","Power"],["CONCOR","Container Corp","Logistics"],
-  ["VBL","Varun Beverages","FMCG"],["DIXON","Dixon Technologies","Electronics"],
-  ["TATAELXSI","Tata Elxsi","IT"],["KPITTECH","KPIT Technologies","IT Auto"],
-  ["APOLLOTYRE","Apollo Tyres","Tyres"],["MRF","MRF","Tyres"],
-  ["CEATLTD","CEAT","Tyres"],["BALKRISIND","Balkrishna Industries","Tyres"],
-  ["JUBLFOOD","Jubilant FoodWorks","QSR"],["TVSMOTOR","TVS Motor","Auto"],
-  ["MOTHERSON","Motherson Sumi","Auto Ancillary"],["BOSCHLTD","Bosch India","Auto Ancillary"],
-  ["ACC","ACC","Cement"],["AMBUJACEM","Ambuja Cements","Cement"],
-  ["SHREECEM","Shree Cement","Cement"],["JKCEMENT","JK Cement","Cement"],
-  ["PAGEIND","Page Industries","Textiles"],["NMDC","NMDC","Mining"],
-  ["DEEPAKNTR","Deepak Nitrite","Chemicals"],["AARTIIND","Aarti Industries","Chemicals"],
-  ["NAVINFLUOR","Navin Fluorine","Chemicals"],["TATACHEM","Tata Chemicals","Chemicals"],
-  ["OLAELEC","Ola Electric","EV"],["KAYNES","Kaynes Technology","Electronics"],
-];
+// NSE symbols loaded from nse-symbols.json (same GitHub domain, no CORS)
+let NSE_DB=[];
+const NSE_DB_URL='./nse-symbols.json';
+const NSE_DB_KEY='isa_nse_db';
+const NSE_DB_AGE_KEY='isa_nse_db_age';
+const NSE_DB_TTL=7*24*60*60*1000; // 7 days
+
+async function loadNSEDB(){
+  // 1. Try localStorage cache first (fastest)
+  try{
+    const age=parseInt(localStorage.getItem(NSE_DB_AGE_KEY)||'0');
+    const cached=localStorage.getItem(NSE_DB_KEY);
+    if(cached&&Date.now()-age<NSE_DB_TTL){
+      NSE_DB=JSON.parse(cached);
+      console.log(`NSE DB from cache: ${NSE_DB.length} stocks`);
+      return;
+    }
+  }catch(_){}
+  // 2. Fetch our curated JSON from same GitHub repo (no CORS, fast)
+  try{
+    const r=await fetch(NSE_DB_URL,{signal:AbortSignal.timeout(8000)});
+    if(r.ok){
+      const data=await r.json();
+      NSE_DB=data;
+      localStorage.setItem(NSE_DB_KEY,JSON.stringify(data));
+      localStorage.setItem(NSE_DB_AGE_KEY,Date.now().toString());
+      console.log(`NSE DB from GitHub: ${NSE_DB.length} stocks`);
+      return;
+    }
+  }catch(e){console.log('GitHub DB fetch failed:',e.message);}
+  // NSE CSV handled via nse-symbols.json (2131 stocks pre-built)
+  // 3. Fallback: small hardcoded list
+  NSE_DB=[
+    ["RELIANCE","Reliance Industries","Energy"],["INFY","Infosys","IT"],
+    ["TCS","Tata Consultancy Services","IT"],["HDFCBANK","HDFC Bank","Banking"],
+    ["ICICIBANK","ICICI Bank","Banking"],["SBIN","State Bank of India","Banking"],
+    ["BHARTIARTL","Bharti Airtel","Telecom"],["WIPRO","Wipro","IT"],
+    ["TITAN","Titan Company","Consumer"],["ITC","ITC","FMCG"],
+    ["AXISBANK","Axis Bank","Banking"],["KOTAKBANK","Kotak Mahindra Bank","Banking"],
+    ["LT","Larsen & Toubro","Infrastructure"],["BAJFINANCE","Bajaj Finance","NBFC"],
+    ["TATAMOTORS","Tata Motors","Auto"],["ZOMATO","Zomato","Food Tech"],
+    ["HCLTECH","HCL Technologies","IT"],["SUNPHARMA","Sun Pharmaceutical","Pharma"],
+    ["MARUTI","Maruti Suzuki","Auto"],["NTPC","NTPC","Power"],
+  ];
+  console.log('Using fallback NSE DB');
+}
 
 // Fuzzy search in bundled DB — runs instantly, no API
 // Local search on bundled DB (instant fallback)
@@ -453,35 +438,12 @@ function localSearch(query){
   return results.sort((a,b)=>b.score-a.score).slice(0,8);
 }
 
-// Live search using Upstox Search API (covers all 2000+ NSE stocks)
+// Search uses local bundled DB only (Upstox search API not available via browser)
 let searchTimer=null;
 async function searchSymbol(query){
   const q=query.trim();
   if(!q||q.length<2)return [];
-  // Show local results immediately while API loads
-  const local=localSearch(q);
-  const token=getAT();
-  if(!token)return local;
-  try{
-    const r=await fetch(
-      `https://api.upstox.com/v1/instruments/search?query=${encodeURIComponent(q)}&exchanges=NSE&segments=EQ&instrument_types=EQ`,
-      {headers:{"Authorization":`Bearer ${token}`,"Accept":"application/json"},
-       signal:AbortSignal.timeout(4000)}
-    );
-    if(!r.ok)return local;
-    const d=await r.json();
-    const apiResults=(d.data||[])
-      .filter(x=>x.segment==="NSE_EQ"&&x.instrument_type==="EQ")
-      .slice(0,10)
-      .map(x=>({
-        score:x.trading_symbol?.toLowerCase()===q.toLowerCase()?100:80,
-        trading_symbol:x.trading_symbol,
-        name:x.name||x.trading_symbol,
-        sector:x.industry||"NSE"
-      }));
-    if(apiResults.length>0)return apiResults;
-    return local; // fallback to local if API returns nothing
-  }catch(_){return local;} // fallback on network error
+  return localSearch(q);
 }
 
 // Render dropdown results
@@ -515,21 +477,13 @@ function renderDD(results){
     </div>`).join("");
 }
 
-// Live dropdown — async, shows local results first then updates with API results
-async function showSuggestions(query){
+// Live dropdown — instant local search
+function showSuggestions(query){
   const dd=document.getElementById("symDD");
-  if(!query||query.length<2){if(dd)dd.remove();return;}
-  // Show local results instantly
-  const local=localSearch(query);
-  if(local.length) renderDD(local);
-  // Debounce API call — wait 300ms after typing stops
-  clearTimeout(searchTimer);
-  searchTimer=setTimeout(async()=>{
-    const apiResults=await searchSymbol(query);
-    // Only update if user hasn't cleared the input
-    const cur=document.getElementById("scripInput")?.value||"";
-    if(cur.length>=2) renderDD(apiResults);
-  },300);
+  if(!query||query.length<1){if(dd)dd.remove();return;}
+  const results=localSearch(query);
+  if(results.length) renderDD(results);
+  else if(dd) dd.remove();
 }
 
 function selectSym(sym,name,sector){
@@ -550,14 +504,33 @@ function hideSuggestions(){
 
 async function fetchQuote(sym){
   const symUp=sym.toUpperCase();
+  // Try LTP endpoint first — accepts NSE_EQ|SYMBOL format
+  const symKey=encodeURIComponent(`NSE_EQ|${symUp}`);
+  try{
+    const d=await upGet(`/market-quote/ltp?instrument_key=${symKey}`);
+    if(d.data&&Object.keys(d.data).length>0){
+      const ltp=d.data[Object.keys(d.data)[0]];
+      // Cache the real instrument_token for historical data
+      if(ltp.instrument_token){
+        instrKeyCache[symUp]=ltp.instrument_token;
+      }
+      // Now fetch full quote using the confirmed key
+      const confirmedKey=encodeURIComponent(ltp.instrument_token||`NSE_EQ|${symUp}`);
+      const full=await upGet(`/market-quote/quotes?instrument_key=${confirmedKey}`);
+      if(full.data&&Object.keys(full.data).length>0){
+        return full.data[Object.keys(full.data)[0]];
+      }
+      // Return LTP data if full quote fails
+      return ltp;
+    }
+  }catch(e1){console.log("LTP fetch failed:",e1.message);}
+  // Fallback: try full quote directly with cached key
   const ik=await resolveInstrKey(symUp);
   const k=encodeURIComponent(ik);
-  // Use full market quote — returns price + OHLC + volume
   const d=await upGet(`/market-quote/quotes?instrument_key=${k}`);
   if(!d.data||Object.keys(d.data).length===0){
-    throw new Error(`Symbol "${symUp}" not found. Please select from dropdown suggestions.`);
+    throw new Error(`Symbol "${symUp}" not found. Please select from the dropdown.`);
   }
-  // Take first (and only) result regardless of key format
   return d.data[Object.keys(d.data)[0]];
 }
 
@@ -1044,7 +1017,7 @@ async function analyze(){
     analyzeSymbol(sym,name); return;
   }
   // Search bundled DB
-  const results=await searchSymbol(input);
+  const results=localSearch(input);
   if(results.length>0){
     // Exact symbol match
     const exact=results.find(r=>r.trading_symbol.toLowerCase()===input.toLowerCase());
