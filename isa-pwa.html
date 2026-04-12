@@ -341,7 +341,20 @@ async function analyze(){
         max_tokens:3000,
         tools:[{type:"web_search_20250305",name:"web_search",max_uses:3}],
         system:SYS,
-        messages:[{role:"user",content:`Analyse Indian stock: ${q}. Search for latest shareholding, quarterly results, cash flows, debt ratios and technical price levels. Return only JSON.`}]
+        messages:[{role:"user",content:`Analyse Indian stock: ${q}. Search for latest shareholding pattern, quarterly results, cash flows, debt levels, technical price levels, and latest concall or results commentary.
+
+IMPORTANT: The JSON must include these commentary fields inside fundamental{}:
+- revenueGuidance: exactly one of "raised", "maintained", "cut", "not given"
+- marginGuidance: exactly one of "expanding", "stable", "contracting", "not given"  
+- demandOutlook: exactly one of "strong", "moderate", "weak"
+- majorEvent: string describing any major recent event or "none"
+- managementCommentary: 2-3 sentences from latest concall/results
+
+Also cfoVsOthers must be a string like "CFO is higher" or "CFO is lower", not a number.
+
+Apply scoring rules exactly and populate scoring.fundamentalBreakdown, technicalBreakdown, commentaryBreakdown arrays showing which rules fired.
+
+Return only JSON.`}]
       })
     });
     if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e?.error?.message||`API error ${res.status}`);}
@@ -410,17 +423,17 @@ ${d.scoring?`
   <div class="g3" style="margin-bottom:12px">
     <div style="background:#111827;border-radius:8px;padding:10px;text-align:center">
       <div style="color:#64748b;font-size:9px;letter-spacing:1px;margin-bottom:4px">FUNDAMENTAL</div>
-      <div style="font-size:22px;font-weight:800;font-family:monospace;color:#00d4aa">${d.scoring.fundamentalScore||0}</div>
+      <div style="font-size:22px;font-weight:800;font-family:monospace;color:#00d4aa">${(d.scoring||{}).fundamentalScore||0}</div>
       <div style="color:#64748b;font-size:9px">/ 60 pts · 60%</div>
     </div>
     <div style="background:#111827;border-radius:8px;padding:10px;text-align:center">
       <div style="color:#64748b;font-size:9px;letter-spacing:1px;margin-bottom:4px">TECHNICAL</div>
-      <div style="font-size:22px;font-weight:800;font-family:monospace;color:#38bdf8">${d.scoring.technicalScore||0}</div>
+      <div style="font-size:22px;font-weight:800;font-family:monospace;color:#38bdf8">${(d.scoring||{}).technicalScore||0}</div>
       <div style="color:#64748b;font-size:9px">/ 20 pts · 20%</div>
     </div>
     <div style="background:#111827;border-radius:8px;padding:10px;text-align:center">
       <div style="color:#64748b;font-size:9px;letter-spacing:1px;margin-bottom:4px">COMMENTARY</div>
-      <div style="font-size:22px;font-weight:800;font-family:monospace;color:${(d.scoring.commentaryScore||0)>=0?"#22c55e":"#ef4444"}">${(d.scoring.commentaryScore||0)>0?"+":""}${d.scoring.commentaryScore||0}</div>
+      <div style="font-size:22px;font-weight:800;font-family:monospace;color:${((d.scoring||{}).commentaryScore||0)>=0?"#22c55e":"#ef4444"}">${((d.scoring||{}).commentaryScore||0)>0?"+":""}${d.scoring.commentaryScore||0}</div>
       <div style="color:#64748b;font-size:9px">/ 20 pts · 20%</div>
     </div>
   </div>
@@ -429,24 +442,24 @@ ${d.scoring?`
   ${d.scoring.commentaryBreakdown?.length?`<div><div style="color:#8b5cf6;font-size:9px;font-weight:700;letter-spacing:1px;margin-bottom:5px">COMMENTARY</div><div style="display:flex;flex-wrap:wrap;gap:4px">${d.scoring.commentaryBreakdown.map(b=>`<span style="background:#8b5cf611;color:#8b5cf6;border:1px solid #8b5cf622;border-radius:10px;padding:2px 8px;font-size:10px">${b}</span>`).join("")}</div></div>`:""}
 </div>`:""}
 
-${d.scoring?`<div class="card" style="margin-bottom:11px">
+${(d.scoring||d.scoreBreakdown)?`<div class="card" style="margin-bottom:11px">
   <div class="st">⚡ Score Breakdown</div>
   <div class="g3" style="margin-bottom:11px">
-    <div class="pb"><div class="pl">FUNDAMENTAL — 60% WEIGHT</div><div class="pv" style="color:#38bdf8">${d.scoring.fundamentalScore||0}<span style="font-size:9px;color:#64748b">/70</span></div></div>
-    <div class="pb"><div class="pl">TECHNICAL — 20% WEIGHT</div><div class="pv" style="color:#a78bfa">${d.scoring.technicalScore||0}<span style="font-size:9px;color:#64748b">/30</span></div></div>
-    <div class="pb"><div class="pl">COMMENTARY — 20% WEIGHT</div><div class="pv" style="color:${(d.scoring.commentaryScore||0)>=0?"#22c55e":"#ef4444"}">${(d.scoring.commentaryScore||0)>0?"+":""}${d.scoring.commentaryScore||0}<span style="font-size:9px;color:#64748b">±15</span></div></div>
+    <div class="pb"><div class="pl">FUNDAMENTAL — 60% WEIGHT</div><div class="pv" style="color:#38bdf8">${(d.scoring||{}).fundamentalScore||0}<span style="font-size:9px;color:#64748b">/70</span></div></div>
+    <div class="pb"><div class="pl">TECHNICAL — 20% WEIGHT</div><div class="pv" style="color:#a78bfa">${(d.scoring||{}).technicalScore||0}<span style="font-size:9px;color:#64748b">/30</span></div></div>
+    <div class="pb"><div class="pl">COMMENTARY — 20% WEIGHT</div><div class="pv" style="color:${((d.scoring||{}).commentaryScore||0)>=0?"#22c55e":"#ef4444"}">${((d.scoring||{}).commentaryScore||0)>0?"+":""}${d.scoring.commentaryScore||0}<span style="font-size:9px;color:#64748b">±15</span></div></div>
   </div>
   <div style="margin-bottom:8px">
     <div style="color:#64748b;font-size:10px;margin-bottom:5px;letter-spacing:1px">FUNDAMENTAL — 60% WEIGHT</div>
-    <div style="display:flex;flex-wrap:wrap;gap:4px">${(d.scoring.fundamentalBreakdown||[]).map(b=>`<span style="background:#38bdf811;color:#38bdf8;border:1px solid #38bdf822;border-radius:10px;padding:2px 7px;font-size:10px">${b}</span>`).join("")}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px">${((d.scoring||{}).fundamentalBreakdown||[]).map(b=>`<span style="background:#38bdf811;color:#38bdf8;border:1px solid #38bdf822;border-radius:10px;padding:2px 7px;font-size:10px">${b}</span>`).join("")}</div>
   </div>
   <div style="margin-bottom:8px">
     <div style="color:#64748b;font-size:10px;margin-bottom:5px;letter-spacing:1px">TECHNICAL — 20% WEIGHT</div>
-    <div style="display:flex;flex-wrap:wrap;gap:4px">${(d.scoring.technicalBreakdown||[]).map(b=>`<span style="background:#a78bfa11;color:#a78bfa;border:1px solid #a78bfa22;border-radius:10px;padding:2px 7px;font-size:10px">${b}</span>`).join("")}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px">${((d.scoring||{}).technicalBreakdown||[]).map(b=>`<span style="background:#a78bfa11;color:#a78bfa;border:1px solid #a78bfa22;border-radius:10px;padding:2px 7px;font-size:10px">${b}</span>`).join("")}</div>
   </div>
   <div>
     <div style="color:#64748b;font-size:10px;margin-bottom:5px;letter-spacing:1px">COMMENTARY — 20% WEIGHT</div>
-    <div style="display:flex;flex-wrap:wrap;gap:4px">${(d.scoring.commentaryBreakdown||[]).map(b=>`<span style="background:${b.includes("-")?"#ef444411":"#22c55e11"};color:${b.includes("-")?"#ef4444":"#22c55e"};border:1px solid ${b.includes("-")?"#ef444433":"#22c55e33"};border-radius:10px;padding:2px 7px;font-size:10px">${b}</span>`).join("")}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px">${((d.scoring||{}).commentaryBreakdown||[]).map(b=>`<span style="background:${b.includes("-")?"#ef444411":"#22c55e11"};color:${b.includes("-")?"#ef4444":"#22c55e"};border:1px solid ${b.includes("-")?"#ef444433":"#22c55e33"};border-radius:10px;padding:2px 7px;font-size:10px">${b}</span>`).join("")}</div>
   </div>
 </div>`:""}
 
@@ -462,7 +475,7 @@ ${d.scoring?`<div class="card" style="margin-bottom:11px">
   ${mrow("Public Holding",d.fundamental.publicHolding+"%","")}
   ${mrow("FII Change",(d.fundamental.fiiHoldingChange>0?"+":"")+d.fundamental.fiiHoldingChange+"%",d.fundamental.fiiHoldingChange>0?"g":"b")}
   ${mrow("CFO Positive?",d.fundamental.cfoPositive?"✓ Yes":"✗ No",d.fundamental.cfoPositive?"g":"b")}
-  ${mrow("CFO vs Inv+Fin",d.fundamental.cfoVsOthers,d.fundamental.cfoVsOthers?.toLowerCase().includes("higher")?"g":"")}
+  ${mrow("CFO vs Inv+Fin",d.fundamental.cfoVsOthers,String(d.fundamental.cfoVsOthers||"").toLowerCase().includes("higher")?"g":"")}
   ${mrow("Debt/Reserve",d.fundamental.debtToReserve+"%",d.fundamental.debtToReserve>=50?"b":"g")}
   ${mrow("PAT Margin",d.fundamental.patMargin+"%",d.fundamental.patMargin<=5?"b":d.fundamental.patMargin>=10?"g":"w")}
   ${mrow("MCap/Sales",d.mcapToSales+"x",d.mcapToSales>5?"b":d.mcapToSales<=3?"g":"")}
@@ -481,19 +494,19 @@ ${d.scoring?`<div class="card" style="margin-bottom:11px">
     <div class="g2" style="gap:6px">
       <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px">
         <div style="color:#64748b;font-size:9px;letter-spacing:1px;margin-bottom:2px">REVENUE GUIDANCE</div>
-        <div style="font-weight:700;font-size:11px;color:${d.fundamental.revenueGuidance==="raised"?"#22c55e":d.fundamental.revenueGuidance==="cut"?"#ef4444":"#f59e0b"}">${(d.fundamental.revenueGuidance||"--").toUpperCase()}</div>
+        <div style="font-weight:700;font-size:11px;color:${(d.fundamental.revenueGuidance||d.revenueGuidance||"")==="raised"?"#22c55e":(d.fundamental.revenueGuidance||d.revenueGuidance||"")==="cut"?"#ef4444":"#f59e0b"}">${((d.fundamental.revenueGuidance||d.revenueGuidance||"--")).toUpperCase()}</div>
       </div>
       <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px">
         <div style="color:#64748b;font-size:9px;letter-spacing:1px;margin-bottom:2px">MARGIN GUIDANCE</div>
-        <div style="font-weight:700;font-size:11px;color:${d.fundamental.marginGuidance==="expanding"?"#22c55e":d.fundamental.marginGuidance==="contracting"?"#ef4444":"#f59e0b"}">${(d.fundamental.marginGuidance||"--").toUpperCase()}</div>
+        <div style="font-weight:700;font-size:11px;color:${(d.fundamental.marginGuidance||d.marginGuidance||"")==="expanding"?"#22c55e":(d.fundamental.marginGuidance||d.marginGuidance||"")==="contracting"?"#ef4444":"#f59e0b"}">${((d.fundamental.marginGuidance||d.marginGuidance||"--")).toUpperCase()}</div>
       </div>
       <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px">
         <div style="color:#64748b;font-size:9px;letter-spacing:1px;margin-bottom:2px">DEMAND OUTLOOK</div>
-        <div style="font-weight:700;font-size:11px;color:${d.fundamental.demandOutlook==="strong"?"#22c55e":d.fundamental.demandOutlook==="weak"?"#ef4444":"#f59e0b"}">${(d.fundamental.demandOutlook||"--").toUpperCase()}</div>
+        <div style="font-weight:700;font-size:11px;color:${(d.fundamental.demandOutlook||d.demandOutlook||"")==="strong"?"#22c55e":(d.fundamental.demandOutlook||d.demandOutlook||"")==="weak"?"#ef4444":"#f59e0b"}">${((d.fundamental.demandOutlook||d.demandOutlook||"--")).toUpperCase()}</div>
       </div>
       <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px">
         <div style="color:#64748b;font-size:9px;letter-spacing:1px;margin-bottom:2px">MAJOR EVENT</div>
-        <div style="font-weight:700;font-size:10px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.fundamental.majorEvent||"--"}</div>
+        <div style="font-weight:700;font-size:10px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.fundamental.majorEvent||d.majorEvent||"--"}</div>
       </div>
     </div>
   </div>
@@ -502,9 +515,9 @@ ${d.scoring?`<div class="card" style="margin-bottom:11px">
 <div class="card">
   <div class="st">⬡ Technical</div>
   <div class="g3" style="margin-bottom:11px">
-    <div class="pb"><div class="pl">TREND</div><div class="pv" style="color:${d.technical.trend==="Bullish"?"#22c55e":d.technical.trend==="Bearish"?"#ef4444":"#f59e0b"}">${d.technical.trend}</div></div>
+    <div class="pb"><div class="pl">TREND</div><div class="pv" style="color:${String(d.technical.trend||"")==="Bullish"?"#22c55e":String(d.technical.trend||"")==="Bearish"?"#ef4444":"#f59e0b"}">${d.technical.trend}</div></div>
     <div class="pb"><div class="pl">RSI</div><div class="pv" style="color:${d.technical.rsi>70?"#ef4444":d.technical.rsi<30?"#22c55e":"#e2e8f0"}">${d.technical.rsi}</div></div>
-    <div class="pb"><div class="pl">MACD</div><div class="pv" style="font-size:10px;color:${d.technical.macdSignal?.includes("Bullish")?"#22c55e":d.technical.macdSignal?.includes("Bearish")?"#ef4444":"#f59e0b"}">${d.technical.macdSignal}</div></div>
+    <div class="pb"><div class="pl">MACD</div><div class="pv" style="font-size:10px;color:${String(d.technical.macdSignal||"").includes("Bullish")?"#22c55e":String(d.technical.macdSignal||"").includes("Bearish")?"#ef4444":"#f59e0b"}">${d.technical.macdSignal}</div></div>
   </div>
   <div class="g4" style="margin-bottom:11px">
     ${pbox("S1","Rs."+d.technical.support1,"#22c55e",true)}
@@ -625,9 +638,9 @@ function downloadReport(){
 </div>
 <div class="card"><div style="color:#00d4aa;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:9px;text-transform:uppercase">Technical Analysis</div>
   <div class="g3" style="margin-bottom:11px">
-    <div class="box"><div style="color:#64748b;font-size:10px;margin-bottom:2px">TREND</div><div style="font-weight:700;font-family:monospace;color:${d.technical.trend==="Bullish"?"#22c55e":d.technical.trend==="Bearish"?"#ef4444":"#f59e0b"}">${d.technical.trend}</div></div>
+    <div class="box"><div style="color:#64748b;font-size:10px;margin-bottom:2px">TREND</div><div style="font-weight:700;font-family:monospace;color:${String(d.technical.trend||"")==="Bullish"?"#22c55e":String(d.technical.trend||"")==="Bearish"?"#ef4444":"#f59e0b"}">${d.technical.trend}</div></div>
     <div class="box"><div style="color:#64748b;font-size:10px;margin-bottom:2px">RSI</div><div style="font-weight:700;font-family:monospace;color:${d.technical.rsi>70?"#ef4444":d.technical.rsi<30?"#22c55e":"#e2e8f0"}">${d.technical.rsi}</div></div>
-    <div class="box"><div style="color:#64748b;font-size:10px;margin-bottom:2px">MACD</div><div style="font-weight:700;font-size:11px;color:${d.technical.macdSignal?.includes("Bullish")?"#22c55e":d.technical.macdSignal?.includes("Bearish")?"#ef4444":"#f59e0b"}">${d.technical.macdSignal}</div></div>
+    <div class="box"><div style="color:#64748b;font-size:10px;margin-bottom:2px">MACD</div><div style="font-weight:700;font-size:11px;color:${String(d.technical.macdSignal||"").includes("Bullish")?"#22c55e":String(d.technical.macdSignal||"").includes("Bearish")?"#ef4444":"#f59e0b"}">${d.technical.macdSignal}</div></div>
   </div>
   <div class="g4" style="margin-bottom:11px">
     <div class="box" style="border:1px solid #22c55e44"><div style="color:#64748b;font-size:10px">S1</div><div style="color:#22c55e;font-weight:700;font-family:monospace">Rs.${d.technical.support1}</div></div>
