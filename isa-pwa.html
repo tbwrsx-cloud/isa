@@ -497,14 +497,71 @@ function renderHistory(){
     </div>`;
   }).join("");
 }
+// ── Hardcoded score recalculator (no API needed) ─────────────────────────────
+function recalcScore(d){
+  const f=d.fundamental||{}, t=d.technical||{};
+  let fs=0, fb=[], ts=0, tb=[];
+  // Fundamental
+  if(f.promoterHolding>50){fs+=8;fb.push("Promoter>50%: +8");}
+  if(f.promoterHoldingChange>0){fs+=5;fb.push("PromIncreasing: +5");}
+  if(f.fiiHoldingChange>0){fs+=5;fb.push("FIIIncreasing: +5");}
+  if(f.cfoPositive||f.cfOperations>0){fs+=8;fb.push("CFO+ve: +8");}
+  if(String(f.cfoVsOthers||"").toLowerCase().includes("higher")){fs+=7;fb.push("CFO>Inv+Fin: +7");}
+  if(f.debtToReserve<50&&f.debtToReserve>=0){fs+=8;fb.push("Debt/Res<50%: +8");}
+  if(f.patMargin>10){fs+=8;fb.push("PATmargin>10%: +8");}
+  else if(f.patMargin>5){fs+=4;fb.push("PATmargin5-10%: +4");}
+  const rYOY=f.revenueGrowthYOY||[];
+  if(rYOY.length>=2&&rYOY.every(v=>v>0)){fs+=8;fb.push("RevYOY+ve: +8");}
+  const pYOY=f.patGrowthYOY||[];
+  if(pYOY.length>=2&&pYOY.every(v=>v>0)){fs+=8;fb.push("PATyoy+ve: +8");}
+  if(d.mcapToSales>0&&d.mcapToSales<3){fs+=5;fb.push("MCap/S<3x: +5");}
+  else if(d.mcapToSales>=3&&d.mcapToSales<5){fs+=3;fb.push("MCap/S3-5x: +3");}
+  const qoq=f.revenueQoQ||[];
+  if(qoq.filter(v=>v>0).length>=3){fs+=3;fb.push("QoQ+ve 3/4: +3");}
+  if(d.peRatio>0&&d.peRatio<30){fs+=3;fb.push("PE<30: +3");}
+  else if(d.peRatio>=30&&d.peRatio<50){fs+=1;fb.push("PE30-50: +1");}
+  // Technical
+  if(t.above200DMA){ts+=8;tb.push("Above200DMA: +8");}
+  if(t.above50DMA){ts+=5;tb.push("Above50DMA: +5");}
+  const rsi=t.rsi||0;
+  if(rsi>=40&&rsi<=65){ts+=7;tb.push("RSI40-65: +7");}
+  else if((rsi>=30&&rsi<40)||(rsi>65&&rsi<=70)){ts+=4;tb.push("RSI30-40/65-70: +4");}
+  if(String(t.macdSignal||"").toLowerCase().includes("bullish")){ts+=5;tb.push("MACDbullish: +5");}
+  if(t.support1>0&&d.currentPrice>0){
+    const pct=(d.currentPrice-t.support1)/t.support1*100;
+    if(pct>=0&&pct<=3){ts+=5;tb.push("NearS1: +5");}
+  }
+  // Commentary score — use saved value or 0
+  const cs=d.scoring?.commentaryScore||0;
+  const cb=d.scoring?.commentaryBreakdown||[];
+  // Final
+  const total=Math.min(Math.max(fs+ts+cs,0),100);
+  let rating="Avoid";
+  if(f.patMargin<=5&&f.patMargin>0)rating="Avoid";
+  else if(total>=75)rating="Strong Buy";
+  else if(total>=55)rating="Buy";
+  else if(total>=35)rating="Hold";
+  d.scoring={fundamentalScore:fs,technicalScore:ts,commentaryScore:cs,
+    fundamentalBreakdown:fb,technicalBreakdown:tb,commentaryBreakdown:cb};
+  d.fitScore=total;
+  d.fitRating=rating;
+  return d;
+}
+
 function loadHist2(i){
   const l=loadHist();if(!l[i])return;
   let d=l[i].fullData||l[i];
   if(!d||typeof d!=="object")return;
   if(!d.fundamental)d.fundamental={};
   if(!d.technical)d.technical={};
-  if(!d.scoring)d.scoring={fundamentalScore:0,technicalScore:0,commentaryScore:0,fundamentalBreakdown:[],technicalBreakdown:[],commentaryBreakdown:[]};
   if(!d.company&&d.ticker)d.company=d.ticker;
+  // Recalculate score from saved data using hardcoded formula
+  d=recalcScore(d);
+  // Update saved entry with recalculated score
+  l[i].fitScore=d.fitScore;
+  l[i].fitRating=d.fitRating;
+  if(l[i].fullData)l[i].fullData=d;
+  saveHist(l);
   currentData=d;showResult(d);switchTab("analyse");
 }
 function delHist(i){const l=loadHist();l.splice(i,1);saveHist(l);updateHistCount();renderHistory();}
