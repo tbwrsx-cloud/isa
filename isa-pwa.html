@@ -230,11 +230,14 @@ FINAL fitScore = clamp(fundamentalScore + technicalScore + commentaryScore, 0, 1
 RATING: >=75 Strong Buy | >=55 Buy | >=35 Hold | <35 Avoid
 FORCE OVERRIDE: if PAT margin <=5% then fitRating = "Avoid" regardless of score
 
-Return ONLY this JSON (no other text):
-{"company":"","ticker":"","exchange":"NSE/BSE","sector":"","currentPrice":0,"marketCap":"","mcapToSales":0,"peRatio":0,"fundamental":{"publicHolding":0,"promoterHolding":0,"promoterHoldingChange":0,"fiiHoldingChange":0,"cfOperations":0,"cfoPositive":true,"cfoVsOthers":"","debtToReserve":0,"revenueQoQ":[0,0,0,0],"revenueQoQLabels":["Q1FY25","Q2FY25","Q3FY25","Q4FY25"],"patMargin":0,"revenueGrowthYOY":[0,0],"revenueGrowthYOYLabels":["FY24","FY25"],"patGrowthYOY":[0,0],"patGrowthYOYLabels":["FY24","FY25"],"managementCommentary":"","revenueGuidance":"raised/maintained/cut/not given","marginGuidance":"expanding/stable/contracting/not given","demandOutlook":"strong/moderate/weak","majorEvent":"none or brief description"},"technical":{"trend":"Bullish/Bearish/Sideways","rsi":0,"macdSignal":"Bullish crossover/Bearish crossover/Neutral","support1":0,"support2":0,"resistance1":0,"resistance2":0,"entryZone":"","stopLoss":0,"target1":0,"target2":0,"potentialReturn":0,"riskReward":"1:X","timeframe":"Short/Medium-term","movingAvg50":0,"movingAvg200":0,"above50DMA":true,"above200DMA":true,"technicalSummary":""},"scoring":{"fundamentalScore":0,"technicalScore":0,"commentaryScore":0,"fundamentalMax":70,"technicalMax":30,"commentaryRange":"±15","fundamentalBreakdown":["rule: +pts"],"technicalBreakdown":["rule: +pts"],"commentaryBreakdown":["rule: +/-pts"]},"fitScore":0,"fitRating":"Strong Buy/Buy/Hold/Avoid","fitSummary":"","redFlags":[],"positives":[],"dataNote":""}`;
+Return ONLY raw JSON with these exact keys (no markdown):
+company, ticker, exchange, sector, currentPrice, marketCap, mcapToSales, peRatio,
+fundamental: {publicHolding, promoterHolding, promoterHoldingChange, fiiHoldingChange, cfOperations, cfoPositive, cfoVsOthers, debtToReserve, revenueQoQ[4], revenueQoQLabels[4], patMargin, revenueGrowthYOY[2], revenueGrowthYOYLabels[2], patGrowthYOY[2], patGrowthYOYLabels[2], managementCommentary, revenueGuidance, marginGuidance, demandOutlook, majorEvent},
+technical: {trend, rsi, macdSignal, support1, support2, resistance1, resistance2, entryZone, stopLoss, target1, target2, potentialReturn, riskReward, timeframe, movingAvg50, movingAvg200, above50DMA, above200DMA, technicalSummary},
+scoring: {fundamentalScore, technicalScore, commentaryScore, fundamentalBreakdown[], technicalBreakdown[], commentaryBreakdown[]},
+fitScore, fitRating, fitSummary, redFlags[], positives[], dataNote`;
 
 const STEPS=["Fetching shareholding & cash flows…","Analysing revenue & PAT trends…","Searching latest concall commentary…","Running technical analysis…","Applying scoring formula…"];
-const STEPS=["Fetching shareholding…","Analysing cash flows…","Computing P&L trends…","Running technical analysis…","Scoring fit to invest…"];
 let currentData=null,stepIv=null;
 
 // ── Key management ────────────────────────────────────────────────────────────
@@ -335,8 +338,8 @@ async function analyze(){
       headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
       body:JSON.stringify({
         model:"claude-haiku-4-5-20251001",
-        max_tokens:2000,
-        tools:[{type:"web_search_20250305",name:"web_search"}],
+        max_tokens:3000,
+        tools:[{type:"web_search_20250305",name:"web_search",max_uses:3}],
         system:SYS,
         messages:[{role:"user",content:`Analyse Indian stock: ${q}. Search for latest shareholding, quarterly results, cash flows, debt ratios and technical price levels. Return only JSON.`}]
       })
