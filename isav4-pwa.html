@@ -500,60 +500,59 @@ function parseScreener(data, sym, ltp){
   try{
     const now=new Date();
     const fyYear=now.getMonth()>=3?now.getFullYear()+1:now.getFullYear();
-    const getRatio=name=>{
-      const arr=data.ratios||data.concise_ratios||[];
-      const r=arr.find(x=>(x.name||"").toLowerCase().includes(name.toLowerCase()));
-      const v=r?.values?.find(x=>x.ttm)?.ttm||r?.values?.[0]?.value;
-      return parseFloat(v)||0;
-    };
-    const getQ=field=>(data.quarterly_results||[]).map(q=>parseFloat(q[field]||0));
-    const getA=field=>(data.annual_results||data.results||[]).map(q=>parseFloat(q[field]||0));
-    // Shareholding
+    // Safe number parser
+    const num=(v,def=0)=>{if(v==null||v==="")return def;const n=parseFloat(String(v).replace(/[,%]/g,""));return isNaN(n)?def:n;};
+    // Shareholding — Screener uses "Promoters","FIIs","DIIs","Public"
     const shList=data.shareholding?.quarterly||data.shareholding_pattern||[];
     const sh0=shList[0]||{},sh1=shList[1]||{};
-    const getSH=(o,keys)=>{for(const k of keys){const v=o[k];if(v!=null)return parseFloat(v)||0;}return 0;};
-    const promoter=getSH(sh0,["Promoters","promoter","promoter_and_promoter_group"]);
-    const fii=getSH(sh0,["FII","fii","Foreign Institutions","foreign_institutions"]);
-    const pub=getSH(sh0,["Public","public"]);
-    const promoterPrev=getSH(sh1,["Promoters","promoter","promoter_and_promoter_group"]);
-    const fiiPrev=getSH(sh1,["FII","fii","Foreign Institutions"]);
-    // Financials
-    const pe=parseFloat(data.pe||getRatio("p/e")||0);
-    const mcap=parseFloat(data.market_cap||0);
+    const getSH=(o,...keys)=>{for(const k of keys){const v=o[k];if(v!=null&&v!=="--"){const n=num(v,-1);if(n>=0)return n;}}return 0;};
+    const promoter    =getSH(sh0,"Promoters","promoter","Promoter & Promoter Group");
+    const fii         =getSH(sh0,"FIIs","FII","Foreign Institutions","Foreign Portfolio Investors");
+    const dii         =getSH(sh0,"DIIs","DII","Domestic Institutions");
+    const pub         =getSH(sh0,"Public","public","Retail And Others");
+    const promoterPrev=getSH(sh1,"Promoters","promoter","Promoter & Promoter Group");
+    const fiiPrev     =getSH(sh1,"FIIs","FII","Foreign Institutions","Foreign Portfolio Investors");
+    // Top-level financials (Cr)
+    const pe    =num(data.pe||data.stock_pe||0);
+    const mcap  =num(data.market_cap||0);
+    const cfOps =num(data.cash_from_operations||0);
+    const cfInv =num(data.cash_from_investing||0);
+    const cfFin =num(data.cash_from_financing||0);
+    const debtEq=num(data.debt_to_equity||0);
+    const patM  =num(data.net_profit_margin||0);
+    // Annual results — fields are Title Case: "Sales","Net Profit"
+    const annuals=data.annual_results||data.results||[];
+    const getA=(f)=>annuals.map(r=>num(r[f]??r[f.toLowerCase()]??null));
     const salesArr=getA("Sales");
-    const profArr=getA("Net Profit");
-    const cfOps=parseFloat(data.cash_from_operations||getRatio("cash from operations")||0);
-    const cfInv=parseFloat(data.cash_from_investing||0);
-    const cfFin=parseFloat(data.cash_from_financing||0);
-    const debtEq=parseFloat(data.debt_to_equity||getRatio("debt / equity")||0);
-    const patM=parseFloat(data.net_profit_margin||getRatio("net profit margin")||0);
-    const sales=salesArr[0]||0;
-    // QoQ growth
-    const qS=getQ("Sales").slice(0,5);
-    const qG=qS.map((v,i)=>i===qS.length-1?0:qS[i+1]>0?Math.round((v-qS[i+1])/qS[i+1]*1000)/10:0).slice(0,4);
+    const profArr =getA("Net Profit");
+    const sales   =salesArr[0]||0;
+    // Quarterly results — fields: "Sales","Net Profit"
+    const quarters=data.quarterly_results||[];
+    const getQ=(f)=>quarters.map(r=>num(r[f]??r[f.toLowerCase()]??null));
+    const qSales=getQ("Sales").slice(0,5);
+    const qG=qSales.map((v,i)=>i===qSales.length-1?0:qSales[i+1]>0?Math.round((v-qSales[i+1])/qSales[i+1]*1000)/10:0).slice(0,4);
     const qL=[`Q1FY${String(fyYear).slice(2)}`,`Q2FY${String(fyYear).slice(2)}`,`Q3FY${String(fyYear).slice(2)}`,`Q4FY${String(fyYear).slice(2)}`];
-    // YoY growth
-    const rg=salesArr.length>=2?[Math.round((salesArr[0]-salesArr[1])/(salesArr[1]||1)*1000)/10,Math.round((salesArr[1]-(salesArr[2]||salesArr[1]))/(salesArr[2]||salesArr[1]||1)*1000)/10]:[0,0];
-    const pg=profArr.length>=2?[Math.round((profArr[0]-profArr[1])/(Math.abs(profArr[1])||1)*1000)/10,Math.round((profArr[1]-(profArr[2]||profArr[1]))/(Math.abs(profArr[2]||profArr[1])||1)*1000)/10]:[0,0];
+    const yoy=(arr)=>arr.length<2?[0,0]:[arr[1]?Math.round((arr[0]-arr[1])/Math.abs(arr[1])*1000)/10:0,arr[2]?Math.round((arr[1]-arr[2])/Math.abs(arr[2])*1000)/10:0];
+    const rg=yoy(salesArr),pg=yoy(profArr);
     const fy2=`FY${String(fyYear-2).slice(2)}-${String(fyYear-1).slice(2)}`,fy1=`FY${String(fyYear-1).slice(2)}-${String(fyYear).slice(2)}`;
     return{
-      company:data.name||sym, sector:data.industry||"--",
+      company:data.name||sym, sector:data.industry||data.sector||"--",
       peRatio:Math.round(pe*10)/10,
       marketCap:mcap>0?`Rs.${Math.round(mcap)} Cr`:"N/A",
       mcapToSales:sales>0?Math.round(mcap/sales*10)/10:0,
       promoterHolding:Math.round(promoter*10)/10, publicHolding:Math.round(pub*10)/10,
-      fiiHolding:Math.round(fii*10)/10,
-      promoterHoldingChange:isNaN(promoter)||isNaN(promoterPrev)||promoterPrev===0?0:Math.round((promoter-promoterPrev)*10)/10,
-      fiiHoldingChange:isNaN(fii)||isNaN(fiiPrev)||fiiPrev===0?0:Math.round((fii-fiiPrev)*10)/10,
+      fiiHolding:Math.round(fii*10)/10, diiHolding:Math.round(dii*10)/10,
+      promoterHoldingChange:promoterPrev>0?Math.round((promoter-promoterPrev)*10)/10:0,
+      fiiHoldingChange:fiiPrev>0?Math.round((fii-fiiPrev)*10)/10:0,
       cfOperations:Math.round(cfOps), cfoPositive:cfOps>0,
       cfoVsOthers:cfOps>0&&cfOps>Math.abs(cfInv)+Math.abs(cfFin)?"CFO is higher":"CFO is lower",
       debtToReserve:Math.round(debtEq*100), patMargin:Math.round(patM*10)/10,
-      revenueQoQ:qG.length?qG:[0,0,0,0], revenueQoQLabels:qL,
-      revenueGrowthYOY:[rg[0]||0,rg[1]||0], revenueGrowthYOYLabels:[fy2,fy1],
-      patGrowthYOY:[pg[0]||0,pg[1]||0], patGrowthYOYLabels:[fy2,fy1],
+      revenueQoQ:qG.length>=4?qG:[0,0,0,0], revenueQoQLabels:qL,
+      revenueGrowthYOY:[rg[0],rg[1]], revenueGrowthYOYLabels:[fy2,fy1],
+      patGrowthYOY:[pg[0],pg[1]], patGrowthYOYLabels:[fy2,fy1],
       screenerLoaded:true
     };
-  }catch(e){console.error("Screener parse error",e);return{};}
+  }catch(e){console.error("Screener parse:",e);return{};}
 }
 
 // ── Hardcoded scoring ──────────────────────────────────────
