@@ -331,19 +331,86 @@ function addToHist(d){
 const updateHistCount = () => {const el=document.getElementById("histCount");if(el)el.textContent=loadHist().length;};
 
 // ── Upstox: instrument search → get instrument_key ─────────
+// ── Symbol disambiguation: when multiple results, show picker ──
+let pendingPicker = null;
+
 async function resolveInstrumentKey(query){
   const token = getUpTok();
-  // Step 1: search by query to get exact instrument_key with ISIN
-  const url = `${UPSTOX_BASE}/instruments/search?query=${encodeURIComponent(query)}&exchanges=NSE&segments=EQ&records=10`;
+  const url = `${UPSTOX_BASE}/instruments/search?query=${encodeURIComponent(query)}&exchanges=NSE&segments=EQ&records=15`;
   const r = await fetch(url, {headers:{"Authorization":`Bearer ${token}`,"Accept":"application/json"}, signal:AbortSignal.timeout(6000)});
   if(!r.ok) throw new Error(`Upstox search error ${r.status}`);
   const d = await r.json();
-  const items = d.data || [];
-  // Find exact trading_symbol match first
-  const exact = items.find(x => x.trading_symbol?.toUpperCase() === query.toUpperCase() && x.segment === "NSE_EQ");
-  const match = exact || items.find(x => x.segment === "NSE_EQ");
-  if(!match) throw new Error(`"${query}" not found on NSE. Check symbol.`);
-  return {instrKey: match.instrument_key, name: match.name || match.short_name || query, symbol: match.trading_symbol || query};
+  const items = (d.data || []).filter(x => x.segment === "NSE_EQ");
+  if(!items.length) throw new Error(`"${query}" not found on NSE. Try exact NSE symbol e.g. TATAMOTORS.`);
+
+  // 1. Exact symbol match (user typed TATAMOTORS) → go directly
+  const exactSym = items.find(x => x.trading_symbol?.toUpperCase() === query.toUpperCase());
+  if(exactSym) return {instrKey:exactSym.instrument_key, name:exactSym.name||query, symbol:exactSym.trading_symbol};
+
+  // 2. Exact name match (user typed "Tata Motors Limited") → go directly
+  const exactName = items.find(x => (x.name||"").toLowerCase() === query.toLowerCase());
+  if(exactName) return {instrKey:exactName.instrument_key, name:exactName.name||query, symbol:exactName.trading_symbol};
+
+  // 3. Multiple results → show picker so user can choose
+  if(items.length > 1){
+    return new Promise((resolve, reject) => {
+      showSymbolPicker(items, query, (selected) => {
+        resolve({instrKey:selected.instrument_key, name:selected.name||query, symbol:selected.trading_symbol});
+      }, reject);
+    });
+  }
+
+  // 4. Single result → use it
+  return {instrKey:items[0].instrument_key, name:items[0].name||query, symbol:items[0].trading_symbol};
+}
+
+function showSymbolPicker(items, query, onSelect, onCancel){
+  // Remove any existing picker
+  document.getElementById("symPicker")?.remove();
+
+  const overlay = document.createElement("div");
+  overlay.id = "symPicker";
+  overlay.style.cssText = "position:fixed;inset:0;background:#0a0e1acc;z-index:9999;display:flex;align-items:flex-end;justify-content:center";
+
+  const sheet = document.createElement("div");
+  sheet.style.cssText = "background:#111827;border-radius:16px 16px 0 0;padding:18px 16px 30px;width:100%;max-width:500px;max-height:75vh;overflow-y:auto";
+
+  sheet.innerHTML = `
+    <div style="color:#00d4aa;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:4px">SELECT STOCK</div>
+    <div style="color:#64748b;font-size:11px;margin-bottom:14px">Multiple results for "${query}" — tap to analyse</div>
+    ${items.slice(0,8).map((item,idx) => {
+      // Store items on window for picker access
+      window._pickerItems = window._pickerItems||[];
+      window._pickerItems[idx] = item;
+      return `<div onclick="document.getElementById('symPicker').remove();window._pickerResolve&&window._pickerResolve(window._pickerItems[${idx}])"
+        style="display:flex;justify-content:space-between;align-items:center;padding:12px 13px;background:#161d2e;border:1px solid #1e2d45;border-radius:9px;margin-bottom:8px;cursor:pointer;-webkit-tap-highlight-color:transparent">
+        <div>
+          <div style="font-weight:700;font-size:14px;color:#e2e8f0">${item.name||item.short_name||item.trading_symbol}</div>
+          <div style="color:#64748b;font-size:11px;margin-top:2px">${item.trading_symbol} · NSE</div>
+        </div>
+        <span style="color:#00d4aa;font-size:20px">›</span>
+      </div>`;}).join("")}
+    <button onclick="document.getElementById('symPicker').remove();window._pickerReject&&window._pickerReject(new Error('Cancelled'))"
+      style="background:none;border:none;color:#64748b;font-size:13px;cursor:pointer;width:100%;text-align:center;margin-top:8px;padding:8px">Cancel</button>`;
+
+  overlay.appendChild(sheet);
+  document.body.appendChild(overlay);
+
+  // Store resolve/reject on window so inline onclick can access them
+  window._pickerResolve = (selected) => {
+    delete window._pickerResolve; delete window._pickerReject;
+    window._pickerItems = [];
+    onSelect(selected);
+  };
+  window._pickerReject = (err) => {
+    delete window._pickerResolve; delete window._pickerReject;
+    // Re-enable Go button
+    const btn=document.getElementById("goBtn");if(btn){btn.disabled=false;btn.textContent="Go";}
+    clearInterval(stepIv);
+    document.getElementById("loadingState").style.display="none";
+    document.getElementById("emptyState").style.display="block";
+    onCancel(err);
+  };
 }
 
 // ── Upstox: live quote using confirmed instrument_key ───────
@@ -476,8 +543,8 @@ function parseScreener(data, sym, ltp){
       mcapToSales:sales>0?Math.round(mcap/sales*10)/10:0,
       promoterHolding:Math.round(promoter*10)/10, publicHolding:Math.round(pub*10)/10,
       fiiHolding:Math.round(fii*10)/10,
-      promoterHoldingChange:Math.round((promoter-promoterPrev)*10)/10,
-      fiiHoldingChange:Math.round((fii-fiiPrev)*10)/10,
+      promoterHoldingChange:isNaN(promoter)||isNaN(promoterPrev)||promoterPrev===0?0:Math.round((promoter-promoterPrev)*10)/10,
+      fiiHoldingChange:isNaN(fii)||isNaN(fiiPrev)||fiiPrev===0?0:Math.round((fii-fiiPrev)*10)/10,
       cfOperations:Math.round(cfOps), cfoPositive:cfOps>0,
       cfoVsOthers:cfOps>0&&cfOps>Math.abs(cfInv)+Math.abs(cfFin)?"CFO is higher":"CFO is lower",
       debtToReserve:Math.round(debtEq*100), patMargin:Math.round(patM*10)/10,
@@ -771,9 +838,9 @@ function buildResult(d){
 <div class="card">
   <div class="st">⬡ Fundamental</div>
   ${mrow("Promoter Holding",(f.promoterHolding||0)+"%",f.promoterHolding>50?"g":"")}
-  ${mrow("Promoter Change",(f.promoterHoldingChange>0?"+":"")+f.promoterHoldingChange+"%",f.promoterHoldingChange<-2?"b":f.promoterHoldingChange>=0?"g":"")}
+  ${mrow("Promoter Change",((f.promoterHoldingChange??0)>0?"+":" ")+(f.promoterHoldingChange??0)+"%",(f.promoterHoldingChange??0)<-2?"b":(f.promoterHoldingChange??0)>=0?"g":"")}
   ${mrow("Public Holding",(f.publicHolding||0)+"%","")}
-  ${mrow("FII Change",(f.fiiHoldingChange>0?"+":"")+f.fiiHoldingChange+"%",f.fiiHoldingChange>0?"g":"b")}
+  ${mrow("FII Change",((f.fiiHoldingChange??0)>0?"+":" ")+(f.fiiHoldingChange??0)+"%",(f.fiiHoldingChange??0)>0?"g":"b")}
   ${mrow("CFO Positive?",f.cfoPositive?"✓ Yes":"✗ No",f.cfoPositive?"g":"b")}
   ${mrow("CFO vs Inv+Fin",String(f.cfoVsOthers||"-"),String(f.cfoVsOthers||"").toLowerCase().includes("higher")?"g":"")}
   ${mrow("Debt/Reserve",(f.debtToReserve||0)+"%",f.debtToReserve>=50?"b":"g")}
