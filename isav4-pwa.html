@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<meta name="theme-color" content="#0a0e1a"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="IndiaStock"/>
+<title>IndiaStock Analyser v4</title>
+<script>
+const md={name:"IndiaStock v4",short_name:"ISA v4",start_url:"./isav4-pwa.html",display:"standalone",background_color:"#0a0e1a",theme_color:"#0a0e1a",orientation:"portrait",icons:[{src:"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='24' fill='%230a0e1a'/%3E%3Ctext x='96' y='130' text-anchor='middle' font-size='110' font-family='Arial'%3E%F0%9F%93%8A%3C/text%3E%3C/svg%3E",sizes:"192x192",type:"image/svg+xml"}]};
+const ml=document.createElement("link");ml.rel="manifest";ml.href=URL.createObjectURL(new Blob([JSON.stringify(md)],{type:"application/json"}));document.head.appendChild(ml);
+</script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-serif;font-size:14px}
+#app{height:100vh;display:flex;flex-direction:column;overflow:hidden}
+#setupScreen{position:fixed;inset:0;background:#0a0e1a;z-index:999;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:28px 24px}
+.setup-card{background:#111827;border:1px solid #1e2d45;border-radius:16px;padding:28px 22px;width:100%;max-width:420px}
+.setup-logo{text-align:center;margin-bottom:24px}
+.s-inp{background:#0a0e1a;border:1px solid #1e2d45;border-radius:8px;padding:12px 42px 12px 13px;color:#e2e8f0;font-size:13px;width:100%;outline:none;font-family:monospace}
+.s-inp:focus{border-color:#00d4aa}
+.s-hint{background:#00d4aa0d;border:1px solid #00d4aa22;border-radius:8px;padding:12px;margin-bottom:18px;font-size:11px;color:#64748b;line-height:1.6}
+.s-hint a{color:#00d4aa;text-decoration:none}
+.s-wrap{position:relative;margin-bottom:14px}
+.eye{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:#64748b;font-size:18px;cursor:pointer;padding:4px}
+.btn-launch{background:#00d4aa;color:#000;border:none;border-radius:9px;padding:14px;font-weight:800;font-size:14px;width:100%;cursor:pointer}
+.s-err{color:#ef4444;font-size:12px;margin-top:8px;text-align:center;min-height:16px}
+#mainApp{display:none;flex-direction:column;height:100%}
+#hdr{background:linear-gradient(135deg,#0d1929,#0a0e1a);border-bottom:1px solid #1e2d45;padding:13px 13px 11px;flex-shrink:0}
+#tabs{display:flex;border-bottom:1px solid #1e2d45;background:#111827;flex-shrink:0}
+#content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:30px}
+.tb{flex:1;padding:11px 0;background:none;border:none;border-bottom:2px solid transparent;color:#64748b;font-weight:700;font-size:12px;cursor:pointer}
+.tb.active{color:#00d4aa;border-bottom-color:#00d4aa}
+.card{background:#161d2e;border:1px solid #1e2d45;border-radius:11px;padding:14px 13px;margin-bottom:11px}
+.st{color:#00d4aa;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:11px;font-family:monospace;text-transform:uppercase}
+.mr{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #1e2d45}
+.ml{color:#64748b;font-size:12px}
+.mv{font-family:monospace;font-weight:600;font-size:12px;color:#e2e8f0}
+.mv.g{color:#22c55e}.mv.b{color:#ef4444}.mv.w{color:#f59e0b}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.bdg{border-radius:4px;padding:2px 9px;font-size:11px;font-weight:700;font-family:monospace;display:inline-block;margin-right:4px;margin-bottom:3px}
+.pb{background:#111827;border-radius:7px;padding:8px 5px;text-align:center}
+.pb .pl{color:#64748b;font-size:10px;margin-bottom:3px}
+.pb .pv{font-weight:700;font-size:13px;font-family:monospace}
+.tbox{background:linear-gradient(135deg,#0f2a1e,#0a1f1a);border:1px solid #22c55e33;border-radius:9px;padding:12px;margin-bottom:10px}
+.cbox{background:#111827;border-left:3px solid #00d4aa;border-radius:6px;padding:11px;margin-top:11px}
+.obox{background:#111827;border-left:3px solid #38bdf8;border-radius:6px;padding:11px;margin-top:9px}
+.fbox{background:#ef444410;border:1px solid #ef444444;border-radius:9px;padding:11px}
+.pbox2{background:#22c55e10;border:1px solid #22c55e44;border-radius:9px;padding:11px}
+.mbar{margin-bottom:8px}
+.mbt{background:#1e2d45;border-radius:3px;height:5px;margin-top:2px}
+.mbf{border-radius:3px;height:5px}
+.abtn{border:none;border-radius:8px;padding:10px 0;font-weight:700;font-size:12px;cursor:pointer;width:100%}
+.ag{background:#00d4aa;color:#000}
+.ag:disabled{background:#1e2d45;color:#64748b;cursor:not-allowed}
+.ar{background:#22c55e18;color:#22c55e;border:1px solid #22c55e44}
+.ah{background:#00d4aa18;color:#00d4aa;border:1px solid #00d4aa44}
+.inp{background:#111827;border:1px solid #1e2d45;border-radius:8px;padding:10px 12px;color:#e2e8f0;font-size:13px;width:100%;outline:none}
+.inp:focus{border-color:#00d4aa}
+.chip{background:#00d4aa18;border:1px solid #00d4aa33;border-radius:20px;padding:3px 10px;color:#00d4aa;font-size:10px;cursor:pointer;white-space:nowrap}
+.hi{background:#161d2e;border:1px solid #1e2d45;border-radius:10px;padding:12px;margin-bottom:10px;display:flex;align-items:center;gap:11px;cursor:pointer}
+.hi:active{background:#1e2d45}
+.spin{font-size:30px;display:inline-block;animation:spin 1.8s linear infinite}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+.empty{text-align:center;padding:55px 20px;color:#64748b}
+.ebox{background:#ef444415;border:1px solid #ef444444;border-radius:9px;padding:12px;margin:12px;color:#ef4444;font-size:12px;line-height:1.5}
+.hero{background:linear-gradient(135deg,#111827,#0f1f35);border:1px solid #1e2d45;border-radius:13px;padding:15px;margin-bottom:11px}
+.disc{color:#64748b;font-size:10px;text-align:center;line-height:1.7;padding:4px 14px 10px}
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-thumb{background:#1e2d45;border-radius:2px}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- Setup Screen -->
+<div id="setupScreen">
+  <div class="setup-card">
+    <div class="setup-logo">
+      <span style="font-size:46px;display:block;margin-bottom:8px">📊</span>
+      <div style="color:#00d4aa;font-weight:800;font-size:21px">IndiaStock Analyser</div>
+      <div style="color:#64748b;font-size:12px;margin-top:3px">NSE / BSE · AI-powered · One-time setup</div>
+    </div>
+    <label style="color:#94a3b8;font-size:12px;margin-bottom:6px;display:block">Anthropic API Key <span style="color:#ef4444">*</span></label>
+    <div class="s-wrap">
+      <input id="apiKeyInput" class="s-inp" type="password" placeholder="sk-ant-api03-…" autocomplete="off" spellcheck="false"/>
+      <button class="eye" onclick="toggleEye('apiKeyInput','e1')" id="e1">👁</button>
+    </div>
+    <div class="s-hint">
+      🔒 Stored only on this device. Get at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> → API Keys.
+    </div>
+    <label style="color:#94a3b8;font-size:12px;margin-bottom:6px;display:block;margin-top:12px">Upstox Analytics Token <span style="color:#ef4444">*</span></label>
+    <div class="s-wrap">
+      <input id="upstoxTokenInput" class="s-inp" type="password" placeholder="Upstox analytics token…" autocomplete="off" spellcheck="false"/>
+      <button class="eye" onclick="toggleEye('upstoxTokenInput','e3')" id="e3">👁</button>
+    </div>
+    <div class="s-hint">
+      🔒 1-year read-only token. Get at <a href="https://account.upstox.com/developer/apps" target="_blank">account.upstox.com/developer</a> → Analytics → Generate Token.
+    </div>
+    <button class="btn-launch" onclick="saveKey()">Save &amp; Launch →</button>
+    <div class="s-err" id="setupErr"></div>
+  </div>
+</div>
+
+<!-- Main App -->
+<div id="mainApp">
+  <div id="hdr">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+      <div style="display:flex;align-items:center;gap:7px">
+        <span style="font-size:17px">📊</span>
+        <span style="color:#00d4aa;font-weight:800;font-size:16px">IndiaStock</span>
+        <span style="color:#64748b;font-size:16px;font-weight:300">Analyser</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:7px">
+        <span id="statusBadge" style="font-size:11px;color:#64748b;display:flex;align-items:center"></span>
+        <button onclick="resetKey()" style="font-size:11px;color:#64748b;background:none;border:none;cursor:pointer;text-decoration:underline">Change</button>
+      </div>
+    </div>
+    <div style="color:#64748b;font-size:10px;margin-bottom:11px">Upstox price · Screener fundamentals · AI commentary only</div>
+    <div style="display:flex;gap:7px;margin-bottom:8px">
+      <input id="scripInput" class="inp" placeholder="Scrip name or ticker…" style="flex:1"/>
+      <button id="goBtn" class="abtn ag" style="width:auto;padding:10px 18px" onclick="analyze()">Go</button>
+    </div>
+    <div style="display:flex;gap:5px;flex-wrap:wrap">
+      <span class="chip" onclick="setQ('Infosys')">Infosys</span>
+      <span class="chip" onclick="setQ('RELIANCE')">RELIANCE</span>
+      <span class="chip" onclick="setQ('HDFC Bank')">HDFC Bank</span>
+      <span class="chip" onclick="setQ('Tata Motors')">Tata Motors</span>
+      <span class="chip" onclick="setQ('Zomato')">Zomato</span>
+      <span class="chip" onclick="setQ('ITC')">ITC</span>
+      <span class="chip" onclick="setQ('Wipro')">Wipro</span>
+    </div>
+  </div>
+
+  <div id="tabs">
+    <button class="tb active" id="tab-analyse" onclick="switchTab('analyse')">📊 Analysis</button>
+    <button class="tb" id="tab-history" onclick="switchTab('history')">🗂 History (<span id="histCount">0</span>)</button>
+    <button class="tb" id="tab-settings" onclick="switchTab('settings')">⚙ Settings</button>
+  </div>
+
+  <div id="content">
+    <div id="view-analyse">
+      <div class="empty" id="emptyState">
+        <div style="font-size:42px;margin-bottom:11px">🇮🇳</div>
+        <div style="font-size:13px">Enter any NSE / BSE scrip to begin</div>
+        <div style="font-size:11px;margin-top:4px">History saved permanently on your device</div>
+      </div>
+      <div id="loadingState" style="display:none;text-align:center;padding:55px 0">
+        <div class="spin">⚙️</div>
+        <div id="progressTxt" style="color:#00d4aa;font-size:12px;font-family:monospace;margin-top:13px"></div>
+      </div>
+      <div id="errorState" style="display:none"></div>
+      <div id="resultState" style="display:none;padding:0 12px"></div>
+    </div>
+
+    <div id="view-history" style="display:none;padding:13px">
+      <div style="display:flex;gap:7px;margin-bottom:11px;align-items:center">
+        <select id="histSort" onchange="renderHistory()" style="flex:1;background:#111827;border:1px solid #1e2d45;border-radius:8px;padding:8px 10px;color:#e2e8f0;font-size:12px;outline:none">
+          <option value="newest">🕐 Newest First</option>
+          <option value="oldest">🕐 Oldest First</option>
+          <option value="score_desc">⭐ Score: High→Low</option>
+          <option value="score_asc">⭐ Score: Low→High</option>
+          <option value="rating">🏆 Rating</option>
+        </select>
+        <button onclick="exportHistory()" style="background:#38bdf818;color:#38bdf8;border:1px solid #38bdf844;border-radius:8px;padding:8px 11px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">📤 Export</button>
+        <label style="background:#22c55e18;color:#22c55e;border:1px solid #22c55e44;border-radius:8px;padding:8px 11px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">📥 Import<input type="file" accept=".json" onchange="importHistory(event)" style="display:none"/></label>
+      </div>
+      <div id="historyList"></div>
+    </div>
+
+    <div id="view-settings" style="display:none;padding:14px">
+      <div class="card">
+        <div class="st">⚙ API Key</div>
+        <div style="color:#64748b;font-size:12px;margin-bottom:13px;line-height:1.6">Update your Anthropic API key. The key is stored only on this device.</div>
+        <div class="s-wrap" style="margin-bottom:11px">
+          <input id="settingsKey" class="inp" type="password" placeholder="sk-ant-api03-…" autocomplete="off" spellcheck="false" style="padding-right:42px"/>
+          <button class="eye" onclick="toggleEye('settingsKey','e2')" id="e2">👁</button>
+        </div>
+        <button onclick="updateKey()" style="background:#00d4aa;color:#000;border:none;border-radius:8px;padding:11px;font-weight:700;font-size:13px;width:100%;cursor:pointer;margin-bottom:9px">Update Claude Key</button>
+        <label style="color:#94a3b8;font-size:12px;margin-bottom:6px;display:block;margin-top:8px">Upstox Analytics Token</label>
+        <div class="s-wrap" style="margin-bottom:9px">
+          <input id="upstoxSettingsToken" class="inp" type="password" placeholder="Analytics token…" autocomplete="off" style="padding-right:42px"/>
+          <button class="eye" onclick="toggleEye('upstoxSettingsToken')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%)">👁</button>
+        </div>
+        <button onclick="updateUpstoxToken()" style="background:#00d4aa;color:#000;border:none;border-radius:8px;padding:11px;font-weight:700;font-size:13px;width:100%;cursor:pointer;margin-bottom:9px">Update Upstox Token</button>
+        <button onclick="clearAll()" style="background:#ef444418;color:#ef4444;border:1px solid #ef444433;border-radius:8px;padding:11px;font-weight:700;font-size:13px;width:100%;cursor:pointer">🗑 Clear All Data &amp; Reset</button>
+        <div style="margin-top:12px;border-top:1px solid #1e2d45;padding-top:12px">
+          <div style="color:#94a3b8;font-size:11px;margin-bottom:8px;font-weight:700">HISTORY MIGRATION</div>
+          <div style="color:#64748b;font-size:11px;margin-bottom:8px;line-height:1.5">If your old history did not load automatically, tap below to force migrate it.</div>
+          <button onclick="forceMigrate()" style="background:#f59e0b18;color:#f59e0b;border:1px solid #f59e0b44;border-radius:8px;padding:11px;font-weight:700;font-size:13px;width:100%;cursor:pointer;margin-bottom:8px">🔄 Force Migrate Old History</button>
+          <button onclick="showStorageDebug()" style="background:#38bdf818;color:#38bdf8;border:1px solid #38bdf844;border-radius:8px;padding:10px;font-weight:700;font-size:12px;width:100%;cursor:pointer">🔍 Show Storage Debug Info</button>
+          <div id="migrateMsg" style="font-size:11px;text-align:center;margin-top:7px;min-height:14px;line-height:1.5"></div>
+        </div>
+        <div id="settingsMsg" style="color:#22c55e;font-size:12px;text-align:center;margin-top:7px;min-height:16px"></div>
+      </div>
+      <div class="card">
+        <div class="st">ℹ About</div>
+        <div style="color:#64748b;font-size:12px;line-height:1.7">
+          <b style="color:#94a3b8">IndiaStock Analyser v4</b><br/>
+          v4: Upstox (live price + technicals) + Screener.in (fundamentals) + Claude AI (commentary only).
+Same localStorage as v3 — history shared between both apps.<br/><br/>
+          All data stored locally. Not financial advice.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+// ── v4: Upstox price + Screener fundamentals + Claude commentary ──────────────
+const UPSTOX_BASE = "https://api.upstox.com/v2";
+const SCREENER_PROXIES = [
+  q => `https://api.allorigins.win/get?url=${encodeURIComponent("https://www.screener.in/api/company/"+q+"/?format=json")}`,
+  q => `https://corsproxy.io/?${encodeURIComponent("https://www.screener.in/api/company/"+q+"/?format=json")}`
+];
+
+// Storage keys — SAME as v3 so history is shared
+const getKey  = () => localStorage.getItem("isa_k") || "";
+const getUpTok= () => localStorage.getItem("isa_upstox_at") || "";
+const setKey  = k  => localStorage.setItem("isa_k", k.trim());
+const setUpTok= t  => localStorage.setItem("isa_upstox_at", t.trim());
+
+// System prompt — commentary only (fundamentals come from Screener)
+const SYS = `You are an expert Indian stock analyst. You will be given real fundamental and technical data for an Indian stock. Your job is:
+1. Search the web for the LATEST concall transcript or quarterly results commentary for this stock
+2. Extract: revenueGuidance, marginGuidance, demandOutlook, majorEvent from management commentary
+3. Calculate commentaryScore (-15 to +15) using these rules:
+   Guidance raised +5 | maintained +2 | cut -8
+   Strong order book +4 | Margin expansion expected +4 | Debt reduction plan +3
+   Management change -5 | Regulatory issue -6 | Auditor concern -8 | Promoter pledge increase -6
+4. Write 2-3 sentence managementCommentary from latest concall/results
+5. Identify redFlags[] and positives[] based on ALL data provided
+6. Write fitSummary (2-3 sentences overall assessment)
+
+Return ONLY raw JSON — no markdown:
+{"managementCommentary":"","revenueGuidance":"raised/maintained/cut/not given","marginGuidance":"expanding/stable/contracting/not given","demandOutlook":"strong/moderate/weak","majorEvent":"none or description","commentaryScore":0,"commentaryBreakdown":["rule: +/-pts"],"redFlags":[],"positives":[],"fitSummary":""}`;
+
+const STEPS = ["Fetching live price from Upstox…","Loading fundamentals from Screener…","Calculating RSI & technicals…","Getting AI commentary…","Computing final score…"];
+let currentData = null, stepIv = null;
+
+// ── Key management ─────────────────────────────────────────
+function saveKey(){
+  const k = document.getElementById("apiKeyInput").value.trim();
+  const t = document.getElementById("upstoxTokenInput").value.trim();
+  if(!k.startsWith("sk-ant-")){document.getElementById("setupErr").textContent="Invalid Claude key";return;}
+  if(!t){document.getElementById("setupErr").textContent="Upstox Analytics token required";return;}
+  setKey(k); setUpTok(t); launchApp();
+}
+function updateKey(){
+  const k=document.getElementById("settingsKey").value.trim();
+  const m=document.getElementById("settingsMsg");
+  if(!k.startsWith("sk-ant-")){m.style.color="#ef4444";m.textContent="Invalid key";return;}
+  setKey(k); document.getElementById("settingsKey").value="";
+  m.style.color="#22c55e"; m.textContent="✓ Claude key updated!";
+  setTimeout(()=>m.textContent="",3000);
+}
+function updateUpstoxToken(){
+  const t=document.getElementById("upstoxSettingsToken")?.value.trim();
+  const m=document.getElementById("settingsMsg");
+  if(!t){m.style.color="#ef4444";m.textContent="Token empty";return;}
+  setUpTok(t); document.getElementById("upstoxSettingsToken").value="";
+  updateStatusBadge();
+  m.style.color="#22c55e"; m.textContent="✓ Upstox token updated!";
+  setTimeout(()=>m.textContent="",3000);
+}
+function resetKey(){if(confirm("Change keys?")){document.getElementById("mainApp").style.display="none";document.getElementById("setupScreen").style.display="flex";}}
+function clearAll(){if(confirm("Clear all data?")){localStorage.clear();location.reload();}}
+function toggleEye(id){const i=document.getElementById(id);i.type=i.type==="password"?"text":"password";}
+function launchApp(){
+  document.getElementById("setupScreen").style.display="none";
+  document.getElementById("mainApp").style.display="flex";
+  updateHistCount();
+  updateStatusBadge();
+}
+function updateStatusBadge(){
+  const el=document.getElementById("statusBadge");
+  if(!el)return;
+  const ok = getUpTok() && getKey();
+  el.innerHTML = ok
+    ? '<span style="width:6px;height:6px;border-radius:50%;background:#22c55e;display:inline-block;margin-right:3px"></span>Upstox+AI'
+    : '<span style="width:6px;height:6px;border-radius:50%;background:#ef4444;display:inline-block;margin-right:3px"></span>Setup needed';
+}
+
+// ── Init ───────────────────────────────────────────────────
+window.addEventListener("load", () => {
+  if(getKey() && getUpTok()) launchApp();
+  document.getElementById("scripInput")?.addEventListener("keydown", e=>{if(e.key==="Enter")analyze();});
+});
+
+// ── Tab switching ──────────────────────────────────────────
+function switchTab(t){
+  ["analyse","history","settings"].forEach(x=>{
+    document.getElementById("view-"+x).style.display = x===t?"block":"none";
+    document.getElementById("tab-"+x).classList.toggle("active", x===t);
+  });
+  if(t==="history") renderHistory();
+}
+
+// ── Helpers ────────────────────────────────────────────────
+const rc  = r => r?.includes("Strong Buy")?"#22c55e":r?.includes("Buy")?"#00d4aa":r?.includes("Hold")?"#f59e0b":"#ef4444";
+const bdg = (l,c) => `<span class="bdg" style="background:${c}22;color:${c};border:1px solid ${c}44">${l}</span>`;
+const mrow= (l,v,t) => `<div class="mr"><span class="ml">${l}</span><span class="mv ${t}">${v}</span></div>`;
+const miniBar=(l,v,max,col)=>{const pct=Math.min(Math.abs(v)/max*100,100),neg=v<0;return`<div class="mbar"><div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:#64748b">${l}</span><span style="color:${neg?"#ef4444":"#22c55e"};font-family:monospace">${neg?"":"+"}${v}%</span></div><div class="mbt"><div class="mbf" style="width:${pct}%;background:${neg?"#ef4444":col}"></div></div></div>`;};
+const pbox= (l,v,c,b) => `<div class="pb"${b?` style="border:1px solid ${c}44"`:""}><div class="pl">${l}</div><div class="pv" style="color:${c}">${v}</div></div>`;
+const setQ = s => document.getElementById("scripInput").value = s;
+
+// ── History (shared with v3 via same localStorage key) ─────
+const loadHist = () => {
+  try{
+    const n=localStorage.getItem("isa_h");
+    if(n&&n!=="[]") return JSON.parse(n);
+    const o=localStorage.getItem("isa_history");
+    if(o&&o!=="[]"){const p=JSON.parse(o);if(p.length){localStorage.setItem("isa_h",o);localStorage.removeItem("isa_history");return p;}}
+    return [];
+  }catch(_){return [];}
+};
+const saveHist = l => {try{localStorage.setItem("isa_h",JSON.stringify(l));}catch(_){}};
+function addToHist(d){
+  const l=loadHist();
+  const e={ticker:d.ticker,company:d.company,fitScore:d.fitScore,fitRating:d.fitRating,currentPrice:d.currentPrice,peRatio:d.peRatio,savedAt:new Date().toLocaleString("en-IN"),fullData:d};
+  saveHist([e,...l.filter(x=>x.ticker!==d.ticker)].slice(0,100));
+  updateHistCount();
+}
+const updateHistCount = () => {const el=document.getElementById("histCount");if(el)el.textContent=loadHist().length;};
+
+// ── Upstox: instrument search → get instrument_key ─────────
+async function resolveInstrumentKey(query){
+  const token = getUpTok();
+  // Step 1: search by query to get exact instrument_key with ISIN
+  const url = `${UPSTOX_BASE}/instruments/search?query=${encodeURIComponent(query)}&exchanges=NSE&segments=EQ&records=10`;
+  const r = await fetch(url, {headers:{"Authorization":`Bearer ${token}`,"Accept":"application/json"}, signal:AbortSignal.timeout(6000)});
+  if(!r.ok) throw new Error(`Upstox search error ${r.status}`);
+  const d = await r.json();
+  const items = d.data || [];
+  // Find exact trading_symbol match first
+  const exact = items.find(x => x.trading_symbol?.toUpperCase() === query.toUpperCase() && x.segment === "NSE_EQ");
+  const match = exact || items.find(x => x.segment === "NSE_EQ");
+  if(!match) throw new Error(`"${query}" not found on NSE. Check symbol.`);
+  return {instrKey: match.instrument_key, name: match.name || match.short_name || query, symbol: match.trading_symbol || query};
+}
+
+// ── Upstox: live quote using confirmed instrument_key ───────
+async function fetchLiveQuote(instrKey){
+  const token = getUpTok();
+  const k = encodeURIComponent(instrKey);
+  // LTP first
+  const ltpRes = await fetch(`${UPSTOX_BASE}/market-quote/ltp?instrument_key=${k}`,
+    {headers:{"Authorization":`Bearer ${token}`,"Accept":"application/json"}, signal:AbortSignal.timeout(6000)});
+  if(!ltpRes.ok) throw new Error(`Quote error ${ltpRes.status}`);
+  const ltpData = await ltpRes.json();
+  const ltp = ltpData.data ? ltpData.data[Object.keys(ltpData.data)[0]] : null;
+  if(!ltp) throw new Error("No price data returned");
+  // Full quote for OHLC
+  try{
+    const fullRes = await fetch(`${UPSTOX_BASE}/market-quote/quotes?instrument_key=${k}`,
+      {headers:{"Authorization":`Bearer ${token}`,"Accept":"application/json"}, signal:AbortSignal.timeout(6000)});
+    if(fullRes.ok){
+      const full = await fullRes.json();
+      if(full.data){
+        const q = full.data[Object.keys(full.data)[0]];
+        return {...q, last_price: q.last_price || ltp.last_price};
+      }
+    }
+  }catch(_){}
+  return {last_price: ltp.last_price, ohlc:{}, volume:0};
+}
+
+// ── Upstox: historical candles for technical calc ───────────
+async function fetchCandles(instrKey){
+  const token = getUpTok();
+  const k = encodeURIComponent(instrKey);
+  const to = new Date().toISOString().slice(0,10);
+  const from = new Date(Date.now() - 310*864e5).toISOString().slice(0,10);
+  try{
+    const r = await fetch(`${UPSTOX_BASE}/historical-candle/${k}/day/${to}/${from}`,
+      {headers:{"Authorization":`Bearer ${token}`,"Accept":"application/json"}, signal:AbortSignal.timeout(8000)});
+    if(r.ok){const d=await r.json();if(d.data?.candles?.length>0)return d.data.candles;}
+    // Retry with yesterday
+    const to2 = new Date(Date.now()-864e5).toISOString().slice(0,10);
+    const r2 = await fetch(`${UPSTOX_BASE}/historical-candle/${k}/day/${to2}/${from}`,
+      {headers:{"Authorization":`Bearer ${token}`,"Accept":"application/json"}, signal:AbortSignal.timeout(8000)});
+    if(r2.ok){const d2=await r2.json();return d2.data?.candles||[];}
+  }catch(_){}
+  return [];
+}
+
+// ── Technical calculations ─────────────────────────────────
+function calcSMA(prices, p){if(prices.length<p)return null;return Math.round(prices.slice(-p).reduce((a,b)=>a+b,0)/p*100)/100;}
+function calcRSI(closes, p=14){
+  if(closes.length<p+1)return 50;
+  let g=0,l=0;
+  for(let i=1;i<=p;i++){const d=closes[i]-closes[i-1];if(d>0)g+=d;else l-=d;}
+  let ag=g/p,al=l/p;
+  for(let i=p+1;i<closes.length;i++){const d=closes[i]-closes[i-1];ag=(ag*(p-1)+Math.max(d,0))/p;al=(al*(p-1)+Math.max(-d,0))/p;}
+  return al===0?100:Math.round(100-100/(1+ag/al));
+}
+function calcEMA(prices,p){if(prices.length<p)return null;const k=2/(p+1);let e=prices.slice(0,p).reduce((a,b)=>a+b,0)/p;for(let i=p;i<prices.length;i++)e=prices[i]*k+e*(1-k);return Math.round(e*100)/100;}
+function calcMACD(closes){const e12=calcEMA(closes,12),e26=calcEMA(closes,26);if(!e12||!e26)return "Neutral";return e12>e26?"Bullish crossover":"Bearish crossover";}
+function calcSR(candles){
+  const recent=candles.slice(0,60);
+  const hs=[...recent.map(c=>c[2])].sort((a,b)=>b-a);
+  const ls=[...recent.map(c=>c[3])].sort((a,b)=>a-b);
+  return{s1:Math.round(ls[Math.floor(ls.length*.1)]*100)/100,
+         s2:Math.round(ls[Math.floor(ls.length*.05)]*100)/100,
+         r1:Math.round(hs[Math.floor(hs.length*.1)]*100)/100,
+         r2:Math.round(hs[Math.floor(hs.length*.05)]*100)/100};
+}
+
+// ── Screener: fundamentals ─────────────────────────────────
+async function fetchScreener(sym){
+  for(const proxyFn of SCREENER_PROXIES){
+    try{
+      const r=await fetch(proxyFn(sym),{signal:AbortSignal.timeout(10000)});
+      if(!r.ok)continue;
+      const w=await r.json();
+      const raw=w.contents||w;
+      const data=typeof raw==="string"?JSON.parse(raw):raw;
+      if(data&&(data.name||data.bse_id))return data;
+    }catch(_){continue;}
+  }
+  return null;
+}
+
+function parseScreener(data, sym, ltp){
+  if(!data)return {};
+  try{
+    const now=new Date();
+    const fyYear=now.getMonth()>=3?now.getFullYear()+1:now.getFullYear();
+    const getRatio=name=>{
+      const arr=data.ratios||data.concise_ratios||[];
+      const r=arr.find(x=>(x.name||"").toLowerCase().includes(name.toLowerCase()));
+      const v=r?.values?.find(x=>x.ttm)?.ttm||r?.values?.[0]?.value;
+      return parseFloat(v)||0;
+    };
+    const getQ=field=>(data.quarterly_results||[]).map(q=>parseFloat(q[field]||0));
+    const getA=field=>(data.annual_results||data.results||[]).map(q=>parseFloat(q[field]||0));
+    // Shareholding
+    const shList=data.shareholding?.quarterly||data.shareholding_pattern||[];
+    const sh0=shList[0]||{},sh1=shList[1]||{};
+    const getSH=(o,keys)=>{for(const k of keys){const v=o[k];if(v!=null)return parseFloat(v)||0;}return 0;};
+    const promoter=getSH(sh0,["Promoters","promoter","promoter_and_promoter_group"]);
+    const fii=getSH(sh0,["FII","fii","Foreign Institutions","foreign_institutions"]);
+    const pub=getSH(sh0,["Public","public"]);
+    const promoterPrev=getSH(sh1,["Promoters","promoter","promoter_and_promoter_group"]);
+    const fiiPrev=getSH(sh1,["FII","fii","Foreign Institutions"]);
+    // Financials
+    const pe=parseFloat(data.pe||getRatio("p/e")||0);
+    const mcap=parseFloat(data.market_cap||0);
+    const salesArr=getA("Sales");
+    const profArr=getA("Net Profit");
+    const cfOps=parseFloat(data.cash_from_operations||getRatio("cash from operations")||0);
+    const cfInv=parseFloat(data.cash_from_investing||0);
+    const cfFin=parseFloat(data.cash_from_financing||0);
+    const debtEq=parseFloat(data.debt_to_equity||getRatio("debt / equity")||0);
+    const patM=parseFloat(data.net_profit_margin||getRatio("net profit margin")||0);
+    const sales=salesArr[0]||0;
+    // QoQ growth
+    const qS=getQ("Sales").slice(0,5);
+    const qG=qS.map((v,i)=>i===qS.length-1?0:qS[i+1]>0?Math.round((v-qS[i+1])/qS[i+1]*1000)/10:0).slice(0,4);
+    const qL=[`Q1FY${String(fyYear).slice(2)}`,`Q2FY${String(fyYear).slice(2)}`,`Q3FY${String(fyYear).slice(2)}`,`Q4FY${String(fyYear).slice(2)}`];
+    // YoY growth
+    const rg=salesArr.length>=2?[Math.round((salesArr[0]-salesArr[1])/(salesArr[1]||1)*1000)/10,Math.round((salesArr[1]-(salesArr[2]||salesArr[1]))/(salesArr[2]||salesArr[1]||1)*1000)/10]:[0,0];
+    const pg=profArr.length>=2?[Math.round((profArr[0]-profArr[1])/(Math.abs(profArr[1])||1)*1000)/10,Math.round((profArr[1]-(profArr[2]||profArr[1]))/(Math.abs(profArr[2]||profArr[1])||1)*1000)/10]:[0,0];
+    const fy2=`FY${String(fyYear-2).slice(2)}-${String(fyYear-1).slice(2)}`,fy1=`FY${String(fyYear-1).slice(2)}-${String(fyYear).slice(2)}`;
+    return{
+      company:data.name||sym, sector:data.industry||"--",
+      peRatio:Math.round(pe*10)/10,
+      marketCap:mcap>0?`Rs.${Math.round(mcap)} Cr`:"N/A",
+      mcapToSales:sales>0?Math.round(mcap/sales*10)/10:0,
+      promoterHolding:Math.round(promoter*10)/10, publicHolding:Math.round(pub*10)/10,
+      fiiHolding:Math.round(fii*10)/10,
+      promoterHoldingChange:Math.round((promoter-promoterPrev)*10)/10,
+      fiiHoldingChange:Math.round((fii-fiiPrev)*10)/10,
+      cfOperations:Math.round(cfOps), cfoPositive:cfOps>0,
+      cfoVsOthers:cfOps>0&&cfOps>Math.abs(cfInv)+Math.abs(cfFin)?"CFO is higher":"CFO is lower",
+      debtToReserve:Math.round(debtEq*100), patMargin:Math.round(patM*10)/10,
+      revenueQoQ:qG.length?qG:[0,0,0,0], revenueQoQLabels:qL,
+      revenueGrowthYOY:[rg[0]||0,rg[1]||0], revenueGrowthYOYLabels:[fy2,fy1],
+      patGrowthYOY:[pg[0]||0,pg[1]||0], patGrowthYOYLabels:[fy2,fy1],
+      screenerLoaded:true
+    };
+  }catch(e){console.error("Screener parse error",e);return{};}
+}
+
+// ── Hardcoded scoring ──────────────────────────────────────
+function calcScore(fd, td, cs){
+  let fs=0,fb=[],ts=0,tb=[];
+  const f=fd||{}, t=td||{};
+  if(f.promoterHolding>50){fs+=8;fb.push("Promoter>50%: +8");}
+  if(f.promoterHoldingChange>0){fs+=5;fb.push("PromIncreasing: +5");}
+  if(f.fiiHoldingChange>0){fs+=5;fb.push("FIIIncreasing: +5");}
+  if(f.cfoPositive||f.cfOperations>0){fs+=8;fb.push("CFO+ve: +8");}
+  if(String(f.cfoVsOthers||"").toLowerCase().includes("higher")){fs+=7;fb.push("CFO>Inv+Fin: +7");}
+  if(f.debtToReserve>=0&&f.debtToReserve<50){fs+=8;fb.push("Debt/Res<50%: +8");}
+  if(f.patMargin>10){fs+=8;fb.push("PATmargin>10%: +8");}
+  else if(f.patMargin>5){fs+=4;fb.push("PATmargin5-10%: +4");}
+  if((f.revenueGrowthYOY||[]).every(v=>v>0)){fs+=8;fb.push("RevYOY+ve: +8");}
+  if((f.patGrowthYOY||[]).every(v=>v>0)){fs+=8;fb.push("PATyoy+ve: +8");}
+  const ps=f.mcapToSales||0;
+  if(ps>0&&ps<3){fs+=5;fb.push("MCap/S<3x: +5");}
+  else if(ps>=3&&ps<5){fs+=3;fb.push("MCap/S3-5x: +3");}
+  if((f.revenueQoQ||[]).filter(v=>v>0).length>=3){fs+=3;fb.push("QoQ+ve 3/4: +3");}
+  const pe=f.peRatio||0;
+  if(pe>0&&pe<30){fs+=3;fb.push("PE<30: +3");}
+  else if(pe>=30&&pe<50){fs+=1;fb.push("PE30-50: +1");}
+  if(t.above200DMA){ts+=8;tb.push("Above200DMA: +8");}
+  if(t.above50DMA){ts+=5;tb.push("Above50DMA: +5");}
+  const rsi=t.rsi||0;
+  if(rsi>=40&&rsi<=65){ts+=7;tb.push("RSI40-65: +7");}
+  else if((rsi>=30&&rsi<40)||(rsi>65&&rsi<=70)){ts+=4;tb.push("RSI30-40/65-70: +4");}
+  if(String(t.macdSignal||"").toLowerCase().includes("bullish")){ts+=5;tb.push("MACDbullish: +5");}
+  if(t.support1>0&&f.currentPrice>0){const pct=(f.currentPrice-t.support1)/t.support1*100;if(pct>=0&&pct<=3){ts+=5;tb.push("NearS1: +5");}}
+  const commentaryScore=Math.min(Math.max(cs||0,-15),15);
+  const total=Math.min(Math.max(fs+ts+commentaryScore,0),100);
+  let rating="Avoid";
+  if(f.patMargin>0&&f.patMargin<=5)rating="Avoid";
+  else if(total>=75)rating="Strong Buy";
+  else if(total>=55)rating="Buy";
+  else if(total>=35)rating="Hold";
+  return{fundamentalScore:fs,technicalScore:ts,commentaryScore,fundamentalBreakdown:fb,technicalBreakdown:tb,fitScore:total,fitRating:rating};
+}
+
+// ── Claude: commentary only (1 search max) ─────────────────
+async function fetchCommentary(sym, fundamentalData, technicalData){
+  const key = getKey();
+  if(!key) return null;
+  const now=new Date();
+  const month=now.getMonth()+1;
+  const fy=month>=4?now.getFullYear()+1:now.getFullYear();
+  const fyS=String(fy).slice(2);
+  const qtr=month>=4&&month<=6?"Q1":month>=7&&month<=9?"Q2":month>=10&&month<=12?"Q3":"Q4";
+  const latestQ=month>=4&&month<=6?`Q4FY${String(fy-1).slice(2)}`:`${qtr}FY${fyS}`;
+  const prompt=`Stock: ${sym} NSE India
+Fundamental data: Promoter ${fundamentalData.promoterHolding}% (${fundamentalData.promoterHoldingChange>0?"+":""}${fundamentalData.promoterHoldingChange}%), PAT margin ${fundamentalData.patMargin}%, Debt/Reserve ${fundamentalData.debtToReserve}%, MCap/Sales ${fundamentalData.mcapToSales}x, Revenue growth YOY ${fundamentalData.revenueGrowthYOY}
+Technical: Trend ${technicalData.trend}, RSI ${technicalData.rsi}, MACD ${technicalData.macdSignal}, Above 200DMA: ${technicalData.above200DMA}
+Search for latest ${sym} concall transcript or results commentary for ${latestQ}. Extract management guidance and score it. Return only JSON.`;
+  try{
+    const res=await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:800,
+        tools:[{type:"web_search_20250305",name:"web_search",max_uses:1}],
+        system:SYS,messages:[{role:"user",content:prompt}]})
+    });
+    if(!res.ok)return null;
+    const result=await res.json();
+    const text=(result.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
+    return extractJSON(text);
+  }catch(e){console.error("Commentary error",e);return null;}
+}
+
+function extractJSON(text){
+  let s=text.replace(/```json|```/gi,"").trim();
+  try{return JSON.parse(s);}catch(_){}
+  const a=s.indexOf("{"),b=s.lastIndexOf("}");
+  if(a!==-1&&b>a)try{return JSON.parse(s.slice(a,b+1));}catch(_){}
+  throw new Error("Could not parse AI response");
+}
+
+// ── Main analyze ───────────────────────────────────────────
+async function analyze(){
+  const q=document.getElementById("scripInput").value.trim().toUpperCase();
+  if(!q)return;
+  if(!getKey()){alert("No Claude API key. Go to Settings.");return;}
+  if(!getUpTok()){alert("No Upstox token. Go to Settings.");return;}
+  showLoading();
+  let si=0;
+  document.getElementById("progressTxt").textContent=STEPS[0];
+  stepIv=setInterval(()=>{si=(si+1)%STEPS.length;document.getElementById("progressTxt").textContent=STEPS[si];},2500);
+  try{
+    // Step 1: Resolve instrument key via Upstox search
+    progSet(0);
+    const {instrKey, name, symbol} = await resolveInstrumentKey(q);
+
+    // Step 2: Live quote
+    const quote = await fetchLiveQuote(instrKey);
+    const ltp = quote.last_price || 0;
+    const ohlc = quote.ohlc || {};
+
+    // Step 3: Historical candles for technicals
+    progSet(1);
+    const candles = await fetchCandles(instrKey);
+    const closes = candles.map(c=>c[4]).reverse();
+
+    // Step 4: Screener fundamentals
+    progSet(2);
+    const screenerRaw = await fetchScreener(symbol);
+    const screenerFd = parseScreener(screenerRaw, symbol, ltp);
+
+    // Step 5: Calculate technicals locally
+    const dma50  = calcSMA(closes, 50) || 0;
+    const dma200 = calcSMA(closes, 200) || 0;
+    const rsiVal = calcRSI(closes);
+    const macd   = calcMACD(closes);
+    const levels = calcSR(candles);
+    const above50  = dma50 > 0 && ltp > dma50;
+    const above200 = dma200 > 0 && ltp > dma200;
+    const sl=levels.s2||Math.round(ltp*.93*100)/100;
+    const t1=levels.r1||Math.round(ltp*1.1*100)/100;
+    const t2=levels.r2||Math.round(ltp*1.2*100)/100;
+
+    const fd={
+      ...screenerFd,
+      currentPrice:ltp,
+      weekHigh52:ohlc.high||ltp,
+      weekLow52:ohlc.low||ltp,
+      volume:quote.volume||0,
+    };
+    const td={
+      trend:above200&&above50?"Bullish":!above200&&!above50?"Bearish":"Sideways",
+      rsi:rsiVal, macdSignal:macd,
+      above50DMA:above50, above200DMA:above200,
+      movingAvg50:dma50, movingAvg200:dma200,
+      support1:levels.s1, support2:levels.s2,
+      resistance1:levels.r1, resistance2:levels.r2,
+      stopLoss:sl, target1:t1, target2:t2,
+      potentialReturn:Math.round((t2-ltp)/ltp*100),
+      riskReward:ltp-sl>0?`1:${Math.round((t1-ltp)/(ltp-sl)*10)/10}`:"1:2",
+      entryZone:`Rs.${levels.s1||Math.round(ltp*.98)}-Rs.${Math.round((levels.s1||ltp)*1.02)}`,
+      timeframe:rsiVal<40?"Short-term (1-3M)":"Medium-term (3-6M)",
+      technicalSummary:""
+    };
+
+    // Step 6: Claude commentary (1 search only)
+    progSet(3);
+    const ai = await fetchCommentary(symbol, fd, td);
+
+    // Step 7: Score
+    progSet(4);
+    const scoring = calcScore(fd, td, ai?.commentaryScore||0);
+
+    const finalData={
+      company:fd.company||name||symbol, ticker:symbol,
+      exchange:"NSE", sector:fd.sector||"--",
+      currentPrice:ltp, marketCap:fd.marketCap||"N/A",
+      mcapToSales:fd.mcapToSales||0, peRatio:fd.peRatio||0,
+      weekHigh52:fd.weekHigh52, weekLow52:fd.weekLow52,
+      fundamental:{
+        ...fd,
+        managementCommentary:ai?.managementCommentary||"Commentary unavailable.",
+        revenueGuidance:ai?.revenueGuidance||"not given",
+        marginGuidance:ai?.marginGuidance||"not given",
+        demandOutlook:ai?.demandOutlook||"--",
+        majorEvent:ai?.majorEvent||"none",
+      },
+      technical:{...td, technicalSummary:ai?.fitSummary||""},
+      scoring:{...scoring, commentaryBreakdown:ai?.commentaryBreakdown||[]},
+      fitScore:scoring.fitScore, fitRating:scoring.fitRating,
+      fitSummary:ai?.fitSummary||`${symbol} scores ${scoring.fitScore}/100.`,
+      redFlags:ai?.redFlags||[], positives:ai?.positives||[],
+      dataNote:`Price: Upstox live. Fundamentals: ${fd.screenerLoaded?"Screener.in":"unavailable"}. Score: formula. Commentary: Claude AI.`,
+      savedAt:new Date().toLocaleString("en-IN")
+    };
+
+    currentData=finalData;
+    addToHist(finalData);
+    showResult(finalData);
+
+  }catch(e){
+    showError(e.message||"Analysis failed. Check symbol and tokens.");
+    console.error(e);
+  }finally{
+    clearInterval(stepIv);
+    const btn=document.getElementById("goBtn");
+    if(btn){btn.disabled=false;btn.textContent="Go";}
+  }
+}
+
+function progSet(i){clearInterval(stepIv);const el=document.getElementById("progressTxt");if(el)el.textContent=STEPS[i]||"";}
+
+// ── Show states ────────────────────────────────────────────
+function showLoading(){
+  switchTab("analyse");
+  ["emptyState","errorState","resultState"].forEach(id=>document.getElementById(id).style.display="none");
+  document.getElementById("loadingState").style.display="block";
+  const b=document.getElementById("goBtn");b.disabled=true;b.textContent="…";
+}
+function showError(msg){
+  document.getElementById("loadingState").style.display="none";
+  document.getElementById("errorState").style.display="block";
+  document.getElementById("errorState").innerHTML=`<div class="ebox">⚠ ${msg}</div>`;
+}
+function showResult(d){
+  document.getElementById("loadingState").style.display="none";
+  document.getElementById("resultState").style.display="block";
+  document.getElementById("resultState").innerHTML=buildResult(d);
+  drawGauge(d.fitScore);
+}
+
+// ── Recalc score for history items ─────────────────────────
+function recalcScore(d){
+  const f=d.fundamental||{},t=d.technical||{};
+  // Map flat structure (old v3/v4 entries) to expected format
+  const fd={...f,
+    peRatio:f.peRatio||d.peRatio||0,
+    mcapToSales:f.mcapToSales||d.mcapToSales||0,
+    currentPrice:f.currentPrice||d.currentPrice||0
+  };
+  const scoring=calcScore(fd,t,d.scoring?.commentaryScore||0);
+  d.scoring={...scoring,commentaryBreakdown:d.scoring?.commentaryBreakdown||[]};
+  d.fitScore=scoring.fitScore;d.fitRating=scoring.fitRating;
+  return d;
+}
+function loadHist2(i){
+  const l=loadHist();if(!l[i])return;
+  let d=l[i].fullData||l[i];
+  if(!d||typeof d!=="object")return;
+  if(!d.fundamental)d.fundamental={};
+  if(!d.technical)d.technical={};
+  if(!d.company&&d.ticker)d.company=d.ticker;
+  d=recalcScore(d);
+  l[i].fitScore=d.fitScore;l[i].fitRating=d.fitRating;
+  if(l[i].fullData)l[i].fullData=d;
+  saveHist(l);
+  currentData=d;showResult(d);switchTab("analyse");
+}
+function delHist(i){const l=loadHist();l.splice(i,1);saveHist(l);updateHistCount();renderHistory();}
+
+// ── Build result HTML ──────────────────────────────────────
+function buildResult(d){
+  const col=rc(d.fitRating);
+  const f=d.fundamental||{},t=d.technical||{},sc=d.scoring||{};
+  const bars=(arr,lbs,max,c)=>(arr||[]).map((v,i)=>miniBar(lbs?.[i]||`Q${i+1}`,v,max,c)).join("");
+  return`
+<div class="hero">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+    <div style="flex:1">
+      <div style="font-weight:800;font-size:18px;margin-bottom:7px">${d.company}</div>
+      <div style="margin-bottom:8px">${bdg(d.ticker,"#38bdf8")}${bdg(d.exchange||"NSE","#64748b")}${bdg(d.sector||"--","#f59e0b")}</div>
+      <div style="color:#64748b;font-size:12px">CMP <span style="color:#e2e8f0;font-weight:700;font-family:monospace;font-size:17px">Rs.${d.currentPrice}</span></div>
+      <div style="color:#64748b;font-size:11px;margin-top:2px">52W H:${d.weekHigh52||"--"} L:${d.weekLow52||"--"}</div>
+      <div style="color:#64748b;font-size:11px">MCap:${d.marketCap} · PE:${d.peRatio}x · P/S:${d.mcapToSales}x</div>
+    </div>
+    <div style="text-align:center">
+      <canvas id="gauge" width="108" height="108"></canvas>
+      <div style="margin-top:3px">${bdg(d.fitRating,col)}</div>
+      <div style="color:#64748b;font-size:10px;margin-top:2px">FIT SCORE</div>
+    </div>
+  </div>
+  <div style="margin-top:11px;color:#94a3b8;font-size:12px;line-height:1.6;border-top:1px solid #1e2d45;padding-top:9px">${d.fitSummary||""}</div>
+  <div class="g2" style="margin-top:11px">
+    <button class="abtn ar" onclick="downloadReport()">📄 Download Report</button>
+    <button class="abtn ah" onclick="switchTab('history')">🗂 History</button>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:11px">
+  <div class="st">⚡ Score Breakdown</div>
+  <div class="g3" style="margin-bottom:10px">
+    <div class="pb" style="border:1px solid #38bdf833"><div class="pl">FUNDAMENTAL</div><div class="pv" style="color:#38bdf8">${sc.fundamentalScore||0}<span style="font-size:9px;color:#64748b">/70</span></div><div style="color:#64748b;font-size:9px">60% wt</div></div>
+    <div class="pb" style="border:1px solid #a78bfa33"><div class="pl">TECHNICAL</div><div class="pv" style="color:#a78bfa">${sc.technicalScore||0}<span style="font-size:9px;color:#64748b">/30</span></div><div style="color:#64748b;font-size:9px">20% wt</div></div>
+    <div class="pb" style="border:1px solid #22c55e33"><div class="pl">COMMENTARY</div><div class="pv" style="color:${(sc.commentaryScore||0)>=0?"#22c55e":"#ef4444"}">${(sc.commentaryScore||0)>0?"+":""}${sc.commentaryScore||0}<span style="font-size:9px;color:#64748b">/±15</span></div><div style="color:#64748b;font-size:9px">20% wt</div></div>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:4px">${(sc.fundamentalBreakdown||[]).map(b=>`<span style="background:#38bdf811;color:#38bdf8;border:1px solid #38bdf822;border-radius:10px;padding:2px 7px;font-size:10px">${b}</span>`).join("")}</div>
+  <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:4px">${(sc.technicalBreakdown||[]).map(b=>`<span style="background:#a78bfa11;color:#a78bfa;border:1px solid #a78bfa22;border-radius:10px;padding:2px 7px;font-size:10px">${b}</span>`).join("")}</div>
+  <div style="display:flex;flex-wrap:wrap;gap:3px">${(sc.commentaryBreakdown||[]).map(b=>`<span style="background:${String(b).includes("-")?"#ef444411":"#22c55e11"};color:${String(b).includes("-")?"#ef4444":"#22c55e"};border:1px solid ${String(b).includes("-")?"#ef444433":"#22c55e33"};border-radius:10px;padding:2px 7px;font-size:10px">${b}</span>`).join("")}</div>
+</div>
+
+<div class="g2" style="margin-bottom:11px">
+  ${d.redFlags?.length?`<div class="fbox"><div style="color:#ef4444;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:6px">⚠ RED FLAGS</div>${d.redFlags.map(f=>`<div style="color:#fca5a5;font-size:11px;margin-bottom:3px">• ${f}</div>`).join("")}</div>`:"<div></div>"}
+  ${d.positives?.length?`<div class="pbox2"><div style="color:#22c55e;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:6px">✓ POSITIVES</div>${d.positives.map(p=>`<div style="color:#86efac;font-size:11px;margin-bottom:3px">• ${p}</div>`).join("")}</div>`:"<div></div>"}
+</div>
+
+<div class="card">
+  <div class="st">⬡ Fundamental</div>
+  ${mrow("Promoter Holding",(f.promoterHolding||0)+"%",f.promoterHolding>50?"g":"")}
+  ${mrow("Promoter Change",(f.promoterHoldingChange>0?"+":"")+f.promoterHoldingChange+"%",f.promoterHoldingChange<-2?"b":f.promoterHoldingChange>=0?"g":"")}
+  ${mrow("Public Holding",(f.publicHolding||0)+"%","")}
+  ${mrow("FII Change",(f.fiiHoldingChange>0?"+":"")+f.fiiHoldingChange+"%",f.fiiHoldingChange>0?"g":"b")}
+  ${mrow("CFO Positive?",f.cfoPositive?"✓ Yes":"✗ No",f.cfoPositive?"g":"b")}
+  ${mrow("CFO vs Inv+Fin",String(f.cfoVsOthers||"-"),String(f.cfoVsOthers||"").toLowerCase().includes("higher")?"g":"")}
+  ${mrow("Debt/Reserve",(f.debtToReserve||0)+"%",f.debtToReserve>=50?"b":"g")}
+  ${mrow("PAT Margin",(f.patMargin||0)+"%",f.patMargin<=5?"b":f.patMargin>=10?"g":"w")}
+  ${mrow("MCap/Sales",(f.mcapToSales||d.mcapToSales||0)+"x",(f.mcapToSales||d.mcapToSales||0)>5?"b":(f.mcapToSales||d.mcapToSales||0)<=3?"g":"")}
+  ${mrow("PE Ratio",(f.peRatio||d.peRatio||0)+"x","")}
+  <div style="margin-top:13px">
+    <div style="color:#64748b;font-size:10px;margin-bottom:7px;letter-spacing:1px">QUARTERLY REVENUE GROWTH (QoQ %)</div>
+    ${bars(f.revenueQoQ,f.revenueQoQLabels,30,"#00d4aa")}
+  </div>
+  <div class="g2" style="margin-top:11px;gap:14px">
+    <div><div style="color:#64748b;font-size:10px;margin-bottom:6px">REVENUE YOY</div>${bars(f.revenueGrowthYOY,f.revenueGrowthYOYLabels,50,"#38bdf8")}</div>
+    <div><div style="color:#64748b;font-size:10px;margin-bottom:6px">PAT YOY</div>${bars(f.patGrowthYOY,f.patGrowthYOYLabels,50,"#22c55e")}</div>
+  </div>
+  <div class="cbox">
+    <div style="color:#00d4aa;font-size:10px;letter-spacing:2px;margin-bottom:7px;font-weight:700">MANAGEMENT COMMENTARY</div>
+    <div style="color:#94a3b8;font-size:12px;line-height:1.6;margin-bottom:9px">${f.managementCommentary||"N/A"}</div>
+    <div class="g2" style="gap:6px">
+      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px"><div style="color:#64748b;font-size:9px;margin-bottom:2px">REVENUE GUIDANCE</div><div style="font-weight:700;font-size:11px;color:${f.revenueGuidance==="raised"?"#22c55e":f.revenueGuidance==="cut"?"#ef4444":"#f59e0b"}">${String(f.revenueGuidance||"--").toUpperCase()}</div></div>
+      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px"><div style="color:#64748b;font-size:9px;margin-bottom:2px">MARGIN GUIDANCE</div><div style="font-weight:700;font-size:11px;color:${f.marginGuidance==="expanding"?"#22c55e":f.marginGuidance==="contracting"?"#ef4444":"#f59e0b"}">${String(f.marginGuidance||"--").toUpperCase()}</div></div>
+      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px"><div style="color:#64748b;font-size:9px;margin-bottom:2px">DEMAND OUTLOOK</div><div style="font-weight:700;font-size:11px;color:${f.demandOutlook==="strong"?"#22c55e":f.demandOutlook==="weak"?"#ef4444":"#f59e0b"}">${String(f.demandOutlook||"--").toUpperCase()}</div></div>
+      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px"><div style="color:#64748b;font-size:9px;margin-bottom:2px">MAJOR EVENT</div><div style="color:#94a3b8;font-size:10px;font-weight:600">${String(f.majorEvent||"none")}</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="st">⬡ Technical <span style="font-size:9px;color:#64748b;font-weight:400">(Upstox live)</span></div>
+  <div class="g3" style="margin-bottom:11px">
+    <div class="pb"><div class="pl">TREND</div><div class="pv" style="color:${t.trend==="Bullish"?"#22c55e":t.trend==="Bearish"?"#ef4444":"#f59e0b"}">${t.trend||"--"}</div></div>
+    <div class="pb"><div class="pl">RSI</div><div class="pv" style="color:${t.rsi>70?"#ef4444":t.rsi<30?"#22c55e":"#e2e8f0"}">${t.rsi||"--"}</div></div>
+    <div class="pb"><div class="pl">MACD</div><div class="pv" style="font-size:10px;color:${String(t.macdSignal||"").includes("Bullish")?"#22c55e":"#ef4444"}">${t.macdSignal||"--"}</div></div>
+  </div>
+  <div class="g4" style="margin-bottom:11px">
+    ${pbox("S1","Rs."+(t.support1||"--"),"#22c55e",true)}
+    ${pbox("S2","Rs."+(t.support2||"--"),"#22c55e",true)}
+    ${pbox("R1","Rs."+(t.resistance1||"--"),"#ef4444",true)}
+    ${pbox("R2","Rs."+(t.resistance2||"--"),"#ef4444",true)}
+  </div>
+  <div class="tbox">
+    <div style="color:#22c55e;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:9px">TRADE SETUP · ${t.timeframe||"--"}</div>
+    <div class="g2">
+      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">ENTRY ZONE</div><div style="color:#00d4aa;font-weight:700;font-family:monospace;font-size:12px">${t.entryZone||"--"}</div></div>
+      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">STOP LOSS</div><div style="color:#ef4444;font-weight:700;font-family:monospace;font-size:12px">Rs.${t.stopLoss||"--"}</div></div>
+      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">TARGET 1</div><div style="color:#22c55e;font-weight:700;font-family:monospace;font-size:12px">Rs.${t.target1||"--"}</div></div>
+      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">TARGET 2</div><div style="color:#22c55e;font-weight:700;font-family:monospace;font-size:12px">Rs.${t.target2||"--"}</div></div>
+    </div>
+    <div style="display:flex;gap:16px;margin-top:9px;border-top:1px solid #22c55e22;padding-top:7px">
+      <div><span style="color:#64748b;font-size:11px">Return: </span><span style="color:#22c55e;font-weight:700;font-family:monospace">${t.potentialReturn||"--"}%</span></div>
+      <div><span style="color:#64748b;font-size:11px">R:R: </span><span style="color:#00d4aa;font-weight:700;font-family:monospace">${t.riskReward||"--"}</span></div>
+    </div>
+  </div>
+  <div class="g2" style="margin-bottom:9px">
+    <div class="pb"><div class="pl">50-Day MA</div><div class="pv" style="color:${t.above50DMA?"#22c55e":"#ef4444"}">Rs.${t.movingAvg50||"--"} ${t.above50DMA?"↑":"↓"}</div></div>
+    <div class="pb"><div class="pl">200-Day MA</div><div class="pv" style="color:${t.above200DMA?"#22c55e":"#ef4444"}">Rs.${t.movingAvg200||"--"} ${t.above200DMA?"↑":"↓"}</div></div>
+  </div>
+</div>
+
+<div class="disc">
+  ${d.dataNote?`<div style="color:#f59e0b;margin-bottom:3px">ⓘ ${d.dataNote}</div>`:""}
+  AI-generated · not financial advice · do your own research
+</div>`;
+}
+
+// ── Canvas Gauge ───────────────────────────────────────────
+function drawGauge(score){
+  requestAnimationFrame(()=>{
+    const cv=document.getElementById("gauge");if(!cv)return;
+    const ctx=cv.getContext("2d"),cx=54,cy=54,r=43;
+    const col=score>=75?"#22c55e":score>=55?"#00d4aa":score>=35?"#f59e0b":"#ef4444";
+    ctx.clearRect(0,0,108,108);
+    ctx.beginPath();ctx.arc(cx,cy,r,0,2*Math.PI);ctx.strokeStyle="#1e2d45";ctx.lineWidth=8;ctx.stroke();
+    ctx.beginPath();ctx.arc(cx,cy,r,-Math.PI/2,-Math.PI/2+(score/100)*2*Math.PI);
+    ctx.strokeStyle=col;ctx.lineWidth=8;ctx.lineCap="round";ctx.shadowColor=col;ctx.shadowBlur=7;ctx.stroke();ctx.shadowBlur=0;
+    ctx.fillStyle=col;ctx.font="bold 21px monospace";ctx.textAlign="center";ctx.fillText(score,cx,cy+5);
+    ctx.fillStyle="#64748b";ctx.font="10px monospace";ctx.fillText("/100",cx,cy+19);
+  });
+}
+
+// ── History render with sort ───────────────────────────────
+function renderHistory(){
+  const rawList=loadHist();
+  const el=document.getElementById("historyList");
+  if(!rawList.length){el.innerHTML=`<div class="empty"><div style="font-size:34px;margin-bottom:10px">🗂</div><div style="font-size:13px">No saved analyses yet.</div></div>`;return;}
+  const sort=document.getElementById("histSort")?.value||"newest";
+  const ratingOrder={"Strong Buy":4,"Buy":3,"Hold":2,"Avoid":1};
+  const list=[...rawList.map((h,i)=>({...h,_orig:i}))];
+  if(sort==="oldest")list.reverse();
+  else if(sort==="score_desc")list.sort((a,b)=>(b.fitScore||0)-(a.fitScore||0));
+  else if(sort==="score_asc")list.sort((a,b)=>(a.fitScore||0)-(b.fitScore||0));
+  else if(sort==="rating")list.sort((a,b)=>(ratingOrder[b.fitRating]||0)-(ratingOrder[a.fitRating]||0));
+  const warn=rawList.length>=90?`<div style="background:#f59e0b18;border:1px solid #f59e0b44;border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:11px;color:#f59e0b">⚠ ${rawList.length}/100 entries used.</div>`:"";
+  el.innerHTML=warn+list.map((h)=>{
+    const i=h._orig;
+    const c=rc(h.fitRating);
+    return`<div class="hi" onclick="loadHist2(${i})">
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:14px;margin-bottom:4px">${h.company}</div>
+        <div style="margin-bottom:3px">${bdg(h.ticker,"#38bdf8")}${bdg(h.fitRating,c)}</div>
+        <div style="color:#64748b;font-size:10px">Rs.${h.currentPrice} · PE:${h.peRatio}x · ${h.savedAt}</div>
+      </div>
+      <div style="text-align:center;min-width:42px">
+        <div style="font-size:24px;font-weight:800;font-family:monospace;color:${c};line-height:1">${h.fitScore}</div>
+        <div style="color:#64748b;font-size:10px">/100</div>
+      </div>
+      <button onclick="event.stopPropagation();delHist(${i})" style="background:none;border:none;color:#ef4444;font-size:15px;cursor:pointer;padding:4px 2px">🗑</button>
+    </div>`;
+  }).join("");
+}
+
+// ── Export / Import ────────────────────────────────────────
+function exportHistory(){
+  const list=loadHist();
+  if(!list.length){alert("No history to export.");return;}
+  const blob=new Blob([JSON.stringify({version:"ISA_v4",exportedAt:new Date().toISOString(),count:list.length,history:list},null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;a.download=`ISA_history_${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),3000);
+}
+function importHistory(event){
+  const file=event.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const parsed=JSON.parse(e.target.result);
+      const incoming=Array.isArray(parsed)?parsed:(parsed.history||[]);
+      if(!incoming.length){alert("No history found in file.");return;}
+      const existing=loadHist();
+      const merged=[...incoming];
+      existing.forEach(ex=>{if(!merged.find(m=>m.ticker===ex.ticker))merged.push(ex);});
+      merged.sort((a,b)=>new Date(b.savedAt||0)-new Date(a.savedAt||0));
+      saveHist(merged.slice(0,100));
+      updateHistCount();renderHistory();
+      alert("✓ Imported "+incoming.length+" entries.");
+    }catch(err){alert("Import failed: "+err.message);}
+  };
+  reader.readAsText(file);
+  event.target.value="";
+}
+
+// ── Download Report ────────────────────────────────────────
+function downloadReport(){
+  if(!currentData)return;
+  const d=currentData;
+  const blob=new Blob([`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${d.company} Analysis</title></head><body style="background:#0a0e1a;color:#e2e8f0;font-family:Arial,sans-serif;padding:20px"><h2>${d.company} (${d.ticker})</h2><p>Score: ${d.fitScore}/100 — ${d.fitRating}</p><p>Price: Rs.${d.currentPrice} | PE: ${d.peRatio}x | MCap: ${d.marketCap}</p><p>${d.fitSummary}</p><p>Data note: ${d.dataNote}</p><p>Saved: ${d.savedAt}</p></body></html>`],{type:"text/html"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;a.download=`${d.ticker}_${new Date().toISOString().slice(0,10)}.html`;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),3000);
+}
+
+// ── Settings helpers ───────────────────────────────────────
+function forceMigrate(){
+  const msg=document.getElementById("migrateMsg");
+  try{
+    const keys=["isa_history","isaHistory","isa-history"];
+    let found=null,foundKey=null;
+    keys.forEach(k=>{const v=localStorage.getItem(k);if(v&&v!=="[]"&&!found)try{const p=JSON.parse(v);if(p?.length){found=p;foundKey=k;}}catch(_){}});
+    const cur=localStorage.getItem("isa_h");const curP=cur?JSON.parse(cur):[];
+    if(found){const merged=[...found,...curP.filter(c=>!found.find(f=>f.ticker===c.ticker))].slice(0,100);localStorage.setItem("isa_h",JSON.stringify(merged));localStorage.removeItem(foundKey);updateHistCount();msg.style.color="#22c55e";msg.textContent=`✓ Migrated ${found.length} from "${foundKey}"`;}
+    else{msg.style.color="#f59e0b";msg.textContent="No old history found.";}
+  }catch(e){msg.style.color="#ef4444";msg.textContent="Error: "+e.message;}
+}
+function showStorageDebug(){
+  const msg=document.getElementById("migrateMsg");
+  let info=[];
+  for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);const v=localStorage.getItem(k);let d=v;try{const p=JSON.parse(v);d=Array.isArray(p)?`Array(${p.length})`:typeof p==="object"?"Object":v?.slice(0,30)||"";}catch(_){d=v?.slice(0,30)||"";}info.push(`${k}: ${d}`);}
+  msg.style.color="#38bdf8";msg.innerHTML=info.length?info.join("<br/>"):"LocalStorage empty";
+}
+</script>
+</body>
+</html>
