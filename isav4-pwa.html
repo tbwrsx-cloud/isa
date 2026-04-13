@@ -131,11 +131,12 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
     </div>
   </div>
 
-  <div id="tabs">
-    <button class="tb active" id="tab-analyse" onclick="switchTab('analyse')">📊 Analysis</button>
-    <button class="tb" id="tab-history" onclick="switchTab('history')">🗂 History (<span id="histCount">0</span>)</button>
-    <button class="tb" id="tab-portfolio" onclick="switchTab('portfolio')">💼 Portfolio</button>
-    <button class="tb" id="tab-settings" onclick="switchTab('settings')">⚙ Settings</button>
+  <div id="tabs" style="display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none">
+    <button class="tb active" id="tab-analyse" onclick="switchTab('analyse')" style="white-space:nowrap;flex-shrink:0">📊 Analyse</button>
+    <button class="tb" id="tab-history" onclick="switchTab('history')" style="white-space:nowrap;flex-shrink:0">🗂 History (<span id="histCount">0</span>)</button>
+    <button class="tb" id="tab-watchlist" onclick="switchTab('watchlist')" style="white-space:nowrap;flex-shrink:0">⭐ Watchlist (<span id="watchCount">0</span>)</button>
+    <button class="tb" id="tab-portfolio" onclick="switchTab('portfolio')" style="white-space:nowrap;flex-shrink:0">💼 Portfolio</button>
+    <button class="tb" id="tab-settings" onclick="switchTab('settings')" style="white-space:nowrap;flex-shrink:0">⚙ Settings</button>
   </div>
 
   <div id="content">
@@ -166,6 +167,14 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
         <label style="background:#22c55e18;color:#22c55e;border:1px solid #22c55e44;border-radius:8px;padding:8px 11px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">📥 Import<input type="file" accept=".json" onchange="importHistory(event)" style="display:none"/></label>
       </div>
       <div id="historyList"></div>
+    </div>
+
+    <div id="view-watchlist" style="display:none;padding:13px">
+      <div style="display:flex;gap:7px;margin-bottom:11px;align-items:center">
+        <div style="flex:1;color:#94a3b8;font-size:12px">Stocks you want to track. Add from History tab.</div>
+        <button onclick="clearWatchlist()" style="background:#ef444418;color:#ef4444;border:1px solid #ef444433;border-radius:7px;padding:7px 10px;font-size:11px;font-weight:700;cursor:pointer">Clear All</button>
+      </div>
+      <div id="watchlistList"></div>
     </div>
 
     <div id="view-portfolio" style="display:none;padding:13px">
@@ -246,7 +255,7 @@ TECHNICAL (max 30): Above200DMA+8, Above50DMA+5, RSI40-65+7 or 30-40/65-70+4, MA
 COMMENTARY (max 15, min -15): GuidanceRaised+5 or maintained+2 or cut-8, StrongOrderBook+4, MarginExpansion+4, DebtReduction+3, MgmtChange-5, RegulatoryIssue-6, AuditorConcern-8, PromoterPledge-6
 IMPORTANT: revenueGuidance/marginGuidance/demandOutlook/majorEvent fields inside fundamental{} are REQUIRED. Use exact allowed values.
 
-fitScore = fundamentalScore + technicalScore + commentaryScore (clamp 0-100)
+fitScore = (fundamentalScore/70)*60 + (technicalScore/30)*20 + (clamp(commentaryScore,-15,15)/15)*20, round and clamp 0-100
 Rating: >=75 Strong Buy, >=55 Buy, >=35 Hold, else Avoid. PAT<=5% forces Avoid.
 
 Return JSON fields: company, ticker, exchange, sector, currentPrice, marketCap, mcapToSales, peRatio, fundamental{publicHolding, promoterHolding, promoterHoldingChange, fiiHoldingChange, cfOperations, cfoPositive, cfoVsOthers(string), debtToReserve, revenueQoQ[4], revenueQoQLabels[4], patMargin, revenueGrowthYOY[2], revenueGrowthYOYLabels[2], patGrowthYOY[2], patGrowthYOYLabels[2], managementCommentary, revenueGuidance, marginGuidance, demandOutlook, majorEvent}, technical{trend, rsi, macdSignal, support1, support2, resistance1, resistance2, entryZone, stopLoss, target1, target2, potentialReturn, riskReward, timeframe, movingAvg50, movingAvg200, above50DMA, above200DMA, technicalSummary}, scoring{fundamentalScore, technicalScore, commentaryScore, fundamentalBreakdown[], technicalBreakdown[], commentaryBreakdown[]}, fitScore, fitRating, fitSummary, redFlags[], positives[], dataNote`;
@@ -279,6 +288,7 @@ function launchApp(){
   document.getElementById("mainApp").style.display="flex";
   updateHistCount();
   updateKeyBadge();
+  updateWatchCount();
 }
 function updateKeyBadge(){
   const el=document.getElementById("keyStatusBadge");
@@ -306,11 +316,15 @@ window.addEventListener("load",()=>{
 
 // ── Tab switching ─────────────────────────────────────────────────────────────
 function switchTab(t){
-  ["analyse","history","settings"].forEach(x=>{
-    document.getElementById("view-"+x).style.display=x===t?"block":"none";
-    document.getElementById("tab-"+x).classList.toggle("active",x===t);
+  ["analyse","history","portfolio","watchlist","settings"].forEach(x=>{
+    const v=document.getElementById("view-"+x);
+    const b=document.getElementById("tab-"+x);
+    if(v)v.style.display=x===t?"block":"none";
+    if(b)b.classList.toggle("active",x===t);
   });
   if(t==="history")renderHistory();
+  if(t==="portfolio")initPortfolioTab();
+  if(t==="watchlist")renderWatchlist();
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -578,9 +592,14 @@ function renderHistory(){
   el.innerHTML=warn+list.map((h)=>{
   const i=h._orig;
     const c=rc(h.fitRating);
+    const inPortfolio=window._portfolioSymbols&&window._portfolioSymbols.has(h.ticker?.toUpperCase());
+    const inWatchlist=isInWatchlist(h.ticker);
     return`<div class="hi" onclick="loadHist2(${i})">
       <div style="flex:1">
-        <div style="font-weight:700;font-size:14px;margin-bottom:4px">${h.company}</div>
+        <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px">
+          <span style="font-weight:700;font-size:14px">${h.company}</span>
+          ${inPortfolio?'<span style="font-size:11px" title="In your portfolio">💼</span>':""}
+        </div>
         <div style="margin-bottom:3px">${bdg(h.ticker,"#38bdf8")}${bdg(h.fitRating,c)}</div>
         <div style="color:#64748b;font-size:10px">Rs.${h.currentPrice} · PE:${h.peRatio}x · ${h.savedAt}</div>
       </div>
@@ -588,7 +607,10 @@ function renderHistory(){
         <div style="font-size:24px;font-weight:800;font-family:monospace;color:${c};line-height:1">${h.fitScore}</div>
         <div style="color:#64748b;font-size:10px">/100</div>
       </div>
-      <button onclick="event.stopPropagation();delHist(${i})" style="background:none;border:none;color:#ef4444;font-size:15px;cursor:pointer;padding:4px 2px">🗑</button>
+      <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
+        <button onclick="event.stopPropagation();toggleWatchlist(${i})" style="background:none;border:none;font-size:16px;cursor:pointer;padding:2px" title="${inWatchlist?'Remove from watchlist':'Add to watchlist'}">${inWatchlist?'⭐':'☆'}</button>
+        <button onclick="event.stopPropagation();delHist(${i})" style="background:none;border:none;color:#ef4444;font-size:14px;cursor:pointer;padding:2px">🗑</button>
+      </div>
     </div>`;
   }).join("");
 }
@@ -670,14 +692,18 @@ function recalcScore(d){
   // Commentary score — use saved value or 0
   const cs=d.scoring?.commentaryScore||0;
   const cb=d.scoring?.commentaryBreakdown||[];
-  // Final
-  const total=Math.min(Math.max(fs+ts+cs,0),100);
+  // Final — weighted: Fundamental 60%, Technical 20%, Commentary 20%
+  const fWt = Math.round((fs/70)*60);   // 0-60
+  const tWt = Math.round((ts/30)*20);   // 0-20
+  const cWt = Math.round((Math.min(Math.max(cs,-15),15)/15)*20); // -20 to +20
+  const total=Math.min(Math.max(fWt+tWt+cWt,0),100);
   let rating="Avoid";
-  if(f.patMargin<=5&&f.patMargin>0)rating="Avoid";
+  if(f.patMargin>0&&f.patMargin<=5)rating="Avoid";
   else if(total>=75)rating="Strong Buy";
   else if(total>=55)rating="Buy";
   else if(total>=35)rating="Hold";
   d.scoring={fundamentalScore:fs,technicalScore:ts,commentaryScore:cs,
+    fundamentalWeighted:fWt,technicalWeighted:tWt,commentaryWeighted:cWt,
     fundamentalBreakdown:fb,technicalBreakdown:tb,commentaryBreakdown:cb};
   d.fitScore=total;
   d.fitRating=rating;
@@ -847,17 +873,7 @@ const getAlgoSec  = () => localStorage.getItem("isa_algo_sec")  || "";
 const getAlgoTok  = () => localStorage.getItem("isa_algo_token")|| "";
 const setAlgoTok  = t  => localStorage.setItem("isa_algo_token", t);
 
-// ── Override switchTab to include portfolio ───────────────
-const _origSwitchTab = switchTab;
-switchTab = function(t){
-  // Handle portfolio tab
-  const ptab = document.getElementById("view-portfolio");
-  if(ptab) ptab.style.display = t==="portfolio"?"block":"none";
-  const pbtn = document.getElementById("tab-portfolio");
-  if(pbtn) pbtn.classList.toggle("active", t==="portfolio");
-  if(t==="portfolio"){ initPortfolioTab(); return; }
-  _origSwitchTab(t);
-};
+// Portfolio tab handled in main switchTab
 
 // ── Handle OAuth callback on page load ───────────────────
 window.addEventListener("load", ()=>{
@@ -951,6 +967,8 @@ async function loadPortfolio(){
 
 // ── Cross-reference holdings with history ─────────────────
 function renderPortfolio(holdings){
+  // Store symbols globally so history list can show 💼 badge
+  window._portfolioSymbols = new Set(holdings.map(h=>(h.trading_symbol||h.tradingsymbol||"").toUpperCase()));
   const el = document.getElementById("portfolioList");
   if(!holdings.length){
     el.innerHTML = `<div class="empty"><div style="font-size:34px;margin-bottom:10px">💼</div><div>No holdings found in your Upstox account.</div></div>`;
@@ -1082,6 +1100,86 @@ function saveAlgoCredentials(){
   const col = (k||s) ? "#22c55e" : "#f59e0b";
   if(m1){m1.style.color=col;m1.textContent=msg;setTimeout(()=>m1.textContent="",4000);}
   if(m2){m2.style.color=col;m2.textContent=msg;setTimeout(()=>m2.textContent="",4000);}
+}
+
+// ══════════════════════════════════════════════════════════
+// WATCHLIST
+// ══════════════════════════════════════════════════════════
+const loadWatchlist = () => {try{return JSON.parse(localStorage.getItem("isa_wl")||"[]");}catch(_){return[];}};
+const saveWatchlist = l => {try{localStorage.setItem("isa_wl",JSON.stringify(l));}catch(_){}};
+const isInWatchlist = ticker => loadWatchlist().some(w=>w.ticker===ticker);
+const updateWatchCount = () => {const el=document.getElementById("watchCount");if(el)el.textContent=loadWatchlist().length;};
+
+function toggleWatchlist(histIdx){
+  const l=loadHist();
+  const h=l[histIdx];if(!h)return;
+  let wl=loadWatchlist();
+  const exists=wl.findIndex(w=>w.ticker===h.ticker);
+  if(exists>=0){
+    wl.splice(exists,1);
+  } else {
+    wl.push({ticker:h.ticker,company:h.company,fitScore:h.fitScore,fitRating:h.fitRating,
+      currentPrice:h.currentPrice,peRatio:h.peRatio,savedAt:h.savedAt,fullData:h.fullData});
+  }
+  saveWatchlist(wl);
+  updateWatchCount();
+  renderHistory(); // refresh to update star
+}
+
+function clearWatchlist(){
+  if(confirm("Clear entire watchlist?"))return;
+  saveWatchlist([]);
+  updateWatchCount();
+  renderWatchlist();
+}
+
+function renderWatchlist(){
+  updateWatchCount();
+  const wl=loadWatchlist();
+  const el=document.getElementById("watchlistList");
+  if(!el)return;
+  if(!wl.length){
+    el.innerHTML=`<div class="empty"><div style="font-size:34px;margin-bottom:10px">⭐</div><div style="font-size:13px">No stocks in watchlist.</div><div style="font-size:11px;margin-top:4px">Tap ☆ on any history entry to add.</div></div>`;
+    return;
+  }
+  el.innerHTML=wl.map((h,i)=>{
+    const c=rc(h.fitRating);
+    const inPortfolio=window._portfolioSymbols&&window._portfolioSymbols.has(h.ticker?.toUpperCase());
+    return`<div class="hi" onclick="loadWL(${i})">
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px">
+          <span style="font-weight:700;font-size:14px">${h.company}</span>
+          ${inPortfolio?'<span style="font-size:11px">💼</span>':""}
+        </div>
+        <div style="margin-bottom:3px">${bdg(h.ticker,"#38bdf8")}${bdg(h.fitRating,c)}</div>
+        <div style="color:#64748b;font-size:10px">Rs.${h.currentPrice} · PE:${h.peRatio}x · ${h.savedAt}</div>
+      </div>
+      <div style="text-align:center;min-width:42px">
+        <div style="font-size:24px;font-weight:800;font-family:monospace;color:${c};line-height:1">${h.fitScore}</div>
+        <div style="color:#64748b;font-size:10px">/100</div>
+      </div>
+      <button onclick="event.stopPropagation();removeFromWatchlist('${h.ticker}')" style="background:none;border:none;color:#f59e0b;font-size:16px;cursor:pointer;padding:4px">⭐</button>
+    </div>`;
+  }).join("");
+}
+
+function removeFromWatchlist(ticker){
+  let wl=loadWatchlist().filter(w=>w.ticker!==ticker);
+  saveWatchlist(wl);
+  updateWatchCount();
+  renderWatchlist();
+  renderHistory();
+}
+
+function loadWL(i){
+  const wl=loadWatchlist();if(!wl[i])return;
+  let d=wl[i].fullData||wl[i];
+  if(!d||typeof d!=="object")return;
+  if(!d.fundamental)d.fundamental={};
+  if(!d.technical)d.technical={};
+  if(!d.scoring)d.scoring={fundamentalScore:0,technicalScore:0,commentaryScore:0,fundamentalBreakdown:[],technicalBreakdown:[],commentaryBreakdown:[]};
+  d=recalcScore(d);
+  currentData=d;showResult(d);switchTab("analyse");
 }
 
 </script>
