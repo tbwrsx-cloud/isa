@@ -136,6 +136,7 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
     <button class="tb" id="tab-history" onclick="switchTab('history')" style="white-space:nowrap;flex-shrink:0">🗂 History (<span id="histCount">0</span>)</button>
     <button class="tb" id="tab-watchlist" onclick="switchTab('watchlist')" style="white-space:nowrap;flex-shrink:0">⭐ Watchlist (<span id="watchCount">0</span>)</button>
     <button class="tb" id="tab-portfolio" onclick="switchTab('portfolio')" style="white-space:nowrap;flex-shrink:0">💼 Portfolio</button>
+    <button class="tb" id="tab-trends" onclick="switchTab('trends')" style="white-space:nowrap;flex-shrink:0">📈 Trends</button>
     <button class="tb" id="tab-settings" onclick="switchTab('settings')" style="white-space:nowrap;flex-shrink:0">⚙ Settings</button>
   </div>
 
@@ -174,6 +175,11 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
         <label style="flex:1;background:#22c55e18;color:#22c55e;border:1px solid #22c55e44;border-radius:8px;padding:8px;font-size:11px;font-weight:700;cursor:pointer;text-align:center">📥 Import<input type="file" accept=".json" onchange="importHistory(event)" style="display:none"/></label>
       </div>
       <div id="historyList"></div>
+    </div>
+
+    <div id="view-trends" style="display:none;padding:13px">
+      <div style="color:#64748b;font-size:11px;margin-bottom:12px;line-height:1.5">Rating trend across last 4 analyses per stock. Refresh any stock to add latest quarter.</div>
+      <div id="trendsList"></div>
     </div>
 
     <div id="view-watchlist" style="display:none;padding:13px">
@@ -323,7 +329,7 @@ window.addEventListener("load",()=>{
 
 // ── Tab switching ─────────────────────────────────────────────────────────────
 function switchTab(t){
-  ["analyse","history","portfolio","watchlist","settings"].forEach(x=>{
+  ["analyse","history","portfolio","watchlist","trends","settings"].forEach(x=>{
     const v=document.getElementById("view-"+x);
     const b=document.getElementById("tab-"+x);
     if(v)v.style.display=x===t?"block":"none";
@@ -332,6 +338,7 @@ function switchTab(t){
   if(t==="history")renderHistory();
   if(t==="portfolio")initPortfolioTab();
   if(t==="watchlist")renderWatchlist();
+  if(t==="trends")renderTrends();
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -356,9 +363,39 @@ const loadHist=()=>{
   }catch(_){return[];}
 };
 const saveHist=l=>{try{localStorage.setItem("isa_h",JSON.stringify(l));}catch(_){}};
+// ── Quarter label from current date ──────────────────────
+function currentQuarterLabel(){
+  const now=new Date();
+  const m=now.getMonth()+1; // 1-12
+  const fy=m>=4?now.getFullYear()+1:now.getFullYear();
+  const fyS=String(fy).slice(2);
+  const q=m>=4&&m<=6?"Q1":m>=7&&m<=9?"Q2":m>=10&&m<=12?"Q3":"Q4";
+  return `${q} FY${fyS}`;
+}
+
 function addToHist(d){
   const l=loadHist();
-  const e={ticker:d.ticker,company:d.company,fitScore:d.fitScore,fitRating:d.fitRating,currentPrice:d.currentPrice,peRatio:d.peRatio,savedAt:new Date().toLocaleString("en-IN"),fullData:d};
+  const existing=l.find(x=>x.ticker===d.ticker);
+  // Preserve ratingHistory from existing entry, add new snapshot
+  const prevHistory=(existing?.fullData?.ratingHistory||existing?.ratingHistory||[]);
+  const qLabel=currentQuarterLabel();
+  // Only add snapshot if quarter changed or first entry
+  const lastSnap=prevHistory[prevHistory.length-1];
+  const newSnap={quarter:qLabel,score:d.fitScore,rating:d.fitRating,price:d.currentPrice,savedAt:new Date().toISOString()};
+  let ratingHistory;
+  if(lastSnap&&lastSnap.quarter===qLabel){
+    // Same quarter — update existing snapshot
+    ratingHistory=[...prevHistory.slice(0,-1),newSnap];
+  } else {
+    // New quarter — append and keep last 4
+    ratingHistory=[...prevHistory,newSnap].slice(-4);
+  }
+  d.ratingHistory=ratingHistory;
+  const e={ticker:d.ticker,company:d.company,fitScore:d.fitScore,fitRating:d.fitRating,
+    currentPrice:d.currentPrice,peRatio:d.peRatio,
+    savedAt:new Date().toLocaleString("en-IN"),
+    ratingHistory:ratingHistory,
+    fullData:d};
   saveHist([e,...l.filter(x=>x.ticker!==d.ticker)].slice(0,100));
   updateHistCount();
 }
@@ -473,6 +510,9 @@ function buildResult(d){
   <div class="g2" style="margin-top:11px">
     <button class="abtn ar" onclick="downloadReport()">📄 Download Report</button>
     <button class="abtn ah" onclick="switchTab('history')">🗂 History</button>
+  </div>
+  <div style="margin-top:8px">
+    <button onclick="refreshAnalysis()" style="background:#7c3aed18;color:#a78bfa;border:1px solid #7c3aed44;border-radius:8px;padding:9px;font-weight:700;font-size:12px;width:100%;cursor:pointer">🔄 Refresh Analysis (re-run with latest data)</button>
   </div>
 </div>
 
@@ -626,6 +666,7 @@ function renderHistory(){
       </div>
       <div style="display:flex;flex-direction:column;gap:5px;align-items:center;min-width:36px">
         <button onclick="event.stopPropagation();toggleWatchlist(${i})" style="background:${inWatchlist?'#f59e0b22':'#1e2d45'};border:1px solid ${inWatchlist?'#f59e0b55':'#2d3f55'};border-radius:6px;width:32px;height:30px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center">${inWatchlist?"⭐":"☆"}</button>
+        <button onclick="event.stopPropagation();refreshFromHist(${i})" style="background:#7c3aed15;border:1px solid #7c3aed33;border-radius:6px;width:32px;height:30px;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#a78bfa" title="Refresh analysis">🔄</button>
         <button onclick="event.stopPropagation();delHist(${i})" style="background:#ef444415;border:1px solid #ef444430;border-radius:6px;width:32px;height:30px;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#ef4444">🗑</button>
       </div>
     </div>`;
@@ -1199,6 +1240,85 @@ function loadWL(i){
   if(!d.scoring)d.scoring={fundamentalScore:0,technicalScore:0,commentaryScore:0,fundamentalBreakdown:[],technicalBreakdown:[],commentaryBreakdown:[]};
   d=recalcScore(d);
   currentData=d;showResult(d);switchTab("analyse");
+}
+
+// ══════════════════════════════════════════════════════════
+// TRENDS & REFRESH
+// ══════════════════════════════════════════════════════════
+
+// ── Render Trends tab ─────────────────────────────────────
+function renderTrends(){
+  const el=document.getElementById("trendsList");
+  if(!el)return;
+  const hist=loadHist();
+  // Only show stocks that have 2+ rating history entries
+  const withTrends=hist.filter(h=>(h.ratingHistory||h.fullData?.ratingHistory||[]).length>=1);
+  if(!withTrends.length){
+    el.innerHTML=`<div class="empty"><div style="font-size:34px;margin-bottom:10px">📈</div><div style="font-size:13px">No trend data yet.</div><div style="font-size:11px;margin-top:4px;color:#64748b">Re-analyse stocks each quarter to build trend history.</div></div>`;
+    return;
+  }
+  const ratingColor=r=>r==="Strong Buy"?"#22c55e":r==="Buy"?"#00d4aa":r==="Hold"?"#f59e0b":"#ef4444";
+  const ratingShort=r=>r==="Strong Buy"?"SBuy":r==="Buy"?"Buy":r==="Hold"?"Hold":"Avoid";
+  el.innerHTML=withTrends.map(h=>{
+    const snapshots=(h.ratingHistory||h.fullData?.ratingHistory||[]);
+    const latest=snapshots[snapshots.length-1];
+    const prev=snapshots[snapshots.length-2];
+    const trend=!prev?null:latest.score>prev.score?"↑":latest.score<prev.score?"↓":"→";
+    const trendCol=!trend?"":(trend==="↑"?"#22c55e":trend==="↓"?"#ef4444":"#64748b");
+    const c=ratingColor(h.fitRating);
+    return`<div class="card" style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div>
+          <div style="font-weight:700;font-size:14px;margin-bottom:3px">${h.company}</div>
+          <div style="display:flex;gap:5px;align-items:center">
+            <span style="background:#38bdf822;color:#38bdf8;border:1px solid #38bdf844;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:700">${h.ticker}</span>
+            <span style="background:${c}22;color:${c};border:1px solid ${c}44;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:700">${h.fitRating}</span>
+            ${trend?`<span style="font-size:18px;font-weight:800;color:${trendCol}">${trend}</span>`:""}
+          </div>
+        </div>
+        <button onclick="refreshFromTicker('${h.ticker}')" style="background:#7c3aed18;color:#a78bfa;border:1px solid #7c3aed44;border-radius:7px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer">🔄 Refresh</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(${Math.min(snapshots.length,4)},1fr);gap:5px">
+        ${snapshots.slice(-4).map((s,idx,arr)=>{
+          const prevS=idx>0?arr[idx-1]:null;
+          const sc=ratingColor(s.rating);
+          const chg=prevS?(s.score-prevS.score):null;
+          const chgStr=chg===null?"":(chg>0?`<div style="color:#22c55e;font-size:9px">+${chg}</div>`:(chg<0?`<div style="color:#ef4444;font-size:9px">${chg}</div>`:`<div style="color:#64748b;font-size:9px">—</div>`));
+          return`<div style="background:#0a0e1a;border:1px solid #1e2d45;border-radius:8px;padding:8px;text-align:center">
+            <div style="color:#64748b;font-size:9px;margin-bottom:4px">${s.quarter}</div>
+            <div style="font-size:20px;font-weight:800;font-family:monospace;color:${sc}">${s.score}</div>
+            <div style="background:${sc}22;color:${sc};border-radius:4px;padding:1px 4px;font-size:9px;font-weight:700;margin:3px 0">${ratingShort(s.rating)}</div>
+            ${chgStr}
+            <div style="color:#64748b;font-size:9px;margin-top:2px">Rs.${s.price}</div>
+          </div>`;
+        }).join("")}
+      </div>
+    </div>`;
+  }).join("");
+}
+
+// ── Refresh from result card ──────────────────────────────
+function refreshAnalysis(){
+  if(!currentData?.ticker)return;
+  document.getElementById("scripInput").value=currentData.ticker;
+  analyze();
+}
+
+// ── Refresh from history entry ────────────────────────────
+function refreshFromHist(histIdx){
+  const l=loadHist();
+  const h=l[histIdx];
+  if(!h)return;
+  document.getElementById("scripInput").value=h.ticker;
+  switchTab("analyse");
+  analyze();
+}
+
+// ── Refresh from trends tab ───────────────────────────────
+function refreshFromTicker(ticker){
+  document.getElementById("scripInput").value=ticker;
+  switchTab("analyse");
+  analyze();
 }
 
 </script>
