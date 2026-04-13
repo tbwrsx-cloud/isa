@@ -111,7 +111,7 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
         <span style="color:#64748b;font-size:16px;font-weight:300">Analyser</span>
       </div>
       <div style="display:flex;align-items:center;gap:7px">
-        <span style="display:flex;align-items:center;gap:4px;font-size:11px;color:#22c55e"><span style="width:6px;height:6px;border-radius:50%;background:#22c55e;display:inline-block"></span>Key set</span>
+        <span id="keyStatusBadge" style="display:flex;align-items:center;gap:4px;font-size:11px;color:#22c55e"><span style="width:6px;height:6px;border-radius:50%;background:#22c55e;display:inline-block"></span>Key set</span>
         <button onclick="resetKey()" style="font-size:11px;color:#64748b;background:none;border:none;cursor:pointer;text-decoration:underline">Change</button>
       </div>
     </div>
@@ -200,11 +200,17 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
         <button onclick="clearAll()" style="background:#ef444418;color:#ef4444;border:1px solid #ef444433;border-radius:8px;padding:11px;font-weight:700;font-size:13px;width:100%;cursor:pointer">🗑 Clear All Data &amp; Reset</button>
         <div style="margin-top:14px;border-top:1px solid #1e2d45;padding-top:13px">
           <div style="color:#94a3b8;font-size:11px;margin-bottom:8px;font-weight:700">UPSTOX PORTFOLIO (ALGO API)</div>
-          <div style="color:#64748b;font-size:11px;margin-bottom:10px;line-height:1.5">Required to fetch your Upstox holdings. Get API Key &amp; Secret from <a href="https://account.upstox.com/developer/apps" target="_blank" style="color:#00d4aa">account.upstox.com/developer</a> → Create App.</div>
-          <input id="algoKeyInput" class="inp" type="password" placeholder="Algo API Key…" autocomplete="off" style="margin-bottom:8px"/>
-          <input id="algoSecInput" class="inp" type="password" placeholder="Algo API Secret…" autocomplete="off" style="margin-bottom:8px"/>
-          <button onclick="saveAlgoCredentials()" style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:11px;font-weight:700;font-size:13px;width:100%;cursor:pointer;margin-bottom:8px">💾 Save Algo Credentials</button>
-          <button onclick="switchTab('portfolio')" style="background:#7c3aed18;color:#a78bfa;border:1px solid #7c3aed44;border-radius:8px;padding:10px;font-weight:700;font-size:12px;width:100%;cursor:pointer">💼 Go to Portfolio Tab</button>
+          <div style="color:#64748b;font-size:11px;margin-bottom:10px;line-height:1.6">
+            1. Go to <a href="https://account.upstox.com/developer/apps" target="_blank" style="color:#00d4aa">account.upstox.com/developer</a> → Create App<br/>
+            2. Set Redirect URL to exactly:<br/>
+            <span style="font-family:monospace;font-size:10px;color:#f59e0b;word-break:break-all">https://tbwrsx-cloud.github.io/isa/isav4-pwa.html</span><br/>
+            3. Paste your API Key &amp; Secret below and save
+          </div>
+          <input id="algoKeyInput" class="inp" type="password" placeholder="Upstox API Key…" autocomplete="off" style="margin-bottom:8px"/>
+          <input id="algoSecInput" class="inp" type="password" placeholder="Upstox API Secret…" autocomplete="off" style="margin-bottom:8px"/>
+          <button onclick="saveAlgoCredentials()" style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:11px;font-weight:700;font-size:13px;width:100%;cursor:pointer;margin-bottom:8px">💾 Save Credentials</button>
+          <div id="algoSavedMsg" style="font-size:11px;text-align:center;min-height:14px;margin-bottom:6px"></div>
+          <button onclick="switchTab('portfolio')" style="background:#7c3aed18;color:#a78bfa;border:1px solid #7c3aed44;border-radius:8px;padding:10px;font-weight:700;font-size:12px;width:100%;cursor:pointer">💼 Go to Portfolio →</button>
         </div>
         <div style="margin-top:12px;border-top:1px solid #1e2d45;padding-top:12px">
           <div style="color:#94a3b8;font-size:11px;margin-bottom:8px;font-weight:700">HISTORY MIGRATION</div>
@@ -250,7 +256,7 @@ let currentData=null,stepIv=null;
 
 // ── Key management ────────────────────────────────────────────────────────────
 const getKey=()=>localStorage.getItem("isa_k")||"";
-const setKey=k=>localStorage.setItem("isa_k",k.trim());
+const setKey=k=>localStorage.setItem("isa_k",k.trim().replace(/[\n\r\t]/g,""));
 function saveKey(){
   const k=document.getElementById("apiKeyInput").value.trim();
   if(!k.startsWith("sk-ant-")){document.getElementById("setupErr").textContent="Invalid key — must start with sk-ant-";return;}
@@ -262,12 +268,30 @@ function updateKey(){
   if(!k.startsWith("sk-ant-")){m.style.color="#ef4444";m.textContent="Invalid key format.";return;}
   setKey(k);document.getElementById("settingsKey").value="";
   m.style.color="#22c55e";m.textContent="✓ Key updated!";
+  updateKeyBadge();
   setTimeout(()=>m.textContent="",3000);
 }
 function resetKey(){if(confirm("Change API key?")){document.getElementById("mainApp").style.display="none";document.getElementById("setupScreen").style.display="flex";document.getElementById("apiKeyInput").value="";}}
 function clearAll(){if(confirm("Clear all data including history and key?")){localStorage.clear();location.reload();}}
 function toggleEye(id,btnId){const i=document.getElementById(id);i.type=i.type==="password"?"text":"password";}
-function launchApp(){document.getElementById("setupScreen").style.display="none";document.getElementById("mainApp").style.display="flex";updateHistCount();}
+function launchApp(){
+  document.getElementById("setupScreen").style.display="none";
+  document.getElementById("mainApp").style.display="flex";
+  updateHistCount();
+  updateKeyBadge();
+}
+function updateKeyBadge(){
+  const el=document.getElementById("keyStatusBadge");
+  if(!el)return;
+  const k=getKey();
+  if(k){
+    el.style.color="#22c55e";
+    el.innerHTML='<span style="width:6px;height:6px;border-radius:50%;background:#22c55e;display:inline-block"></span>Key set';
+  } else {
+    el.style.color="#ef4444";
+    el.innerHTML='<span style="width:6px;height:6px;border-radius:50%;background:#ef4444;display:inline-block"></span>No API key!';
+  }
+}
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 window.addEventListener("load",()=>{
@@ -337,13 +361,19 @@ async function analyze(){
   if(!q)return;
   const key=getKey();
   if(!key){alert("No API key. Go to Settings.");return;}
+  // Validate key format before calling API
+  const cleanKey=key.trim().replace(/[\n\r\t]/g,"");
+  if(!cleanKey.startsWith("sk-ant-")){
+    alert("API key looks invalid: starts with \""+cleanKey.slice(0,10)+"...\". Go to Settings and re-enter your key.");
+    return;
+  }
   showLoading();
   let si=0;document.getElementById("progressTxt").textContent=STEPS[0];
   stepIv=setInterval(()=>{si=(si+1)%STEPS.length;document.getElementById("progressTxt").textContent=STEPS[si];},2200);
   try{
     const res=await fetch("https://api.anthropic.com/v1/messages",{
       method:"POST",
-      headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      headers:{"Content-Type":"application/json","x-api-key":cleanKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
       body:JSON.stringify({
         model:"claude-haiku-4-5-20251001",
         max_tokens:3000,
@@ -1042,10 +1072,16 @@ function portfolioCard(h, histEntry){
 function saveAlgoCredentials(){
   const k = document.getElementById("algoKeyInput")?.value.trim();
   const s = document.getElementById("algoSecInput")?.value.trim();
-  const m = document.getElementById("settingsMsg");
   if(k) localStorage.setItem("isa_algo_key", k);
   if(s) localStorage.setItem("isa_algo_sec", s);
-  if(k||s){ m.style.color="#22c55e"; m.textContent="✓ Algo credentials saved!"; setTimeout(()=>m.textContent="",3000); }
+  if(k) document.getElementById("algoKeyInput").value="";
+  if(s) document.getElementById("algoSecInput").value="";
+  const m1=document.getElementById("settingsMsg");
+  const m2=document.getElementById("algoSavedMsg");
+  const msg = (k||s) ? "✓ Saved! Now go to Portfolio tab → Login with Upstox" : "Nothing to save";
+  const col = (k||s) ? "#22c55e" : "#f59e0b";
+  if(m1){m1.style.color=col;m1.textContent=msg;setTimeout(()=>m1.textContent="",4000);}
+  if(m2){m2.style.color=col;m2.textContent=msg;setTimeout(()=>m2.textContent="",4000);}
 }
 
 </script>
