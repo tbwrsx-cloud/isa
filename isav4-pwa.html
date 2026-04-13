@@ -33,7 +33,7 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
 #hdr{background:linear-gradient(135deg,#0d1929,#0a0e1a);border-bottom:1px solid #1e2d45;padding:13px 13px 11px;flex-shrink:0}
 #tabs{display:flex;border-bottom:1px solid #1e2d45;background:#111827;flex-shrink:0}
 #content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:30px}
-.tb{flex:1;padding:11px 0;background:none;border:none;border-bottom:2px solid transparent;color:#64748b;font-weight:700;font-size:12px;cursor:pointer}
+.tb{flex:1;padding:14px 4px;background:none;border:none;border-bottom:3px solid transparent;color:#64748b;font-weight:700;font-size:13px;cursor:pointer;letter-spacing:0.2px}
 .tb.active{color:#00d4aa;border-bottom-color:#00d4aa}
 .card{background:#161d2e;border:1px solid #1e2d45;border-radius:11px;padding:14px 13px;margin-bottom:11px}
 .st{color:#00d4aa;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:11px;font-family:monospace;text-transform:uppercase}
@@ -131,13 +131,13 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
     </div>
   </div>
 
-  <div id="tabs" style="display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none">
-    <button class="tb active" id="tab-analyse" onclick="switchTab('analyse')" style="white-space:nowrap;flex-shrink:0">📊 Analyse</button>
-    <button class="tb" id="tab-history" onclick="switchTab('history')" style="white-space:nowrap;flex-shrink:0">🗂 History (<span id="histCount">0</span>)</button>
-    <button class="tb" id="tab-watchlist" onclick="switchTab('watchlist')" style="white-space:nowrap;flex-shrink:0">⭐ Watchlist (<span id="watchCount">0</span>)</button>
-    <button class="tb" id="tab-portfolio" onclick="switchTab('portfolio')" style="white-space:nowrap;flex-shrink:0">💼 Portfolio</button>
-    <button class="tb" id="tab-trends" onclick="switchTab('trends')" style="white-space:nowrap;flex-shrink:0">📈 Trends</button>
-    <button class="tb" id="tab-settings" onclick="switchTab('settings')" style="white-space:nowrap;flex-shrink:0">⚙ Settings</button>
+  <div id="tabs" style="display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;gap:2px;padding:0 4px">
+    <button class="tb active" id="tab-analyse" onclick="switchTab('analyse')" style="white-space:nowrap;flex-shrink:0;padding:14px 10px">📊 Analyse</button>
+    <button class="tb" id="tab-history" onclick="switchTab('history')" style="white-space:nowrap;flex-shrink:0;padding:14px 10px">🗂 History (<span id="histCount">0</span>)</button>
+    <button class="tb" id="tab-watchlist" onclick="switchTab('watchlist')" style="white-space:nowrap;flex-shrink:0;padding:14px 10px">⭐ Watchlist (<span id="watchCount">0</span>)</button>
+    <button class="tb" id="tab-portfolio" onclick="switchTab('portfolio')" style="white-space:nowrap;flex-shrink:0;padding:14px 10px">💼 Portfolio</button>
+    <button class="tb" id="tab-trends" onclick="switchTab('trends')" style="white-space:nowrap;flex-shrink:0;padding:14px 10px">📈 Trends</button>
+    <button class="tb" id="tab-settings" onclick="switchTab('settings')" style="white-space:nowrap;flex-shrink:0;padding:14px 10px">⚙ Settings</button>
   </div>
 
   <div id="content">
@@ -367,8 +367,12 @@ const saveHist=l=>{try{localStorage.setItem("isa_h",JSON.stringify(l));}catch(_)
 function currentQuarterLabel(){
   const now=new Date();
   const m=now.getMonth()+1; // 1-12
-  const fy=m>=4?now.getFullYear()+1:now.getFullYear();
-  const fyS=String(fy).slice(2);
+  // Indian FY convention: FY26 = Apr 2025 - Mar 2026
+  // Apr 2026 belongs to FY27 (ending Mar 2027)
+  // User convention: use the year in which April falls (starting year)
+  // So Apr 2026 = Q1 FY26 (year 2026 is when this Q1 starts)
+  const yr=now.getFullYear();
+  const fyS=String(m>=4?yr:yr-1).slice(2); // Apr onwards = current year label
   const q=m>=4&&m<=6?"Q1":m>=7&&m<=9?"Q2":m>=10&&m<=12?"Q3":"Q4";
   return `${q} FY${fyS}`;
 }
