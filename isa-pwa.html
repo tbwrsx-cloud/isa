@@ -116,9 +116,12 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
       </div>
     </div>
     <div style="color:#64748b;font-size:10px;margin-bottom:11px">NSE/BSE · AI + Live Web Search · History saved locally</div>
-    <div style="display:flex;gap:7px;margin-bottom:8px">
-      <input id="scripInput" class="inp" placeholder="Scrip name or ticker…" style="flex:1"/>
-      <button id="goBtn" class="abtn ag" style="width:auto;padding:10px 18px" onclick="analyze()">Go</button>
+    <div style="position:relative;margin-bottom:8px">
+      <div style="display:flex;gap:7px">
+        <input id="scripInput" class="inp" placeholder="Type company name or NSE symbol…" style="flex:1" autocomplete="off" autocorrect="off" spellcheck="false"/>
+        <button id="goBtn" class="abtn ag" style="width:auto;padding:10px 18px" onclick="analyze()">Go</button>
+      </div>
+      <div id="nseDropdown" style="display:none;position:absolute;top:100%;left:0;right:52px;background:#111827;border:1px solid #1e2d45;border-radius:0 0 10px 10px;z-index:999;max-height:220px;overflow-y:auto;box-shadow:0 8px 24px #00000088"></div>
     </div>
     <div style="display:flex;gap:5px;flex-wrap:wrap">
       <span class="chip" onclick="setQ('Infosys')">Infosys</span>
@@ -153,7 +156,10 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
     </div>
 
     <div id="view-history" style="display:none;padding:13px">
-      <div style="display:flex;gap:7px;margin-bottom:11px;align-items:center">
+      <div style="margin-bottom:8px">
+        <input id="histSearch" class="inp" placeholder="🔍 Search history…" oninput="renderHistory()" autocomplete="off" style="width:100%"/>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:8px">
         <select id="histSort" onchange="renderHistory()" style="flex:1;background:#111827;border:1px solid #1e2d45;border-radius:8px;padding:8px 10px;color:#e2e8f0;font-size:12px;outline:none">
           <option value="newest">🕐 Newest First</option>
           <option value="oldest">🕐 Oldest First</option>
@@ -243,8 +249,9 @@ function launchApp(){document.getElementById("setupScreen").style.display="none"
 // ── Init ──────────────────────────────────────────────────────────────────────
 window.addEventListener("load",()=>{
   if(getKey())launchApp();
+  loadNSEDB();
+  initNSESearch();
   document.getElementById("apiKeyInput").addEventListener("keydown",e=>{if(e.key==="Enter")saveKey();});
-  document.getElementById("scripInput").addEventListener("keydown",e=>{if(e.key==="Enter")analyze();});
   if("serviceWorker"in navigator){
     const sw=`self.addEventListener('install',()=>self.skipWaiting());self.addEventListener('activate',()=>clients.claim());self.addEventListener('fetch',e=>{if(e.request.url.includes('anthropic.com'))return;e.respondWith(fetch(e.request).catch(()=>new Response('Offline')));});`;
     navigator.serviceWorker.register(URL.createObjectURL(new Blob([sw],{type:"application/javascript"}))).catch(()=>{});
@@ -283,8 +290,22 @@ const loadHist=()=>{
 };
 const saveHist=l=>{try{localStorage.setItem("isa_h",JSON.stringify(l));}catch(_){}};
 function addToHist(d){
+  // Validate ticker against NSE symbols before saving
+  const ticker=(d.ticker||"").toUpperCase().trim();
+  if(!ticker||ticker.length<2){console.warn("addToHist: invalid ticker",ticker);return;}
+  // Check against local NSE DB if loaded
+  if(window._nseDB&&window._nseDB.length){
+    const found=window._nseDB.find(s=>s[0]===ticker);
+    if(!found){
+      // Not in NSE list — warn but still save with a flag
+      console.warn("Ticker not in NSE DB:",ticker);
+      d.dataNote=(d.dataNote||"")+" ⚠ Ticker not verified in NSE symbols list.";
+    }
+  }
   const l=loadHist();
-  const e={ticker:d.ticker,company:d.company,fitScore:d.fitScore,fitRating:d.fitRating,currentPrice:d.currentPrice,peRatio:d.peRatio,savedAt:new Date().toLocaleString("en-IN"),fullData:d};
+  const e={ticker:d.ticker,company:d.company,fitScore:d.fitScore,fitRating:d.fitRating,
+    currentPrice:d.currentPrice,peRatio:d.peRatio,
+    savedAt:new Date().toLocaleString("en-IN"),fullData:d};
   saveHist([e,...l.filter(x=>x.ticker!==d.ticker)].slice(0,100));
   updateHistCount();
 }
@@ -508,15 +529,21 @@ function renderHistory(){
   const rawList=loadHist();
   const el=document.getElementById("historyList");
   if(!rawList.length){el.innerHTML=`<div class="empty"><div style="font-size:34px;margin-bottom:10px">🗂</div><div style="font-size:13px">No saved analyses yet.</div><div style="font-size:11px;margin-top:3px">Every analysis saves automatically.</div></div>`;return;}
-  // Sort
+  // Search filter
+  const searchQ=(document.getElementById("histSearch")?.value||"").toLowerCase().trim();
   const sort=document.getElementById("histSort")?.value||"newest";
   const ratingOrder={"Strong Buy":4,"Buy":3,"Hold":2,"Avoid":1};
-  const list=[...rawList.map((h,i)=>({...h,_orig:i}))];
+  let list=[...rawList.map((h,i)=>({...h,_orig:i}))];
+  // Apply text search
+  if(searchQ) list=list.filter(h=>
+    (h.ticker||"").toLowerCase().includes(searchQ)||
+    (h.company||"").toLowerCase().includes(searchQ)
+  );
   if(sort==="oldest") list.reverse();
   else if(sort==="score_desc") list.sort((a,b)=>(b.fitScore||0)-(a.fitScore||0));
   else if(sort==="score_asc") list.sort((a,b)=>(a.fitScore||0)-(b.fitScore||0));
   else if(sort==="rating") list.sort((a,b)=>(ratingOrder[b.fitRating]||0)-(ratingOrder[a.fitRating]||0));
-  // newest is default (no sort needed)
+  if(!list.length&&searchQ){el.innerHTML=`<div class="empty"><div style="font-size:28px;margin-bottom:8px">🔍</div><div style="font-size:12px;color:#64748b">No results for "${searchQ}"</div></div>`;return;}
   const warn=rawList.length>=90?`<div style="background:#f59e0b18;border:1px solid #f59e0b44;border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:11px;color:#f59e0b">⚠ ${rawList.length}/100 entries used. Oldest entries will be removed after 100.</div>`:"";
   el.innerHTML=warn+list.map((h)=>{
   const i=h._orig;
@@ -775,6 +802,97 @@ function showStorageDebug(){
   }
   msg.style.color="#38bdf8";
   msg.innerHTML=info.length?info.join("<br/>"):"LocalStorage is empty";
+}
+
+// ══════════════════════════════════════════════════════════
+// NSE SYMBOL SEARCH
+// ══════════════════════════════════════════════════════════
+const NSE_JSON_URL = "https://tbwrsx-cloud.github.io/isa/nse-symbols.json";
+let _nseLoaded = false;
+
+// Load NSE symbols on startup
+async function loadNSEDB(){
+  if(window._nseDB&&window._nseDB.length) return;
+  try{
+    const cached = localStorage.getItem("isa_nse_db");
+    const age    = parseInt(localStorage.getItem("isa_nse_db_age")||"0");
+    const week   = 7*24*3600*1000;
+    if(cached && Date.now()-age < week){
+      window._nseDB = JSON.parse(cached);
+      _nseLoaded = true;
+      return;
+    }
+    const r = await fetch(NSE_JSON_URL);
+    if(!r.ok) return;
+    const data = await r.json();
+    window._nseDB = data;
+    _nseLoaded = true;
+    try{
+      localStorage.setItem("isa_nse_db", JSON.stringify(data));
+      localStorage.setItem("isa_nse_db_age", Date.now().toString());
+    }catch(_){}
+  }catch(e){ console.log("NSE DB load failed:", e.message); }
+}
+
+// Search NSE DB — returns [{symbol, name}]
+function nseSearch(q){
+  if(!window._nseDB||!q||q.length<1) return [];
+  const ql = q.toLowerCase().trim();
+  const results = [];
+  // Exact symbol match first
+  for(const s of window._nseDB){
+    if(s[0].toLowerCase()===ql) results.unshift({symbol:s[0],name:s[1]});
+    else if(results.length<20&&(s[0].toLowerCase().startsWith(ql)||s[1].toLowerCase().includes(ql)))
+      results.push({symbol:s[0],name:s[1]});
+    if(results.length>=20) break;
+  }
+  return results.slice(0,10);
+}
+
+// Show dropdown
+function showNSEDropdown(results){
+  const dd = document.getElementById("nseDropdown");
+  if(!dd) return;
+  if(!results.length){ dd.style.display="none"; return; }
+  dd.style.display = "block";
+  dd.innerHTML = results.map(r=>`
+    <div onclick="selectNSESymbol('${r.symbol}','${r.name.replace(/'/g,"\'")}'')"
+      style="padding:11px 13px;border-bottom:1px solid #1e2d45;cursor:pointer;display:flex;justify-content:space-between;align-items:center;-webkit-tap-highlight-color:transparent"
+      onmousedown="event.preventDefault()">
+      <div>
+        <div style="font-weight:700;font-size:13px;color:#e2e8f0;font-family:monospace">${r.symbol}</div>
+        <div style="font-size:11px;color:#64748b;margin-top:1px">${r.name}</div>
+      </div>
+      <span style="color:#00d4aa;font-size:16px">→</span>
+    </div>`).join("");
+}
+
+function hideNSEDropdown(){
+  const dd = document.getElementById("nseDropdown");
+  if(dd) dd.style.display="none";
+}
+
+function selectNSESymbol(symbol, name){
+  document.getElementById("scripInput").value = symbol;
+  hideNSEDropdown();
+  analyze();
+}
+
+// Wire up input events
+function initNSESearch(){
+  const inp = document.getElementById("scripInput");
+  if(!inp) return;
+  inp.addEventListener("input", ()=>{
+    const q = inp.value.trim();
+    if(q.length<1){ hideNSEDropdown(); return; }
+    const results = nseSearch(q);
+    showNSEDropdown(results);
+  });
+  inp.addEventListener("keydown", e=>{
+    if(e.key==="Enter"){ hideNSEDropdown(); analyze(); }
+    if(e.key==="Escape") hideNSEDropdown();
+  });
+  inp.addEventListener("blur", ()=>{ setTimeout(hideNSEDropdown, 150); });
 }
 
 </script>
