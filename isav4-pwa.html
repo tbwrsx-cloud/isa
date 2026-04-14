@@ -1541,25 +1541,27 @@ async function submitGTT(){
   errEl.textContent = "";
   btn.textContent = "Resolving symbol…"; btn.disabled = true;
   try{
-    // Step 1: ALWAYS resolve instrument key fresh — never use cached value
-    // This prevents wrong stock being used if sheet is reused
+    // Step 1: ALWAYS resolve instrument key fresh — exact match only
     gttCurrentInstrKey = null;
     btn.textContent = "Verifying symbol…";
-    const searchUrl = `${UPSTOX_BASE}/instruments/search?query=${encodeURIComponent(gttCurrentTicker)}&exchanges=NSE&segments=EQ&records=10`;
+    const searchUrl = `${UPSTOX_BASE}/instruments/search?query=${encodeURIComponent(gttCurrentTicker)}&exchanges=NSE&segments=EQ&records=15`;
     const sr = await fetch(searchUrl, {headers:{"Authorization":`Bearer ${tok}`,"Accept":"application/json"}});
     const sd = await sr.json();
     const items = (sd.data||[]).filter(x=>x.segment==="NSE_EQ");
+    // STRICT: Only accept exact trading_symbol match — never use first result
     const exact = items.find(x=>x.trading_symbol?.toUpperCase()===gttCurrentTicker.toUpperCase());
-    const match = exact||items[0];
-    if(!match) throw new Error(`"${gttCurrentTicker}" not found on NSE`);
-    gttCurrentInstrKey = match.instrument_key;
-    const resolvedSymbol = match.trading_symbol;
-    const resolvedName = match.name||match.short_name||resolvedSymbol;
-    // SAFETY CHECK: Confirm resolved symbol matches what user intended
-    if(resolvedSymbol.toUpperCase() !== gttCurrentTicker.toUpperCase()){
-      const ok = confirm(`Symbol resolved to "${resolvedSymbol}" (${resolvedName}).\n\nYou intended: ${gttCurrentTicker}\n\nProceed with ${resolvedSymbol}?`);
-      if(!ok){ btn.textContent="Place GTT Order →"; btn.disabled=false; return; }
+    if(!exact){
+      // No exact match — show what was found and abort
+      const found = items.slice(0,3).map(x=>x.trading_symbol).join(", ");
+      throw new Error(
+        `"${gttCurrentTicker}" not found exactly on NSE.\n` +
+        `Search returned: ${found||"nothing"}.\n` +
+        `Please use the exact NSE trading symbol.`
+      );
     }
+    gttCurrentInstrKey = exact.instrument_key;
+    const resolvedSymbol = exact.trading_symbol;
+    const resolvedName = exact.name||exact.short_name||resolvedSymbol;
     // Step 2: Final confirmation — show exact stock being ordered
     btn.textContent = "Awaiting confirmation…"; btn.disabled=false;
     const confirmed = confirm(
