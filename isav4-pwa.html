@@ -137,6 +137,7 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
     <button class="tb" id="tab-watchlist" onclick="switchTab('watchlist')" style="white-space:nowrap;flex-shrink:0;padding:14px 10px">⭐ Watchlist (<span id="watchCount">0</span>)</button>
     <button class="tb" id="tab-portfolio" onclick="switchTab('portfolio')" style="white-space:nowrap;flex-shrink:0;padding:14px 10px">💼 Portfolio</button>
     <button class="tb" id="tab-trends" onclick="switchTab('trends')" style="white-space:nowrap;flex-shrink:0;padding:14px 10px">📈 Trends</button>
+    <button class="tb" id="tab-gtt" onclick="switchTab('gtt')" style="white-space:nowrap;flex-shrink:0;padding:14px 10px">🎯 GTT</button>
     <button class="tb" id="tab-settings" onclick="switchTab('settings')" style="white-space:nowrap;flex-shrink:0;padding:14px 10px">⚙ Settings</button>
   </div>
 
@@ -175,6 +176,15 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
         <label style="flex:1;background:#22c55e18;color:#22c55e;border:1px solid #22c55e44;border-radius:8px;padding:8px;font-size:11px;font-weight:700;cursor:pointer;text-align:center">📥 Import<input type="file" accept=".json" onchange="importHistory(event)" style="display:none"/></label>
       </div>
       <div id="historyList"></div>
+    </div>
+
+    <div id="view-gtt" style="display:none;padding:13px">
+      <div style="display:flex;gap:7px;margin-bottom:11px;align-items:center">
+        <div style="flex:1;color:#94a3b8;font-size:12px;font-weight:700">GTT Orders from Upstox</div>
+        <button onclick="loadGTTOrders()" style="background:#00d4aa18;color:#00d4aa;border:1px solid #00d4aa44;border-radius:8px;padding:8px 12px;font-size:11px;font-weight:700;cursor:pointer">🔄 Refresh</button>
+      </div>
+      <div id="gttStatus" style="font-size:12px;color:#64748b;text-align:center;margin-bottom:10px;min-height:16px"></div>
+      <div id="gttList"></div>
     </div>
 
     <div id="view-trends" style="display:none;padding:13px">
@@ -256,6 +266,44 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
 </div>
 </div>
 
+<!-- GTT Order Sheet -->
+<div id="gttSheet" style="display:none;position:fixed;inset:0;background:#0a0e1acc;z-index:9999;align-items:flex-end;justify-content:center">
+  <div style="background:#111827;border-radius:16px 16px 0 0;padding:20px 16px 34px;width:100%;max-width:500px;max-height:85vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div>
+        <div style="color:#00d4aa;font-size:10px;font-weight:700;letter-spacing:2px">PLACE GTT ORDER</div>
+        <div id="gttSheetTitle" style="font-weight:800;font-size:16px;margin-top:3px"></div>
+        <div id="gttSheetBadges" style="margin-top:4px"></div>
+      </div>
+      <button onclick="closeGTTSheet()" style="background:#1e2d45;border:none;border-radius:8px;width:34px;height:34px;color:#64748b;font-size:18px;cursor:pointer">✕</button>
+    </div>
+    <!-- Transaction type -->
+    <div style="margin-bottom:12px">
+      <div style="color:#64748b;font-size:11px;margin-bottom:6px;font-weight:700">TRANSACTION TYPE</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
+        <button id="gttBuyBtn" onclick="setGTTTxn('BUY')" style="padding:11px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;border:2px solid #22c55e;background:#22c55e22;color:#22c55e">BUY</button>
+        <button id="gttSellBtn" onclick="setGTTTxn('SELL')" style="padding:11px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;border:1px solid #1e2d45;background:#111827;color:#64748b">SELL</button>
+      </div>
+    </div>
+    <!-- Inputs -->
+    <div style="margin-bottom:11px">
+      <label style="color:#64748b;font-size:11px;font-weight:700;display:block;margin-bottom:5px">QUANTITY</label>
+      <input id="gttQty" type="number" min="1" placeholder="Number of shares" class="inp" style="font-size:15px"/>
+    </div>
+    <div style="margin-bottom:11px">
+      <label style="color:#64748b;font-size:11px;font-weight:700;display:block;margin-bottom:5px">TRIGGER PRICE (₹) <span style="color:#94a3b8;font-weight:400">— GTT fires when price hits this</span></label>
+      <input id="gttTrigger" type="number" step="0.05" placeholder="e.g. 450.00" class="inp" style="font-size:15px"/>
+    </div>
+    <div style="margin-bottom:16px">
+      <label style="color:#64748b;font-size:11px;font-weight:700;display:block;margin-bottom:5px">LIMIT PRICE (₹) <span style="color:#94a3b8;font-weight:400">— actual order price after trigger</span></label>
+      <input id="gttLimit" type="number" step="0.05" placeholder="e.g. 452.00" class="inp" style="font-size:15px"/>
+    </div>
+    <div id="gttSheetError" style="color:#ef4444;font-size:12px;text-align:center;margin-bottom:10px;min-height:16px"></div>
+    <button id="gttSubmitBtn" onclick="submitGTT()" style="background:#00d4aa;color:#000;border:none;border-radius:9px;padding:14px;font-weight:800;font-size:14px;width:100%;cursor:pointer">Place GTT Order →</button>
+    <div style="color:#64748b;font-size:10px;text-align:center;margin-top:10px">Delivery (CNC) · Single trigger · Upstox GTT</div>
+  </div>
+</div>
+
 <script>
 // ── System prompt ─────────────────────────────────────────────────────────────
 const SYS = `You are an expert Indian stock analyst. Search the web for latest data on the given NSE/BSE stock. Return ONLY a raw JSON object, no markdown, no backticks.
@@ -329,7 +377,7 @@ window.addEventListener("load",()=>{
 
 // ── Tab switching ─────────────────────────────────────────────────────────────
 function switchTab(t){
-  ["analyse","history","portfolio","watchlist","trends","settings"].forEach(x=>{
+  ["analyse","history","portfolio","watchlist","trends","gtt","settings"].forEach(x=>{
     const v=document.getElementById("view-"+x);
     const b=document.getElementById("tab-"+x);
     if(v)v.style.display=x===t?"block":"none";
@@ -339,6 +387,7 @@ function switchTab(t){
   if(t==="portfolio")initPortfolioTab();
   if(t==="watchlist")renderWatchlist();
   if(t==="trends")renderTrends();
+  if(t==="gtt")loadGTTOrders();
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -1209,20 +1258,28 @@ function renderWatchlist(){
   el.innerHTML=wl.map((h,i)=>{
     const c=rc(h.fitRating);
     const inPortfolio=window._portfolioSymbols&&window._portfolioSymbols.has(h.ticker?.toUpperCase());
-    return`<div class="hi" onclick="loadWL(${i})">
-      <div style="flex:1">
-        <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px">
-          <span style="font-weight:700;font-size:14px">${h.company}</span>
-          ${inPortfolio?'<span style="font-size:11px">💼</span>':""}
+    return`<div class="card" style="margin-bottom:9px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:9px" onclick="loadWL(${i})" style="cursor:pointer">
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px">
+            <span style="font-weight:700;font-size:14px">${h.company}</span>
+            ${inPortfolio?'<span style="font-size:11px">💼</span>':""}
+          </div>
+          <div style="margin-bottom:3px">${bdg(h.ticker,"#38bdf8")}${bdg(h.fitRating,c)}</div>
+          <div style="color:#64748b;font-size:10px">Rs.${h.currentPrice} · Score:${h.fitScore}/100</div>
         </div>
-        <div style="margin-bottom:3px">${bdg(h.ticker,"#38bdf8")}${bdg(h.fitRating,c)}</div>
-        <div style="color:#64748b;font-size:10px">Rs.${h.currentPrice} · PE:${h.peRatio}x · ${h.savedAt}</div>
+        <div style="display:flex;flex-direction:column;gap:5px;align-items:center">
+          <div style="text-align:center">
+            <div style="font-size:22px;font-weight:800;font-family:monospace;color:${c};line-height:1">${h.fitScore}</div>
+            <div style="color:#64748b;font-size:9px">/100</div>
+          </div>
+          <button onclick="event.stopPropagation();removeFromWatchlist('${h.ticker}')" style="background:#f59e0b18;border:1px solid #f59e0b33;border-radius:6px;width:32px;height:28px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center" title="Remove from watchlist">⭐</button>
+        </div>
       </div>
-      <div style="text-align:center;min-width:42px">
-        <div style="font-size:24px;font-weight:800;font-family:monospace;color:${c};line-height:1">${h.fitScore}</div>
-        <div style="color:#64748b;font-size:10px">/100</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
+        <button onclick="openGTTSheet('${h.ticker}','${h.company}','${h.fitRating}',${h.fitScore},'${h.fullData?.technical?.support1||h.fullData?.technical?.support2||0}')" style="background:#00d4aa;color:#000;border:none;border-radius:8px;padding:10px;font-weight:800;font-size:13px;cursor:pointer">🎯 Place GTT</button>
+        <button onclick="loadWL(${i})" style="background:#38bdf818;color:#38bdf8;border:1px solid #38bdf833;border-radius:8px;padding:10px;font-weight:700;font-size:13px;cursor:pointer">📊 View Analysis</button>
       </div>
-      <button onclick="event.stopPropagation();removeFromWatchlist('${h.ticker}')" style="background:none;border:none;color:#f59e0b;font-size:16px;cursor:pointer;padding:4px">⭐</button>
     </div>`;
   }).join("");
 }
@@ -1323,6 +1380,205 @@ function refreshFromTicker(ticker){
   document.getElementById("scripInput").value=ticker;
   switchTab("analyse");
   analyze();
+}
+
+// ══════════════════════════════════════════════════════════
+// GTT ORDERS
+// ══════════════════════════════════════════════════════════
+let gttCurrentTicker = null;
+let gttCurrentTxn = "BUY";
+let gttCurrentInstrKey = null;
+
+// ── Fetch GTT orders from Upstox ──────────────────────────
+async function loadGTTOrders(){
+  const tok = getAlgoTok();
+  const el = document.getElementById("gttList");
+  const st = document.getElementById("gttStatus");
+  if(!tok){
+    if(st) st.textContent = "Login required — go to Portfolio tab first";
+    if(el) el.innerHTML = `<div class="card" style="text-align:center;padding:20px"><div style="color:#64748b;font-size:12px;margin-bottom:12px">Upstox login needed to view GTT orders</div><button onclick="switchTab('portfolio')" style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:10px 18px;font-weight:700;font-size:13px;cursor:pointer">Login via Portfolio tab →</button></div>`;
+    return;
+  }
+  if(st) st.textContent = "Loading GTT orders…";
+  try{
+    const r = await fetch(`${UPSTOX_BASE}/gtt/orders`, {
+      headers:{"Authorization":`Bearer ${tok}`,"Accept":"application/json"}
+    });
+    if(r.status===401){ setAlgoTok(""); if(st)st.textContent="Session expired. Login again via Portfolio tab."; return; }
+    if(!r.ok) throw new Error(`GTT API error ${r.status}`);
+    const d = await r.json();
+    renderGTTList(d.data||[]);
+  }catch(e){
+    if(st) st.textContent = "Error: "+e.message;
+    console.error(e);
+  }
+}
+
+// ── Render GTT orders list ────────────────────────────────
+function renderGTTList(orders){
+  const el = document.getElementById("gttList");
+  const st = document.getElementById("gttStatus");
+  if(!orders.length){
+    if(st) st.textContent = "No GTT orders found";
+    if(el) el.innerHTML = `<div class="empty"><div style="font-size:34px;margin-bottom:10px">🎯</div><div style="font-size:13px">No GTT orders placed yet.</div><div style="font-size:11px;margin-top:4px;color:#64748b">Add stocks to Watchlist and place GTT orders.</div></div>`;
+    return;
+  }
+  if(st) st.textContent = `${orders.length} GTT order${orders.length>1?"s":""}`;
+  const statusColor = s => s==="active"?"#22c55e":s==="triggered"?"#00d4aa":s==="cancelled"||s==="expired"?"#ef4444":"#f59e0b";
+  const statusIcon  = s => s==="active"?"●":s==="triggered"?"✓":s==="cancelled"?"✕":"⏱";
+  el.innerHTML = orders.map(o=>{
+    const rule = (o.rules||[])[0]||{};
+    const sym = o.trading_symbol||o.instrument_key?.split("|")[1]||"--";
+    const txn = rule.transaction_type||"--";
+    const qty = rule.quantity||0;
+    const trigger = rule.trigger_price||0;
+    const limit   = rule.limit_price||rule.order_price||0;
+    const status  = (o.status||"").toLowerCase();
+    const sc = statusColor(status);
+    return`<div class="card" style="margin-bottom:9px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+        <div>
+          <div style="font-weight:700;font-size:15px;margin-bottom:3px">${sym}</div>
+          <div style="display:flex;gap:5px;align-items:center">
+            <span style="background:${txn==="BUY"?"#22c55e22":"#ef444422"};color:${txn==="BUY"?"#22c55e":"#ef4444"};border:1px solid ${txn==="BUY"?"#22c55e44":"#ef444444"};border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">${txn}</span>
+            <span style="background:${sc}22;color:${sc};border:1px solid ${sc}44;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">${statusIcon(status)} ${status.toUpperCase()}</span>
+          </div>
+        </div>
+        <div style="text-align:right;font-size:10px;color:#64748b">${o.created_at?new Date(o.created_at/1000).toLocaleDateString("en-IN"):""}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
+        <div style="background:#0a0e1a;border-radius:6px;padding:7px;text-align:center">
+          <div style="color:#64748b;font-size:9px;margin-bottom:2px">QTY</div>
+          <div style="font-weight:700;font-family:monospace;font-size:13px">${qty}</div>
+        </div>
+        <div style="background:#0a0e1a;border-radius:6px;padding:7px;text-align:center">
+          <div style="color:#64748b;font-size:9px;margin-bottom:2px">TRIGGER</div>
+          <div style="font-weight:700;font-family:monospace;font-size:13px;color:#f59e0b">₹${trigger}</div>
+        </div>
+        <div style="background:#0a0e1a;border-radius:6px;padding:7px;text-align:center">
+          <div style="color:#64748b;font-size:9px;margin-bottom:2px">LIMIT</div>
+          <div style="font-weight:700;font-family:monospace;font-size:13px">₹${limit}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+// ── GTT Sheet controls ────────────────────────────────────
+function openGTTSheet(ticker, company, rating, score, suggestedPrice){
+  gttCurrentTicker = ticker;
+  gttCurrentInstrKey = null;
+  gttCurrentTxn = "BUY";
+  const c = rc(rating);
+  document.getElementById("gttSheetTitle").textContent = company;
+  document.getElementById("gttSheetBadges").innerHTML =
+    `<span style="background:#38bdf822;color:#38bdf8;border:1px solid #38bdf844;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;margin-right:5px">${ticker}</span>`+
+    `<span style="background:${c}22;color:${c};border:1px solid ${c}44;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">${rating} ${score}/100</span>`;
+  document.getElementById("gttQty").value = "";
+  document.getElementById("gttTrigger").value = suggestedPrice&&suggestedPrice!="0"?suggestedPrice:"";
+  document.getElementById("gttLimit").value = "";
+  document.getElementById("gttSheetError").textContent = "";
+  setGTTTxn("BUY");
+  const sheet = document.getElementById("gttSheet");
+  sheet.style.display = "flex";
+}
+
+function closeGTTSheet(){
+  document.getElementById("gttSheet").style.display = "none";
+  gttCurrentTicker = null;
+  gttCurrentInstrKey = null;
+}
+
+function setGTTTxn(txn){
+  gttCurrentTxn = txn;
+  const buyBtn  = document.getElementById("gttBuyBtn");
+  const sellBtn = document.getElementById("gttSellBtn");
+  if(txn==="BUY"){
+    buyBtn.style.cssText  = "padding:11px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;border:2px solid #22c55e;background:#22c55e22;color:#22c55e";
+    sellBtn.style.cssText = "padding:11px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;border:1px solid #1e2d45;background:#111827;color:#64748b";
+  } else {
+    sellBtn.style.cssText = "padding:11px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;border:2px solid #ef4444;background:#ef444422;color:#ef4444";
+    buyBtn.style.cssText  = "padding:11px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;border:1px solid #1e2d45;background:#111827;color:#64748b";
+  }
+}
+
+// ── Submit GTT order ──────────────────────────────────────
+async function submitGTT(){
+  const tok = getAlgoTok();
+  if(!tok){ document.getElementById("gttSheetError").textContent="Login required. Go to Portfolio tab."; return; }
+  const qty     = parseInt(document.getElementById("gttQty").value);
+  const trigger = parseFloat(document.getElementById("gttTrigger").value);
+  const limit   = parseFloat(document.getElementById("gttLimit").value);
+  const errEl   = document.getElementById("gttSheetError");
+  const btn     = document.getElementById("gttSubmitBtn");
+  if(!qty||qty<1){ errEl.textContent="Enter valid quantity"; return; }
+  if(!trigger||trigger<=0){ errEl.textContent="Enter valid trigger price"; return; }
+  if(!limit||limit<=0){ errEl.textContent="Enter valid limit price"; return; }
+  errEl.textContent = "";
+  btn.textContent = "Resolving symbol…"; btn.disabled = true;
+  try{
+    // Step 1: Resolve instrument key
+    if(!gttCurrentInstrKey){
+      const searchUrl = `${UPSTOX_BASE}/instruments/search?query=${encodeURIComponent(gttCurrentTicker)}&exchanges=NSE&segments=EQ&records=10`;
+      const sr = await fetch(searchUrl, {headers:{"Authorization":`Bearer ${tok}`,"Accept":"application/json"}});
+      const sd = await sr.json();
+      const items = (sd.data||[]).filter(x=>x.segment==="NSE_EQ");
+      const exact = items.find(x=>x.trading_symbol?.toUpperCase()===gttCurrentTicker.toUpperCase());
+      const match = exact||items[0];
+      if(!match) throw new Error(`"${gttCurrentTicker}" not found on NSE`);
+      gttCurrentInstrKey = match.instrument_key;
+    }
+    // Step 2: Place GTT
+    btn.textContent = "Placing GTT…";
+    const body = {
+      type: "single",
+      instrument_key: gttCurrentInstrKey,
+      rules:[{
+        transaction_type: gttCurrentTxn,
+        quantity: qty,
+        product: "D",
+        trigger_price: trigger,
+        order_type: "LIMIT",
+        limit_price: limit
+      }]
+    };
+    const r = await fetch(`${UPSTOX_BASE}/gtt/orders`,{
+      method:"POST",
+      headers:{"Authorization":`Bearer ${tok}`,"Content-Type":"application/json","Accept":"application/json"},
+      body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    if(!r.ok) throw new Error(d?.errors?.[0]?.message||d?.message||`GTT error ${r.status}`);
+    // Step 3: Success — remove from watchlist
+    removeFromWatchlist(gttCurrentTicker);
+    closeGTTSheet();
+    showToast(`✓ GTT placed for ${gttCurrentTicker}! Removed from watchlist.`, "#22c55e");
+    // Refresh GTT list in background
+    setTimeout(()=>{ if(document.getElementById("view-gtt").style.display==="block") loadGTTOrders(); }, 1000);
+  }catch(e){
+    errEl.textContent = e.message||"Failed to place GTT";
+    console.error(e);
+  } finally {
+    btn.textContent = "Place GTT Order →"; btn.disabled = false;
+  }
+}
+
+// ── Toast notification ────────────────────────────────────
+function showToast(msg, color="#00d4aa"){
+  let t = document.getElementById("appToast");
+  if(!t){
+    t = document.createElement("div");
+    t.id = "appToast";
+    t.style.cssText = "position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#111827;border:1px solid #1e2d45;border-radius:10px;padding:12px 20px;font-size:13px;font-weight:700;z-index:99999;transition:opacity 0.3s;white-space:nowrap;max-width:90vw;text-align:center";
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.color = color;
+  t.style.borderColor = color+"44";
+  t.style.opacity = "1";
+  t.style.display = "block";
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=>{ t.style.opacity="0"; setTimeout(()=>t.style.display="none",300); }, 3500);
 }
 
 </script>
