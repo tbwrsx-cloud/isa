@@ -295,12 +295,12 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
       <input id="gttTrigger" type="number" step="0.05" placeholder="e.g. 450.00" class="inp" style="font-size:15px"/>
     </div>
     <div style="margin-bottom:16px">
-      <label style="color:#64748b;font-size:11px;font-weight:700;display:block;margin-bottom:5px">LIMIT PRICE (₹) <span style="color:#94a3b8;font-weight:400">— actual order price after trigger</span></label>
+      <label style="color:#64748b;font-size:11px;font-weight:700;display:block;margin-bottom:5px">LIMIT PRICE (₹) <span style="color:#94a3b8;font-weight:400">— order price when GTT fires (optional for market)</span></label>
       <input id="gttLimit" type="number" step="0.05" placeholder="e.g. 452.00" class="inp" style="font-size:15px"/>
     </div>
     <div id="gttSheetError" style="color:#ef4444;font-size:12px;text-align:center;margin-bottom:10px;min-height:16px"></div>
     <button id="gttSubmitBtn" onclick="submitGTT()" style="background:#00d4aa;color:#000;border:none;border-radius:9px;padding:14px;font-weight:800;font-size:14px;width:100%;cursor:pointer">Place GTT Order →</button>
-    <div style="color:#64748b;font-size:10px;text-align:center;margin-top:10px">Delivery (CNC) · Single trigger · Upstox GTT</div>
+    <div style="color:#64748b;font-size:10px;text-align:center;margin-top:10px">Delivery (CNC) · Single trigger · Upstox GTT v3 API</div>
   </div>
 </div>
 
@@ -1401,7 +1401,8 @@ async function loadGTTOrders(){
   }
   if(st) st.textContent = "Loading GTT orders…";
   try{
-    const r = await fetch(`${UPSTOX_BASE}/gtt/orders`, {
+    // GTT API is v3, fetch active + triggered orders
+    const r = await fetch(`https://api.upstox.com/v3/order/gtt?status=active`, {
       headers:{"Authorization":`Bearer ${tok}`,"Accept":"application/json"}
     });
     if(r.status===401){ setAlgoTok(""); if(st)st.textContent="Session expired. Login again via Portfolio tab."; return; }
@@ -1424,16 +1425,17 @@ function renderGTTList(orders){
     return;
   }
   if(st) st.textContent = `${orders.length} GTT order${orders.length>1?"s":""}`;
-  const statusColor = s => s==="active"?"#22c55e":s==="triggered"?"#00d4aa":s==="cancelled"||s==="expired"?"#ef4444":"#f59e0b";
-  const statusIcon  = s => s==="active"?"●":s==="triggered"?"✓":s==="cancelled"?"✕":"⏱";
+  const statusColor = s => s==="scheduled"?"#22c55e":s==="triggered"?"#00d4aa":s==="failed"||s==="cancelled"||s==="expired"?"#ef4444":"#f59e0b";
+  const statusIcon  = s => s==="scheduled"?"●":s==="triggered"?"✓":s==="failed"||s==="cancelled"?"✕":"⏱";
   el.innerHTML = orders.map(o=>{
+    // v3 response: trading_symbol, transaction_type, quantity at root; rules[] for trigger details
     const rule = (o.rules||[])[0]||{};
-    const sym = o.trading_symbol||o.instrument_key?.split("|")[1]||"--";
-    const txn = rule.transaction_type||"--";
-    const qty = rule.quantity||0;
+    const sym = o.trading_symbol||o.instrument_token?.split("|")[1]||"--";
+    const txn = o.transaction_type||rule.transaction_type||"--";
+    const qty = o.quantity||rule.quantity||0;
     const trigger = rule.trigger_price||0;
-    const limit   = rule.limit_price||rule.order_price||0;
-    const status  = (o.status||"").toLowerCase();
+    const limit   = rule.limit_price||rule.order_price||trigger;
+    const status  = (rule.status||o.status||"scheduled").toLowerCase();
     const sc = statusColor(status);
     return`<div class="card" style="margin-bottom:9px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
@@ -1530,19 +1532,20 @@ async function submitGTT(){
     }
     // Step 2: Place GTT
     btn.textContent = "Placing GTT…";
+    // v3 GTT place order body
     const body = {
-      type: "single",
-      instrument_key: gttCurrentInstrKey,
+      type: "SINGLE",
+      instrument_token: gttCurrentInstrKey,
+      transaction_type: gttCurrentTxn,
+      quantity: qty,
+      product: "D",
       rules:[{
-        transaction_type: gttCurrentTxn,
-        quantity: qty,
-        product: "D",
-        trigger_price: trigger,
-        order_type: "LIMIT",
-        limit_price: limit
+        strategy: "ENTRY",
+        trigger_type: gttCurrentTxn==="BUY"?"BELOW":"ABOVE",
+        trigger_price: trigger
       }]
     };
-    const r = await fetch(`${UPSTOX_BASE}/gtt/orders`,{
+    const r = await fetch(`https://api.upstox.com/v3/order/gtt/place`,{
       method:"POST",
       headers:{"Authorization":`Bearer ${tok}`,"Content-Type":"application/json","Accept":"application/json"},
       body: JSON.stringify(body)
