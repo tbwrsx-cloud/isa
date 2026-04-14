@@ -328,7 +328,10 @@ Rating: >=75 Strong Buy, >=55 Buy, >=35 Hold, else Avoid. PAT<=5% forces Avoid.
 Return JSON fields: company, ticker, exchange, sector, currentPrice, marketCap, mcapToSales, peRatio, fundamental{publicHolding, promoterHolding, promoterHoldingChange, fiiHoldingChange, cfOperations, cfoPositive, cfoVsOthers(string), debtToReserve,
 revenueQoQ[4]: MUST be QoQ revenue GROWTH PERCENTAGE values like [-3.2, 5.1, 8.4, 2.1] NOT absolute revenue figures. Calculate as ((thisQ-prevQ)/prevQ)*100 rounded to 1 decimal,
 revenueQoQLabels[4]: quarter labels like ["Q1FY25","Q2FY25","Q3FY25","Q4FY25"] oldest to newest,
-patMargin, revenueGrowthYOY[2]: YoY revenue growth % for last 2 years, revenueGrowthYOYLabels[2], patGrowthYOY[2]: YoY PAT growth % for last 2 years, patGrowthYOYLabels[2], managementCommentary, revenueGuidance, marginGuidance, demandOutlook, majorEvent}, technical{trend, rsi, macdSignal, support1, support2, resistance1, resistance2, entryZone, stopLoss, target1, target2, potentialReturn, riskReward, timeframe, movingAvg50, movingAvg200, above50DMA, above200DMA, technicalSummary}, scoring{fundamentalScore, technicalScore, commentaryScore, fundamentalBreakdown[], technicalBreakdown[], commentaryBreakdown[]}, fitScore, fitRating, fitSummary, redFlags[], positives[], dataNote`;
+patMargin, revenueGrowthYOY[2]: YoY revenue growth % for last 2 years, revenueGrowthYOYLabels[2], patGrowthYOY[2]: YoY PAT growth % for last 2 years, patGrowthYOYLabels[2], managementCommentary, revenueGuidance, marginGuidance, demandOutlook, majorEvent}, technical{trend, rsi, macdSignal, support1, support2, resistance1, resistance2, entryZone, stopLoss, target1, target2, potentialReturn, riskReward, timeframe, movingAvg50, movingAvg200, above50DMA, above200DMA, technicalSummary}, scoring{fundamentalScore, technicalScore, commentaryScore,
+fundamentalBreakdown[]: short chips like "Promoter>50%: +8" — max 25 chars each,
+technicalBreakdown[]: short chips like "Above200DMA: +8" — max 25 chars each,
+commentaryBreakdown[]: MUST use exact format "Label: +N" or "Label: -N" — max 30 chars, no sentences, no camelCase. Examples: "GuidanceRaised: +5", "PromoterPledge: -6", "MarginExpanding: +4", "MgmtChange: -5"}, fitScore, fitRating, fitSummary, redFlags[], positives[], dataNote`;
 
 const STEPS=["Fetching shareholding & financials…","Analysing cash flows & debt…","Getting RSI & technical levels…","Searching concall commentary…","Applying scoring rules…"];
 let currentData=null,stepIv=null;
@@ -509,6 +512,8 @@ async function analyze(){
 
 Search for: shareholding pattern, quarterly P&L (last 4 quarters), cash flows, debt levels, RSI, 50DMA, 200DMA, support/resistance, and LATEST CONCALL or earnings commentary.
 
+IMPORTANT for scoring.commentaryBreakdown[]: use ONLY short format like "GuidanceRaised: +5" or "PromoterPledge: -6" — never full sentences, never camelCase, max 30 chars each.
+
 IMPORTANT: revenueQoQ must be QoQ GROWTH PERCENTAGES (e.g. [-2.1, 4.5, 7.2, 1.8]), NOT absolute revenue in Crores. Calculate: ((currentQ - prevQ) / prevQ) * 100.
 
 MANDATORY - populate these exact fields inside fundamental{}:
@@ -595,7 +600,7 @@ function buildResult(d){
   </div>
   <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:5px">${(d.scoring?.fundamentalBreakdown||[]).map(b=>'<span style="background:#38bdf811;color:#38bdf8;border:1px solid #38bdf822;border-radius:10px;padding:2px 7px;font-size:10px">'+b+'</span>').join('')}</div>
   <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:5px">${(d.scoring?.technicalBreakdown||[]).map(b=>'<span style="background:#a78bfa11;color:#a78bfa;border:1px solid #a78bfa22;border-radius:10px;padding:2px 7px;font-size:10px">'+b+'</span>').join('')}</div>
-  <div style="display:flex;flex-wrap:wrap;gap:3px">${(d.scoring?.commentaryBreakdown||[]).map(b=>'<span style="background:'+(String(b).includes('-')?'#ef444411':'#22c55e11')+'";color:'+(String(b).includes('-')?'#ef4444':'#22c55e')+';border:1px solid '+(String(b).includes('-')?'#ef444433':'#22c55e33')+';border-radius:10px;padding:2px 7px;font-size:10px">'+b+'</span>').join('')}</div>
+  <div style="display:flex;flex-wrap:wrap;gap:3px">${(d.scoring?.commentaryBreakdown||[]).map(b=>{const raw=String(b);const label=raw.replace(/([a-z])([A-Z])/g,'$1 $2');const neg=raw.includes('-');return'<span style="background:'+(neg?'#ef444411':'#22c55e11')+';color:'+(neg?'#ef4444':'#22c55e')+';border:1px solid '+(neg?'#ef444433':'#22c55e33')+';border-radius:10px;padding:3px 9px;font-size:11px;line-height:1.5">'+label+'</span>';}).join('')}</div>
 </div>
 <div class="g2" style="margin-bottom:11px">
   ${d.redFlags?.length?`<div class="fbox"><div style="color:#ef4444;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:6px">⚠ RED FLAGS</div>${d.redFlags.map(f=>`<div style="color:#fca5a5;font-size:11px;margin-bottom:3px">• ${f}</div>`).join("")}</div>`:"<div></div>"}
@@ -855,13 +860,14 @@ function loadHist2(i){
   if(!d.fundamental)d.fundamental={};
   if(!d.technical)d.technical={};
   if(!d.company&&d.ticker)d.company=d.ticker;
-  // Recalculate score from saved data using hardcoded formula
-  d=recalcScore(d);
-  // Update saved entry with recalculated score
-  l[i].fitScore=d.fitScore;
-  l[i].fitRating=d.fitRating;
-  if(l[i].fullData)l[i].fullData=d;
-  saveHist(l);
+  // Use saved score — recalc only updates if data fields present
+  if(d.fundamental&&Object.keys(d.fundamental).length>3){
+    d=recalcScore(d);
+    l[i].fitScore=d.fitScore;
+    l[i].fitRating=d.fitRating;
+    if(l[i].fullData)l[i].fullData=d;
+    saveHist(l);
+  }
   currentData=d;showResult(d);switchTab("analyse");
 }
 function delHist(i){const l=loadHist();l.splice(i,1);saveHist(l);updateHistCount();renderHistory();}
@@ -1327,8 +1333,10 @@ function loadWL(i){
   if(!d||typeof d!=="object")return;
   if(!d.fundamental)d.fundamental={};
   if(!d.technical)d.technical={};
+  // Use saved score — do NOT recalculate so score matches what was shown when added to watchlist
   if(!d.scoring)d.scoring={fundamentalScore:0,technicalScore:0,commentaryScore:0,fundamentalBreakdown:[],technicalBreakdown:[],commentaryBreakdown:[]};
-  d=recalcScore(d);
+  if(!d.fitScore&&wl[i].fitScore)d.fitScore=wl[i].fitScore;
+  if(!d.fitRating&&wl[i].fitRating)d.fitRating=wl[i].fitRating;
   currentData=d;showResult(d);switchTab("analyse");
 }
 
