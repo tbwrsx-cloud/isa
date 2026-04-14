@@ -1494,8 +1494,10 @@ function openGTTSheet(ticker, company, rating, score, suggestedPrice){
   const c = rc(rating);
   document.getElementById("gttSheetTitle").textContent = company;
   document.getElementById("gttSheetBadges").innerHTML =
-    `<span style="background:#38bdf822;color:#38bdf8;border:1px solid #38bdf844;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;margin-right:5px">${ticker}</span>`+
+    `<span style="background:#38bdf833;color:#38bdf8;border:2px solid #38bdf866;border-radius:6px;padding:3px 12px;font-size:15px;font-weight:800;margin-right:6px;font-family:monospace">${ticker}</span>`+
     `<span style="background:${c}22;color:${c};border:1px solid ${c}44;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">${rating} ${score}/100</span>`;
+  // Show ticker in submit button as safety reminder
+  document.getElementById("gttSubmitBtn").textContent = `Place GTT — ${ticker} →`;
   document.getElementById("gttQty").value = "";
   document.getElementById("gttTrigger").value = suggestedPrice&&suggestedPrice!="0"?suggestedPrice:"";
   document.getElementById("gttLimit").value = "";
@@ -1539,19 +1541,38 @@ async function submitGTT(){
   errEl.textContent = "";
   btn.textContent = "Resolving symbol…"; btn.disabled = true;
   try{
-    // Step 1: Resolve instrument key
-    if(!gttCurrentInstrKey){
-      const searchUrl = `${UPSTOX_BASE}/instruments/search?query=${encodeURIComponent(gttCurrentTicker)}&exchanges=NSE&segments=EQ&records=10`;
-      const sr = await fetch(searchUrl, {headers:{"Authorization":`Bearer ${tok}`,"Accept":"application/json"}});
-      const sd = await sr.json();
-      const items = (sd.data||[]).filter(x=>x.segment==="NSE_EQ");
-      const exact = items.find(x=>x.trading_symbol?.toUpperCase()===gttCurrentTicker.toUpperCase());
-      const match = exact||items[0];
-      if(!match) throw new Error(`"${gttCurrentTicker}" not found on NSE`);
-      gttCurrentInstrKey = match.instrument_key;
+    // Step 1: ALWAYS resolve instrument key fresh — never use cached value
+    // This prevents wrong stock being used if sheet is reused
+    gttCurrentInstrKey = null;
+    btn.textContent = "Verifying symbol…";
+    const searchUrl = `${UPSTOX_BASE}/instruments/search?query=${encodeURIComponent(gttCurrentTicker)}&exchanges=NSE&segments=EQ&records=10`;
+    const sr = await fetch(searchUrl, {headers:{"Authorization":`Bearer ${tok}`,"Accept":"application/json"}});
+    const sd = await sr.json();
+    const items = (sd.data||[]).filter(x=>x.segment==="NSE_EQ");
+    const exact = items.find(x=>x.trading_symbol?.toUpperCase()===gttCurrentTicker.toUpperCase());
+    const match = exact||items[0];
+    if(!match) throw new Error(`"${gttCurrentTicker}" not found on NSE`);
+    gttCurrentInstrKey = match.instrument_key;
+    const resolvedSymbol = match.trading_symbol;
+    const resolvedName = match.name||match.short_name||resolvedSymbol;
+    // SAFETY CHECK: Confirm resolved symbol matches what user intended
+    if(resolvedSymbol.toUpperCase() !== gttCurrentTicker.toUpperCase()){
+      const ok = confirm(`Symbol resolved to "${resolvedSymbol}" (${resolvedName}).\n\nYou intended: ${gttCurrentTicker}\n\nProceed with ${resolvedSymbol}?`);
+      if(!ok){ btn.textContent="Place GTT Order →"; btn.disabled=false; return; }
     }
-    // Step 2: Place GTT
-    btn.textContent = "Placing GTT…";
+    // Step 2: Final confirmation — show exact stock being ordered
+    btn.textContent = "Awaiting confirmation…"; btn.disabled=false;
+    const confirmed = confirm(
+      "⚠ CONFIRM GTT ORDER\n\n" +
+      "Stock: " + resolvedSymbol + "\n" +
+      "Action: " + gttCurrentTxn + " " + qty + " shares\n" +
+      "Trigger price: ₹" + trigger + "\n" +
+      "Limit price: ₹" + limit + "\n" +
+      "Product: Delivery (CNC)\n\n" +
+      "Tap OK to place on Upstox."
+    );
+    if(!confirmed){ btn.textContent="Place GTT Order →"; return; }
+    btn.textContent = "Placing GTT…"; btn.disabled=true;
     // v3 GTT place order body
     const body = {
       type: "SINGLE",
