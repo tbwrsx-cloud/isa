@@ -319,7 +319,10 @@ IMPORTANT: revenueGuidance/marginGuidance/demandOutlook/majorEvent fields inside
 fitScore = (fundamentalScore/70)*60 + (technicalScore/30)*20 + (clamp(commentaryScore,-15,15)/15)*20, round and clamp 0-100
 Rating: >=75 Strong Buy, >=55 Buy, >=35 Hold, else Avoid. PAT<=5% forces Avoid.
 
-Return JSON fields: company, ticker, exchange, sector, currentPrice, marketCap, mcapToSales, peRatio, fundamental{publicHolding, promoterHolding, promoterHoldingChange, fiiHoldingChange, cfOperations, cfoPositive, cfoVsOthers(string), debtToReserve, revenueQoQ[4], revenueQoQLabels[4], patMargin, revenueGrowthYOY[2], revenueGrowthYOYLabels[2], patGrowthYOY[2], patGrowthYOYLabels[2], managementCommentary, revenueGuidance, marginGuidance, demandOutlook, majorEvent}, technical{trend, rsi, macdSignal, support1, support2, resistance1, resistance2, entryZone, stopLoss, target1, target2, potentialReturn, riskReward, timeframe, movingAvg50, movingAvg200, above50DMA, above200DMA, technicalSummary}, scoring{fundamentalScore, technicalScore, commentaryScore, fundamentalBreakdown[], technicalBreakdown[], commentaryBreakdown[]}, fitScore, fitRating, fitSummary, redFlags[], positives[], dataNote`;
+Return JSON fields: company, ticker, exchange, sector, currentPrice, marketCap, mcapToSales, peRatio, fundamental{publicHolding, promoterHolding, promoterHoldingChange, fiiHoldingChange, cfOperations, cfoPositive, cfoVsOthers(string), debtToReserve,
+revenueQoQ[4]: MUST be QoQ revenue GROWTH PERCENTAGE values like [-3.2, 5.1, 8.4, 2.1] NOT absolute revenue figures. Calculate as ((thisQ-prevQ)/prevQ)*100 rounded to 1 decimal,
+revenueQoQLabels[4]: quarter labels like ["Q1FY25","Q2FY25","Q3FY25","Q4FY25"] oldest to newest,
+patMargin, revenueGrowthYOY[2]: YoY revenue growth % for last 2 years, revenueGrowthYOYLabels[2], patGrowthYOY[2]: YoY PAT growth % for last 2 years, patGrowthYOYLabels[2], managementCommentary, revenueGuidance, marginGuidance, demandOutlook, majorEvent}, technical{trend, rsi, macdSignal, support1, support2, resistance1, resistance2, entryZone, stopLoss, target1, target2, potentialReturn, riskReward, timeframe, movingAvg50, movingAvg200, above50DMA, above200DMA, technicalSummary}, scoring{fundamentalScore, technicalScore, commentaryScore, fundamentalBreakdown[], technicalBreakdown[], commentaryBreakdown[]}, fitScore, fitRating, fitSummary, redFlags[], positives[], dataNote`;
 
 const STEPS=["Fetching shareholding & financials…","Analysing cash flows & debt…","Getting RSI & technical levels…","Searching concall commentary…","Applying scoring rules…"];
 let currentData=null,stepIv=null;
@@ -494,6 +497,8 @@ async function analyze(){
 
 Search for: shareholding pattern, quarterly P&L (last 4 quarters), cash flows, debt levels, RSI, 50DMA, 200DMA, support/resistance, and LATEST CONCALL or earnings commentary.
 
+IMPORTANT: revenueQoQ must be QoQ GROWTH PERCENTAGES (e.g. [-2.1, 4.5, 7.2, 1.8]), NOT absolute revenue in Crores. Calculate: ((currentQ - prevQ) / prevQ) * 100.
+
 MANDATORY - populate these exact fields inside fundamental{}:
 - revenueGuidance: MUST be exactly one of these words: "raised" or "maintained" or "cut" or "not given"
 - marginGuidance: MUST be exactly one of: "expanding" or "stable" or "contracting" or "not given"
@@ -599,7 +604,7 @@ function buildResult(d){
   ${mrow("PE Ratio",d.peRatio+"x","")}
   <div style="margin-top:13px">
     <div style="color:#64748b;font-size:10px;margin-bottom:7px;letter-spacing:1px">QUARTERLY REVENUE GROWTH (QoQ %)</div>
-    ${bars(d.fundamental.revenueQoQ,d.fundamental.revenueQoQLabels,30,"#00d4aa")}
+    ${bars((d.fundamental.revenueQoQ||[]).map(v=>Math.min(Math.max(v,-99),99)),d.fundamental.revenueQoQLabels,30,"#00d4aa")}
   </div>
   <div class="g2" style="margin-top:11px;gap:14px">
     <div><div style="color:#64748b;font-size:10px;margin-bottom:6px">REVENUE YOY</div>${bars(d.fundamental.revenueGrowthYOY,d.fundamental.revenueGrowthYOYLabels,50,"#38bdf8")}</div>
@@ -875,7 +880,7 @@ function downloadReport(){
     <div class="row"><span style="color:#64748b">MCap/Sales</span><span style="color:${d.mcapToSales>5?"#ef4444":d.mcapToSales<=3?"#22c55e":"#e2e8f0"};font-family:monospace">${d.mcapToSales}x</span></div>
     <div class="row"><span style="color:#64748b">PE Ratio</span><span style="font-family:monospace">${d.peRatio}x</span></div>
   </div></div>
-  <div style="margin-top:11px"><div style="color:#64748b;font-size:10px;margin-bottom:7px">QoQ REVENUE GROWTH</div>${bars(d.fundamental.revenueQoQ,d.fundamental.revenueQoQLabels,30,"#00d4aa")}</div>
+  <div style="margin-top:11px"><div style="color:#64748b;font-size:10px;margin-bottom:7px">QoQ REVENUE GROWTH</div>${bars((d.fundamental.revenueQoQ||[]).map(v=>Math.min(Math.max(v,-99),99)),d.fundamental.revenueQoQLabels,30,"#00d4aa")}</div>
   <div class="g2" style="margin-top:9px">
     <div><div style="color:#64748b;font-size:10px;margin-bottom:6px">REVENUE YOY</div>${bars(d.fundamental.revenueGrowthYOY,d.fundamental.revenueGrowthYOYLabels,50,"#38bdf8")}</div>
     <div><div style="color:#64748b;font-size:10px;margin-bottom:6px">PAT YOY</div>${bars(d.fundamental.patGrowthYOY,d.fundamental.patGrowthYOYLabels,50,"#22c55e")}</div>
