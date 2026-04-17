@@ -1224,9 +1224,58 @@ function renderPortfolio(holdings){
 // ══════════════════════════════════════════════════════════
 // TRENDS
 // ══════════════════════════════════════════════════════════
+function quarterFromDate(dateStr){
+  // Parse savedAt like "14/04/2026, 10:30:00" or ISO string
+  try{
+    const d = new Date(dateStr);
+    if(isNaN(d.getTime())){
+      // Try DD/MM/YYYY format
+      const parts = dateStr.split(/[\/,\s]/);
+      if(parts.length>=3){
+        const day=parseInt(parts[0]),mon=parseInt(parts[1])-1,yr=parseInt(parts[2]);
+        const d2=new Date(yr,mon,day);
+        if(!isNaN(d2.getTime())) return quarterFromDate(d2.toISOString());
+      }
+      return currentQuarterLabel();
+    }
+    const m=d.getMonth()+1,yr=d.getFullYear();
+    const fyS=String(m>=4?yr:yr-1).slice(2);
+    const q=m>=4&&m<=6?"Q1":m>=7&&m<=9?"Q2":m>=10&&m<=12?"Q3":"Q4";
+    return `${q} FY${fyS}`;
+  }catch(_){ return currentQuarterLabel(); }
+}
+
+function backfillRatingHistory(){
+  // For every history entry missing ratingHistory, create one from saved data
+  const list = loadHist();
+  let changed = false;
+  list.forEach(entry => {
+    const existing = entry.ratingHistory || entry.fullData?.ratingHistory || [];
+    if(existing.length === 0 && entry.fitScore && entry.fitRating){
+      const snap = {
+        quarter: quarterFromDate(entry.savedAt),
+        score: entry.fitScore,
+        rating: entry.fitRating,
+        price: entry.currentPrice||0,
+        savedAt: new Date().toISOString()
+      };
+      entry.ratingHistory = [snap];
+      if(entry.fullData) entry.fullData.ratingHistory = [snap];
+      changed = true;
+    }
+  });
+  if(changed){
+    saveHist(list);
+    setTimeout(()=>backupToGDrive(false), 2000); // sync to Drive
+  }
+  return list;
+}
+
 function renderTrends(){
   const el=document.getElementById("trendsList");if(!el)return;
-  const hist=loadHist().filter(h=>(h.ratingHistory||h.fullData?.ratingHistory||[]).length>=1);
+  // Backfill missing ratingHistory from saved data, then sync to Drive
+  const allList = backfillRatingHistory();
+  const hist=allList.filter(h=>(h.ratingHistory||h.fullData?.ratingHistory||[]).length>=1);
   if(!hist.length){el.innerHTML=`<div class="empty"><div style="font-size:34px;margin-bottom:10px">📈</div><div>No trend data yet.</div><div style="font-size:11px;margin-top:4px;color:#64748b">Re-analyse stocks each quarter to build history.</div></div>`;return;}
   const rc2=r=>r==="Strong Buy"?"#22c55e":r==="Buy"?"#00d4aa":r==="Hold"?"#f59e0b":"#ef4444";
   const rs=r=>r==="Strong Buy"?"SBuy":r;
