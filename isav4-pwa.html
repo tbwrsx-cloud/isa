@@ -8,6 +8,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="apple-mobile-web-app-title" content="IndiaStock"/>
+<!-- Google Identity Services -->
+<meta name="google-signin-client_id" content="762017486457-pr5c61sv7mrvdq3mbudt1uvkkk0l07um.apps.googleusercontent.com">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <title>IndiaStock Analyser v4</title>
 <script>
 const md={name:"IndiaStock Analyser",short_name:"ISA v4",start_url:"./isav4-pwa.html",display:"standalone",background_color:"#0a0e1a",theme_color:"#0a0e1a",orientation:"portrait",icons:[{src:"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='24' fill='%230a0e1a'/%3E%3Ctext x='96' y='130' text-anchor='middle' font-size='110' font-family='Arial'%3E%F0%9F%93%8A%3C/text%3E%3C/svg%3E",sizes:"192x192",type:"image/svg+xml"}]};
@@ -228,6 +231,7 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
 
     <div id="view-settings" style="display:none;padding:14px">
       <div class="card">
+      <div style="background:#7c3aed22;border:1px solid #7c3aed44;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:11px;color:#a78bfa;text-align:center">✓ v4.12 loaded — Google Drive backup is below ↓</div>
         <div class="st">⚙ API Key</div>
         <div style="color:#64748b;font-size:12px;margin-bottom:13px;line-height:1.6">Update your Anthropic API key. The key is stored only on this device.</div>
         <div class="s-wrap" style="margin-bottom:11px">
@@ -236,6 +240,16 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
         </div>
         <button onclick="updateKey()" style="background:#00d4aa;color:#000;border:none;border-radius:8px;padding:11px;font-weight:700;font-size:13px;width:100%;cursor:pointer;margin-bottom:9px">Update Key</button>
         <button onclick="clearAll()" style="background:#ef444418;color:#ef4444;border:1px solid #ef444433;border-radius:8px;padding:11px;font-weight:700;font-size:13px;width:100%;cursor:pointer">🗑 Clear All Data &amp; Reset</button>
+        <div style="margin-top:14px;border-top:1px solid #1e2d45;padding-top:13px">
+          <div style="color:#94a3b8;font-size:11px;margin-bottom:8px;font-weight:700">☁ GOOGLE DRIVE AUTO-BACKUP</div>
+          <div style="color:#64748b;font-size:11px;margin-bottom:10px;line-height:1.6">Auto-backup history to Google Drive after every analysis. Uses the same Google account as Linklog.</div>
+          <div id="gdStatusMsg" style="font-size:11px;margin-bottom:10px;min-height:14px;color:#64748b">Not connected</div>
+          <button onclick="loginGoogleDrive()" style="background:#4285f4;color:#fff;border:none;border-radius:8px;padding:11px;font-weight:700;font-size:13px;width:100%;cursor:pointer;margin-bottom:8px">🔗 Login with Google</button>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
+            <button onclick="backupToGDrive(true)" style="background:#22c55e18;color:#22c55e;border:1px solid #22c55e44;border-radius:8px;padding:10px;font-weight:700;font-size:12px;cursor:pointer">☁ Backup Now</button>
+            <button onclick="restoreFromGDrive()" style="background:#38bdf818;color:#38bdf8;border:1px solid #38bdf844;border-radius:8px;padding:10px;font-weight:700;font-size:12px;cursor:pointer">⬇ Restore</button>
+          </div>
+        </div>
         <div style="margin-top:14px;border-top:1px solid #1e2d45;padding-top:13px">
           <div style="color:#94a3b8;font-size:11px;margin-bottom:8px;font-weight:700">UPSTOX PORTFOLIO (ALGO API)</div>
           <div style="color:#64748b;font-size:11px;margin-bottom:10px;line-height:1.6">
@@ -379,6 +393,10 @@ function updateKeyBadge(){
 // ── Init ──────────────────────────────────────────────────────────────────────
 window.addEventListener("load",()=>{
   if(getKey())launchApp();
+  loadNSEDB();
+  initNSESearch();
+  waitForGSI();
+  setTimeout(checkBackupReminder, 4000);
   document.getElementById("apiKeyInput").addEventListener("keydown",e=>{if(e.key==="Enter")saveKey();});
   document.getElementById("scripInput").addEventListener("keydown",e=>{if(e.key==="Enter")analyze();});
   if("serviceWorker"in navigator){
@@ -469,6 +487,8 @@ function addToHist(d){
     fullData:d};
   saveHist([e,...l.filter(x=>x.ticker!==d.ticker)].slice(0,100));
   updateHistCount();
+  // Auto-backup to Google Drive
+  setTimeout(()=>backupToGDrive(false), 2000);
 }
 const updateHistCount=()=>{const el=document.getElementById("histCount");if(el)el.textContent=loadHist().length;};
 
@@ -1723,6 +1743,210 @@ function showToast(msg, color="#00d4aa"){
   t.style.display = "block";
   clearTimeout(t._timer);
   t._timer = setTimeout(()=>{ t.style.opacity="0"; setTimeout(()=>t.style.display="none",300); }, 3500);
+}
+
+
+// ══════════════════════════════════════════════════════════
+// GOOGLE DRIVE BACKUP (via Google Identity Services)
+// ══════════════════════════════════════════════════════════
+const ISA_CLIENT_ID = '762017486457-pr5c61sv7mrvdq3mbudt1uvkkk0l07um.apps.googleusercontent.com';
+const ISA_SCOPES    = 'https://www.googleapis.com/auth/drive.appdata';
+const ISA_FILE_NAME = 'IndiaStock_Analyser_Backup.json';
+const GD_LAST_KEY   = 'isa_gd_last_backup';
+const GD_REMIND_KEY = 'isa_gd_last_remind';
+
+let gdTokenClient = null;
+let gdAccessToken = null;
+let gdFileId      = null;
+
+// ── Init GIS token client ─────────────────────────────────
+function initGDTokenClient(){
+  gdTokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: ISA_CLIENT_ID,
+    scope: ISA_SCOPES,
+    callback: handleGDToken,
+    error_callback: e => { console.error("GD auth error", e); updateGDStatus(); }
+  });
+}
+
+// Wait for GIS library to load
+function waitForGSI(attempt){
+  attempt = attempt||0;
+  if(typeof google!=='undefined' && google.accounts && google.accounts.oauth2){
+    initGDTokenClient();
+    updateGDStatus();
+    // Silent sign-in if previously connected
+    if(localStorage.getItem('isa_gd_signed_in')){
+      gdTokenClient.requestAccessToken({prompt:''});
+    }
+  } else if(attempt < 40){
+    setTimeout(()=>waitForGSI(attempt+1), 250);
+  }
+}
+
+function handleGDToken(resp){
+  if(resp.error){ console.error("GD token error", resp.error); return; }
+  gdAccessToken = resp.access_token;
+  localStorage.setItem('isa_gd_signed_in','1');
+  updateGDStatus();
+  backupToGDrive(false);
+  // Auto-refresh before expiry (~1hr)
+  setTimeout(()=>{ if(gdTokenClient) gdTokenClient.requestAccessToken({prompt:''}); }, 3400*1000);
+}
+
+function loginGoogleDrive(){
+  if(!gdTokenClient){ alert("Google sign-in still loading, try again in a second."); return; }
+  gdTokenClient.requestAccessToken({prompt:'consent'});
+}
+
+function logoutGoogleDrive(){
+  if(gdAccessToken) google.accounts.oauth2.revoke(gdAccessToken, ()=>{});
+  gdAccessToken=null; gdFileId=null;
+  localStorage.removeItem('isa_gd_signed_in');
+  updateGDStatus();
+  if(typeof showToast==="function") showToast("Signed out of Google Drive", "#f59e0b");
+}
+
+// ── Drive API helper ──────────────────────────────────────
+async function gdReq(method, path, body, upload){
+  const base = upload
+    ? 'https://www.googleapis.com/upload/drive/v3'
+    : 'https://www.googleapis.com/drive/v3';
+  const r = await fetch(base+path, {
+    method,
+    headers:{
+      'Authorization':'Bearer '+gdAccessToken,
+      ...(body&&!upload?{'Content-Type':'application/json'}:{}),
+      ...(upload?{'Content-Type':'application/json'}:{})
+    },
+    body: body?(typeof body==='string'?body:JSON.stringify(body)):undefined
+  });
+  if(!r.ok){ const t=await r.text(); throw new Error(t); }
+  if(r.status===204) return null;
+  return r.json();
+}
+
+// ── Backup history to Drive ───────────────────────────────
+async function backupToGDrive(showFeedback){
+  if(!gdAccessToken) return;
+  const hist = loadHist();
+  if(!hist.length) return;
+  const payload = JSON.stringify({
+    version:'ISA_v3', backupAt:new Date().toISOString(),
+    count:hist.length, history:hist
+  }, null, 2);
+  try{
+    // Find existing file
+    if(!gdFileId){
+      const list = await gdReq('GET', `/files?spaces=appDataFolder&q=name='${ISA_FILE_NAME}'&fields=files(id)&pageSize=5`);
+      if(list.files&&list.files.length>0) gdFileId=list.files[0].id;
+    }
+    if(gdFileId){
+      // Update existing
+      await fetch(`https://www.googleapis.com/upload/drive/v3/files/${gdFileId}?uploadType=media`,{
+        method:'PATCH',
+        headers:{'Authorization':'Bearer '+gdAccessToken,'Content-Type':'application/json'},
+        body:payload
+      });
+    } else {
+      // Create new in appDataFolder via multipart
+      const boundary='=====isa-backup=====';
+      const mp=[
+        `--${boundary}`,
+        'Content-Type: application/json; charset=UTF-8','',
+        JSON.stringify({name:ISA_FILE_NAME, parents:['appDataFolder']}),
+        `--${boundary}`,'Content-Type: application/json','',
+        payload,`--${boundary}--`
+      ].join('
+');
+      const cr = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{
+        method:'POST',
+        headers:{'Authorization':'Bearer '+gdAccessToken,'Content-Type':`multipart/related; boundary="${boundary}"`},
+        body:mp
+      });
+      const j = await cr.json(); gdFileId=j.id;
+    }
+    localStorage.setItem(GD_LAST_KEY, Date.now().toString());
+    updateGDStatus();
+    if(showFeedback&&typeof showToast==="function")
+      showToast(`☁ Backed up ${hist.length} entries to Google Drive`, "#22c55e");
+  }catch(e){
+    if(e.message.includes('401')||e.message.includes('invalid_token')){
+      gdAccessToken=null; localStorage.removeItem('isa_gd_signed_in'); updateGDStatus();
+    }
+    console.error("GD backup failed:", e.message);
+  }
+}
+
+// ── Restore from Drive ────────────────────────────────────
+async function restoreFromGDrive(){
+  if(!gdAccessToken){ alert("Sign in to Google Drive first."); return; }
+  try{
+    const list = await gdReq('GET', `/files?spaces=appDataFolder&q=name='${ISA_FILE_NAME}'&fields=files(id)&pageSize=5`);
+    if(!list.files||!list.files.length){ alert("No backup found in Google Drive."); return; }
+    gdFileId = list.files[0].id;
+    const data = await fetch(`https://www.googleapis.com/drive/v3/files/${gdFileId}?alt=media`,
+      {headers:{'Authorization':'Bearer '+gdAccessToken}}).then(r=>r.json());
+    const incoming = data.history||[];
+    if(!incoming.length){ alert("Backup is empty."); return; }
+    const existing = loadHist();
+    const merged = [...incoming];
+    existing.forEach(ex=>{ if(!merged.find(m=>m.ticker===ex.ticker)) merged.push(ex); });
+    merged.sort((a,b)=>new Date(b.savedAt||0)-new Date(a.savedAt||0));
+    saveHist(merged.slice(0,100));
+    updateHistCount();
+    if(typeof renderHistory==="function") renderHistory();
+    if(typeof showToast==="function")
+      showToast(`✓ Restored ${incoming.length} entries from Google Drive`, "#22c55e");
+    else alert(`✓ Restored ${incoming.length} entries from Google Drive`);
+  }catch(e){ alert("Restore failed: "+e.message); }
+}
+
+// ── Status display ────────────────────────────────────────
+function updateGDStatus(){
+  const el = document.getElementById("gdStatusMsg");
+  if(!el) return;
+  const last = parseInt(localStorage.getItem(GD_LAST_KEY)||"0");
+  const lastStr = last?new Date(last).toLocaleString("en-IN"):"Never";
+  if(gdAccessToken){
+    el.style.color="#22c55e";
+    el.innerHTML=`✓ Connected · Last backup: ${lastStr} <button onclick="logoutGoogleDrive()" style="background:none;border:none;color:#64748b;font-size:10px;cursor:pointer;text-decoration:underline;margin-left:6px">Sign out</button>`;
+  } else if(localStorage.getItem('isa_gd_signed_in')){
+    el.style.color="#f59e0b";
+    el.textContent="Reconnecting…";
+  } else {
+    el.style.color="#64748b";
+    el.textContent="Not connected";
+  }
+}
+
+// ── Weekly reminder ───────────────────────────────────────
+function checkBackupReminder(){
+  const lastRemind = parseInt(localStorage.getItem(GD_REMIND_KEY)||"0");
+  const lastBackup = parseInt(localStorage.getItem(GD_LAST_KEY)||"0");
+  const week = 7*24*3600*1000;
+  const now  = Date.now();
+  if(gdAccessToken){
+    if(now-lastBackup>week) backupToGDrive(false);
+  } else if(now-lastRemind>week){
+    showBackupReminder();
+  }
+}
+
+function showBackupReminder(){
+  if(document.getElementById("backupReminderBanner")) return;
+  const banner=document.createElement("div");
+  banner.id="backupReminderBanner";
+  banner.style.cssText="background:#f59e0b18;border:1px solid #f59e0b44;border-radius:9px;padding:11px 13px;margin:10px 12px 0;display:flex;justify-content:space-between;align-items:center;gap:10px";
+  banner.innerHTML=`<div style="flex:1"><div style="color:#f59e0b;font-weight:700;font-size:12px;margin-bottom:2px">📤 Weekly backup reminder</div><div style="color:#94a3b8;font-size:11px">Export history or connect Google Drive to prevent data loss</div></div><div style="display:flex;gap:6px"><button onclick="exportHistory();dismissReminder()" style="background:#f59e0b;color:#000;border:none;border-radius:6px;padding:7px 10px;font-size:11px;font-weight:700;cursor:pointer">Export</button><button onclick="dismissReminder()" style="background:none;border:1px solid #64748b44;border-radius:6px;padding:7px 8px;font-size:11px;color:#64748b;cursor:pointer">✕</button></div>`;
+  const ct=document.getElementById("content");
+  if(ct) ct.insertBefore(banner,ct.firstChild);
+}
+
+function dismissReminder(){
+  localStorage.setItem(GD_REMIND_KEY,Date.now().toString());
+  const b=document.getElementById("backupReminderBanner");
+  if(b) b.remove();
 }
 
 </script>
