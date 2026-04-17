@@ -395,8 +395,8 @@ window.addEventListener("load",()=>{
   if(getKey())launchApp();
   loadNSEDB();
   initNSESearch();
-  waitForGSI();
-  setTimeout(checkBackupReminder, 4000);
+  try{ waitForGSI(); }catch(e){ console.log("GDrive non-fatal:", e); }
+  try{ setTimeout(checkBackupReminder, 5000); }catch(e){}
   document.getElementById("apiKeyInput").addEventListener("keydown",e=>{if(e.key==="Enter")saveKey();});
   document.getElementById("scripInput").addEventListener("keydown",e=>{if(e.key==="Enter")analyze();});
   if("serviceWorker"in navigator){
@@ -1761,6 +1761,7 @@ let gdFileId      = null;
 
 // ── Init GIS token client ─────────────────────────────────
 function initGDTokenClient(){
+  try{
   gdTokenClient = google.accounts.oauth2.initTokenClient({
     client_id: ISA_CLIENT_ID,
     scope: ISA_SCOPES,
@@ -1771,17 +1772,18 @@ function initGDTokenClient(){
 
 // Wait for GIS library to load
 function waitForGSI(attempt){
-  attempt = attempt||0;
-  if(typeof google!=='undefined' && google.accounts && google.accounts.oauth2){
-    initGDTokenClient();
-    updateGDStatus();
-    // Silent sign-in if previously connected
-    if(localStorage.getItem('isa_gd_signed_in')){
-      gdTokenClient.requestAccessToken({prompt:''});
+  try{
+    attempt = attempt||0;
+    if(typeof google!=='undefined' && google.accounts && google.accounts.oauth2){
+      initGDTokenClient();
+      updateGDStatus();
+      if(localStorage.getItem('isa_gd_signed_in')){
+        try{ gdTokenClient.requestAccessToken({prompt:''}); }catch(_){}
+      }
+    } else if(attempt < 40){
+      setTimeout(()=>waitForGSI(attempt+1), 250);
     }
-  } else if(attempt < 40){
-    setTimeout(()=>waitForGSI(attempt+1), 250);
-  }
+  }catch(e){ console.log('GDrive init error (non-fatal):', e.message); }
 }
 
 function handleGDToken(resp){
