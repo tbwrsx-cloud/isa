@@ -8,9 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="apple-mobile-web-app-title" content="IndiaStock"/>
-<!-- Google Identity Services -->
-<meta name="google-signin-client_id" content="762017486457-pr5c61sv7mrvdq3mbudt1uvkkk0l07um.apps.googleusercontent.com">
-<script src="https://accounts.google.com/gsi/client" async defer></script>
+
 <title>IndiaStock Analyser v4</title>
 <script>
 const md={name:"IndiaStock Analyser",short_name:"ISA v4",start_url:"./isav4-pwa.html",display:"standalone",background_color:"#0a0e1a",theme_color:"#0a0e1a",orientation:"portrait",icons:[{src:"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='24' fill='%230a0e1a'/%3E%3Ctext x='96' y='130' text-anchor='middle' font-size='110' font-family='Arial'%3E%F0%9F%93%8A%3C/text%3E%3C/svg%3E",sizes:"192x192",type:"image/svg+xml"}]};
@@ -244,7 +242,7 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
           <div style="color:#94a3b8;font-size:11px;margin-bottom:8px;font-weight:700">☁ GOOGLE DRIVE AUTO-BACKUP</div>
           <div style="color:#64748b;font-size:11px;margin-bottom:10px;line-height:1.6">Auto-backup history to Google Drive after every analysis. Uses the same Google account as Linklog.</div>
           <div id="gdStatusMsg" style="font-size:11px;margin-bottom:10px;min-height:14px;color:#64748b">Not connected</div>
-          <button onclick="loginGoogleDrive()" style="background:#4285f4;color:#fff;border:none;border-radius:8px;padding:11px;font-weight:700;font-size:13px;width:100%;cursor:pointer;margin-bottom:8px">🔗 Login with Google</button>
+          <button onclick="loadGISandLogin()" style="background:#4285f4;color:#fff;border:none;border-radius:8px;padding:11px;font-weight:700;font-size:13px;width:100%;cursor:pointer;margin-bottom:8px">🔗 Login with Google</button>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
             <button onclick="backupToGDrive(true)" style="background:#22c55e18;color:#22c55e;border:1px solid #22c55e44;border-radius:8px;padding:10px;font-weight:700;font-size:12px;cursor:pointer">☁ Backup Now</button>
             <button onclick="restoreFromGDrive()" style="background:#38bdf818;color:#38bdf8;border:1px solid #38bdf844;border-radius:8px;padding:10px;font-weight:700;font-size:12px;cursor:pointer">⬇ Restore</button>
@@ -395,8 +393,7 @@ window.addEventListener("load",()=>{
   if(getKey())launchApp();
   loadNSEDB();
   initNSESearch();
-  try{ waitForGSI(); }catch(e){ console.log("GDrive non-fatal:", e); }
-  try{ setTimeout(checkBackupReminder, 5000); }catch(e){}
+  try{ if(localStorage.getItem("isa_gd_signed_in")) setTimeout(()=>loadGISandLogin(), 3000); setTimeout(checkBackupReminder, 5000); }catch(e){}
   document.getElementById("apiKeyInput").addEventListener("keydown",e=>{if(e.key==="Enter")saveKey();});
   document.getElementById("scripInput").addEventListener("keydown",e=>{if(e.key==="Enter")analyze();});
   if("serviceWorker"in navigator){
@@ -1772,6 +1769,7 @@ function initGDTokenClient(){
 
 // Wait for GIS library to load
 function waitForGSI(attempt){
+  // Dynamically load GIS only when needed
   try{
     attempt = attempt||0;
     if(typeof google!=='undefined' && google.accounts && google.accounts.oauth2){
@@ -1780,10 +1778,26 @@ function waitForGSI(attempt){
       if(localStorage.getItem('isa_gd_signed_in')){
         try{ gdTokenClient.requestAccessToken({prompt:''}); }catch(_){}
       }
-    } else if(attempt < 40){
-      setTimeout(()=>waitForGSI(attempt+1), 250);
+    } else if(attempt < 30){
+      setTimeout(()=>waitForGSI(attempt+1), 300);
+    } else {
+      console.log('GIS not loaded after retries');
     }
-  }catch(e){ console.log('GDrive init error (non-fatal):', e.message); }
+  }catch(e){ console.log('GDrive non-fatal:', e.message); }
+}
+
+function loadGISandLogin(){
+  // Load GIS script dynamically then login
+  if(typeof google!=='undefined' && google.accounts){
+    waitForGSI(0);
+    setTimeout(loginGoogleDrive, 500);
+    return;
+  }
+  const s = document.createElement('script');
+  s.src = 'https://accounts.google.com/gsi/client';
+  s.onload = ()=>{ waitForGSI(0); setTimeout(loginGoogleDrive, 800); };
+  s.onerror = ()=>alert('Could not load Google sign-in. Check internet connection.');
+  document.head.appendChild(s);
 }
 
 function handleGDToken(resp){
