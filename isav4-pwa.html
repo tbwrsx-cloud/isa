@@ -429,6 +429,62 @@ function extractJSON(text){
 }
 
 // ── Analyze ───────────────────────────────────────────────────────────────────
+
+// ── Local score calculator (overrides Claude's score) ─────
+function recalcScore(d){
+  const f=d.fundamental||{}, t=d.technical||{};
+  let fs=0,fb=[],ts=0,tb=[];
+  // Fundamental (max 70)
+  if((f.promoterHolding||0)>50){fs+=8;fb.push("Promoter>50%: +8");}
+  if((f.promoterHoldingChange||0)>0){fs+=5;fb.push("PromIncreasing: +5");}
+  if((f.fiiHoldingChange||0)>0){fs+=5;fb.push("FIIIncreasing: +5");}
+  if(f.cfoPositive||(f.cfOperations||0)>0){fs+=8;fb.push("CFO+ve: +8");}
+  if(String(f.cfoVsOthers||"").toLowerCase().includes("higher")){fs+=7;fb.push("CFO>Inv+Fin: +7");}
+  if((f.debtToReserve||0)>=0&&(f.debtToReserve||0)<50){fs+=8;fb.push("Debt/Res<50%: +8");}
+  if((f.patMargin||0)>10){fs+=8;fb.push("PATmargin>10%: +8");}
+  else if((f.patMargin||0)>5){fs+=4;fb.push("PATmargin5-10%: +4");}
+  if((f.revenueGrowthYOY||[]).length>=2&&f.revenueGrowthYOY.every(v=>v>0)){fs+=8;fb.push("RevYOY+ve: +8");}
+  if((f.patGrowthYOY||[]).length>=2&&f.patGrowthYOY.every(v=>v>0)){fs+=8;fb.push("PATyoy+ve: +8");}
+  const ps=f.mcapToSales||d.mcapToSales||0;
+  if(ps>0&&ps<3){fs+=5;fb.push("MCap/S<3x: +5");}
+  else if(ps>=3&&ps<5){fs+=3;fb.push("MCap/S3-5x: +3");}
+  if((f.revenueQoQ||[]).filter(v=>v>0).length>=3){fs+=3;fb.push("QoQ+ve 3/4: +3");}
+  const pe=f.peRatio||d.peRatio||0;
+  if(pe>0&&pe<30){fs+=3;fb.push("PE<30: +3");}
+  else if(pe>=30&&pe<50){fs+=1;fb.push("PE30-50: +1");}
+  // Technical (max 30)
+  if(t.above200DMA){ts+=8;tb.push("Above200DMA: +8");}
+  if(t.above50DMA){ts+=5;tb.push("Above50DMA: +5");}
+  const rsi=t.rsi||0;
+  if(rsi>=40&&rsi<=65){ts+=7;tb.push("RSI40-65: +7");}
+  else if((rsi>=30&&rsi<40)||(rsi>65&&rsi<=70)){ts+=4;tb.push("RSI30-40/65-70: +4");}
+  if(String(t.macdSignal||"").toLowerCase().includes("bullish")){ts+=5;tb.push("MACDbullish: +5");}
+  if((t.support1||0)>0&&(d.currentPrice||0)>0){
+    const pct=(d.currentPrice-t.support1)/t.support1*100;
+    if(pct>=0&&pct<=3){ts+=5;tb.push("NearS1: +5");}
+  }
+  // Commentary — use Claude's value but clamp
+  const sc=d.scoring||{};
+  const cs=Math.min(Math.max(sc.commentaryScore||0,-15),15);
+  const cb=sc.commentaryBreakdown||[];
+  // Weighted final score
+  const fWt=Math.round((fs/70)*60);
+  const tWt=Math.round((ts/30)*20);
+  const cWt=Math.round((cs/15)*20);
+  const total=Math.min(Math.max(fWt+tWt+cWt,0),100);
+  let rating="Avoid";
+  if((f.patMargin||0)>0&&(f.patMargin||0)<=5) rating="Avoid";
+  else if(total>=75) rating="Strong Buy";
+  else if(total>=55) rating="Buy";
+  else if(total>=35) rating="Hold";
+  d.scoring={fundamentalScore:fs,technicalScore:ts,commentaryScore:cs,
+    fundamentalWeighted:fWt,technicalWeighted:tWt,commentaryWeighted:cWt,
+    fundamentalBreakdown:fb,technicalBreakdown:tb,commentaryBreakdown:cb};
+  d.fitScore=total;
+  d.fitRating=rating;
+  return d;
+}
+
 async function analyze(){
   const q=document.getElementById("scripInput").value.trim();
   if(!q)return;
@@ -453,7 +509,8 @@ async function analyze(){
     const result=await res.json();
     const text=(result.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
     const parsed=extractJSON(text);
-    currentData=parsed;addToHist(parsed);showResult(parsed);
+    const scored=recalcScore(parsed); // Always apply local weighted formula
+    currentData=scored;addToHist(scored);showResult(scored);
   }catch(e){
     showError(e.message||"Check API key and internet connection.");
     console.error(e);
@@ -486,6 +543,7 @@ function showResult(d){
 // ── Build result HTML ─────────────────────────────────────────────────────────
 function buildResult(d){
   const col=rc(d.fitRating);
+  const sc=d.scoring||{};
   const bars=(arr,lbs,max,c)=>(arr||[]).map((v,i)=>miniBar(lbs?.[i]||`Q${i+1}`,v,max,c)).join("");
   return`
 <div class="hero">
@@ -510,6 +568,18 @@ function buildResult(d){
   <div style="margin-top:8px">
     <button onclick="refreshAnalysis()" style="background:#7c3aed18;color:#a78bfa;border:1px solid #7c3aed44;border-radius:8px;padding:9px;font-weight:700;font-size:12px;width:100%;cursor:pointer">🔄 Refresh Analysis</button>
   </div>
+</div>
+
+<div class="card" style="margin-bottom:11px">
+  <div class="st">⚡ Score Breakdown</div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px">
+    <div class="pb" style="border:1px solid #38bdf833"><div class="pl">FUNDAMENTAL</div><div class="pv" style="color:#38bdf8">${sc.fundamentalScore||0}<span style="font-size:9px;color:#64748b">/70</span></div><div style="color:#64748b;font-size:9px">→ ${sc.fundamentalWeighted||0}pts (60%)</div></div>
+    <div class="pb" style="border:1px solid #a78bfa33"><div class="pl">TECHNICAL</div><div class="pv" style="color:#a78bfa">${sc.technicalScore||0}<span style="font-size:9px;color:#64748b">/30</span></div><div style="color:#64748b;font-size:9px">→ ${sc.technicalWeighted||0}pts (20%)</div></div>
+    <div class="pb" style="border:1px solid ${(sc.commentaryScore||0)>=0?"#22c55e33":"#ef444433"}"><div class="pl">COMMENTARY</div><div class="pv" style="color:${(sc.commentaryScore||0)>=0?"#22c55e":"#ef4444"}">${(sc.commentaryScore||0)>0?"+":""}${sc.commentaryScore||0}<span style="font-size:9px;color:#64748b">/±15</span></div><div style="color:#64748b;font-size:9px">→ ${sc.commentaryWeighted||0}pts (20%)</div></div>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:4px">${(sc.fundamentalBreakdown||[]).map(b=>`<span style="background:#38bdf811;color:#38bdf8;border:1px solid #38bdf822;border-radius:10px;padding:2px 7px;font-size:10px">${b}</span>`).join("")}</div>
+  <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:4px">${(sc.technicalBreakdown||[]).map(b=>`<span style="background:#a78bfa11;color:#a78bfa;border:1px solid #a78bfa22;border-radius:10px;padding:2px 7px;font-size:10px">${b}</span>`).join("")}</div>
+  <div style="display:flex;flex-wrap:wrap;gap:3px">${(sc.commentaryBreakdown||[]).map(b=>{const raw=String(b);const label=raw.replace(/([a-z])([A-Z])/g,"$1 $2");const neg=raw.includes("-");return\`<span style="background:\${neg?"#ef444411":"#22c55e11"};color:\${neg?"#ef4444":"#22c55e"};border:1px solid \${neg?"#ef444433":"#22c55e33"};border-radius:10px;padding:3px 9px;font-size:11px;line-height:1.5">\${label}</span>\`;}).join("")}</div>
 </div>
 
 <div class="g2" style="margin-bottom:11px">
@@ -538,8 +608,14 @@ function buildResult(d){
     <div><div style="color:#64748b;font-size:10px;margin-bottom:6px">PAT YOY</div>${bars(d.fundamental.patGrowthYOY,d.fundamental.patGrowthYOYLabels,50,"#22c55e")}</div>
   </div>
   <div class="cbox">
-    <div style="color:#00d4aa;font-size:10px;letter-spacing:2px;margin-bottom:4px;font-weight:700">MANAGEMENT COMMENTARY</div>
-    <div style="color:#94a3b8;font-size:12px;line-height:1.6">${d.fundamental.managementCommentary}</div>
+    <div style="color:#00d4aa;font-size:10px;letter-spacing:2px;margin-bottom:7px;font-weight:700">MANAGEMENT COMMENTARY</div>
+    <div style="color:#94a3b8;font-size:12px;line-height:1.6;margin-bottom:9px">${d.fundamental?.managementCommentary||"N/A"}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px"><div style="color:#64748b;font-size:9px;margin-bottom:2px">REVENUE GUIDANCE</div><div style="font-weight:700;font-size:11px;color:${String(d.fundamental?.revenueGuidance||"")=="raised"?"#22c55e":String(d.fundamental?.revenueGuidance||"")=="cut"?"#ef4444":"#f59e0b"}">${String(d.fundamental?.revenueGuidance||"--").toUpperCase()}</div></div>
+      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px"><div style="color:#64748b;font-size:9px;margin-bottom:2px">MARGIN GUIDANCE</div><div style="font-weight:700;font-size:11px;color:${String(d.fundamental?.marginGuidance||"")=="expanding"?"#22c55e":String(d.fundamental?.marginGuidance||"")=="contracting"?"#ef4444":"#f59e0b"}">${String(d.fundamental?.marginGuidance||"--").toUpperCase()}</div></div>
+      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px"><div style="color:#64748b;font-size:9px;margin-bottom:2px">DEMAND OUTLOOK</div><div style="font-weight:700;font-size:11px;color:${String(d.fundamental?.demandOutlook||"")=="strong"?"#22c55e":String(d.fundamental?.demandOutlook||"")=="weak"?"#ef4444":"#f59e0b"}">${String(d.fundamental?.demandOutlook||"--").toUpperCase()}</div></div>
+      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px"><div style="color:#64748b;font-size:9px;margin-bottom:2px">MAJOR EVENT</div><div style="color:#94a3b8;font-size:10px;font-weight:600">${String(d.fundamental?.majorEvent||"--")}</div></div>
+    </div>
   </div>
 </div>
 
