@@ -538,6 +538,23 @@ function showResult(d){
   document.getElementById("resultState").style.display="block";
   document.getElementById("resultState").innerHTML=buildResult(d);
   drawGauge(d.fitScore);
+  // Render commentary chips separately to avoid nested quote issues
+  renderCommentaryChips(d);
+}
+
+function renderCommentaryChips(d){
+  const sc=d.scoring||{};
+  const el=document.getElementById("commentaryChips_"+(d.ticker||"x"));
+  if(!el)return;
+  el.innerHTML=(sc.commentaryBreakdown||[]).map(b=>{
+    const raw=String(b);
+    const label=raw.replace(/([a-z])([A-Z])/g,"$1 $2");
+    const neg=raw.includes("-");
+    const bg=neg?"#ef444411":"#22c55e11";
+    const col=neg?"#ef4444":"#22c55e";
+    const border=neg?"#ef444433":"#22c55e33";
+    return "<span style='background:"+bg+";color:"+col+";border:1px solid "+border+";border-radius:10px;padding:3px 9px;font-size:11px;line-height:1.5'>"+label+"</span>";
+  }).join("");
 }
 
 // ── Build result HTML ─────────────────────────────────────────────────────────
@@ -579,7 +596,7 @@ function buildResult(d){
   </div>
   <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:4px">${(sc.fundamentalBreakdown||[]).map(b=>`<span style="background:#38bdf811;color:#38bdf8;border:1px solid #38bdf822;border-radius:10px;padding:2px 7px;font-size:10px">${b}</span>`).join("")}</div>
   <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:4px">${(sc.technicalBreakdown||[]).map(b=>`<span style="background:#a78bfa11;color:#a78bfa;border:1px solid #a78bfa22;border-radius:10px;padding:2px 7px;font-size:10px">${b}</span>`).join("")}</div>
-  <div style="display:flex;flex-wrap:wrap;gap:3px">${(sc.commentaryBreakdown||[]).map(b=>{const raw=String(b);const label=raw.replace(/([a-z])([A-Z])/g,"$1 $2");const neg=raw.includes("-");return'<span style="background:'+(neg?"#ef444411":"#22c55e11")+';color:'+(neg?"#ef4444":"#22c55e")+';border:1px solid '+(neg?"#ef444433":"#22c55e33")+';border-radius:10px;padding:3px 9px;font-size:11px;line-height:1.5">'+label+'</span>';}).join("")}</div>
+  <div style="display:flex;flex-wrap:wrap;gap:3px" id="commentaryChips_${d.ticker||'x'}"></div>
 </div>
 
 <div class="g2" style="margin-bottom:11px">
