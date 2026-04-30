@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="IndiaStock"/>
 <title>IndiaStock Analyser</title>
 <script>
-const md={name:"IndiaStock Analyser",short_name:"IndiaStock",start_url:"./isa-pwa.html",display:"standalone",background_color:"#0a0e1a",theme_color:"#0a0e1a",orientation:"portrait",icons:[{src:"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='24' fill='%230a0e1a'/%3E%3Ctext x='96' y='130' text-anchor='middle' font-size='110' font-family='Arial'%3E%F0%9F%93%8A%3C/text%3E%3C/svg%3E",sizes:"192x192",type:"image/svg+xml"}]};
+const md={name:"IndiaStock Analyser",short_name:"IndiaStock",start_url:"./isa-pwa.html",display:"standalone",background_color:"#0a0e1a",theme_color:"#0a0e1a",orientation:"portrait",icons:[{src:"https://tbwrsx-cloud.github.io/isa/isa-logo.svg",sizes:"192x192",type:"image/svg+xml"}]};
 const ml=document.createElement("link");ml.rel="manifest";ml.href=URL.createObjectURL(new Blob([JSON.stringify(md)],{type:"application/json"}));document.head.appendChild(ml);
 </script>
 <style>
@@ -83,7 +83,7 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
 <div id="setupScreen">
   <div class="setup-card">
     <div class="setup-logo">
-      <span style="font-size:46px;display:block;margin-bottom:8px">📊</span>
+      <img src="https://tbwrsx-cloud.github.io/isa/isa-logo.svg" width="80" height="80" style="border-radius:16px;display:block;margin:0 auto 8px"/>
       <div style="color:#00d4aa;font-weight:800;font-size:21px">IndiaStock Analyser</div>
       <div style="color:#64748b;font-size:12px;margin-top:3px">NSE / BSE · AI-powered · One-time setup</div>
     </div>
@@ -106,7 +106,7 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
   <div id="hdr">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
       <div style="display:flex;align-items:center;gap:7px">
-        <span style="font-size:17px">📊</span>
+        <img src="https://tbwrsx-cloud.github.io/isa/isa-logo.svg" width="36" height="36" style="border-radius:8px;vertical-align:middle"/>
         <span style="color:#00d4aa;font-weight:800;font-size:16px">IndiaStock</span>
         <span style="color:#64748b;font-size:16px;font-weight:300">Analyser</span>
       </div>
@@ -215,7 +215,14 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
 
 <script>
 // ── Compact system prompt (~60% shorter) ──────────────────────────────────────
-const SYS = `You are an expert Indian stock analyst. Search the web for latest data on the given NSE/BSE stock. Return ONLY a raw JSON object, no markdown, no backticks.
+const SYS = `You are an expert Indian stock analyst. Search specific sources in order for consistent data. Return ONLY a raw JSON object, no markdown, no backticks.
+
+DATA SOURCES — search in this exact order:
+1. FUNDAMENTALS: Search "screener.in/company/SYMBOL/consolidated" first. If not found, try "tickertape.in/stocks/SYMBOL" then "trendlyne.com/equity/SYMBOL".
+2. TECHNICALS: Search "tickertape.in/stocks/SYMBOL technical" for RSI, 50DMA, 200DMA.
+3. SHAREHOLDING: Use Screener.in shareholding pattern (Promoters, FIIs columns).
+4. COMMENTARY: Screener.in concall transcripts or MoneyControl.
+Always use CONSOLIDATED figures. dataNote must state which source was used.
 
 SCORING RULES (apply exactly):
 FUNDAMENTAL (max 70): Promoter>50%+8, PromIncreasing+5, FIIIncreasing+5, CFO+ve+8, CFO>Inv+Fin+7, Debt/Reserve<50%+8, PATmargin>10%+8 or 5-10%+4, RevYOY+ve+8, PATyoy+ve+8, MCap/Sales<3x+5 or 3-5x+3, QoQ+ve 3/4qtrs+3, PE<30+3 or 30-50+1
@@ -338,9 +345,15 @@ async function analyze(){
       body:JSON.stringify({
         model:"claude-haiku-4-5-20251001",
         max_tokens:3000,
-        tools:[{type:"web_search_20250305",name:"web_search",max_uses:3}],
+        tools:[{type:"web_search_20250305",name:"web_search",max_uses:4}],
         system:SYS,
-        messages:[{role:"user",content:`Analyse Indian stock: ${q}. Find shareholding%, quarterly P&L, cash flows, debt, RSI, 50DMA, 200DMA, support/resistance, latest concall guidance. revenueQoQ must be QoQ GROWTH PERCENTAGES not absolute values. commentaryBreakdown items must be short like "GuidanceRaised: +5". Return only JSON.`}]
+        messages:[{role:"user",content:`Analyse Indian stock: ${q}.
+
+STEP 1: Fetch screener.in/company/${q.replace("-","")}/consolidated/ for fundamentals. If not found, use tickertape.in.
+STEP 2: Fetch tickertape.in/stocks/${q} for RSI, 50DMA, 200DMA.
+STEP 3: Check Screener.in or MoneyControl for latest concall commentary.
+
+Use CONSOLIDATED figures. revenueQoQ must be QoQ GROWTH % not absolute values. commentaryBreakdown max 30 chars like "GuidanceRaised: +5". State source in dataNote. Return only JSON.`}]
       })
     });
     if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e?.error?.message||`API error ${res.status}`);}
