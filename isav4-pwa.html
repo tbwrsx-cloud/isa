@@ -292,11 +292,22 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
 const SYS = `You are an expert Indian stock analyst. Search specific sources in order for consistent data. Return ONLY a raw JSON object, no markdown, no backticks.
 
 DATA SOURCES — search in this exact order:
-1. FUNDAMENTALS: Search "screener.in/company/SYMBOL" first. If not found (new listing), try "tickertape.in/stocks/SYMBOL" then "trendlyne.com/equity/SYMBOL".
-2. TECHNICALS (RSI, DMA, S/R): Search "tickertape.in/stocks/SYMBOL technical" or "tradingview.com NSE:SYMBOL".
-3. SHAREHOLDING: Use Screener.in shareholding pattern section (Promoters, FIIs, DIIs columns).
-4. CONCALL/COMMENTARY: Search "screener.in/company/SYMBOL" concall transcripts, or "moneycontrol SYMBOL concall".
-Always use CONSOLIDATED figures. For new listings (IPO < 1 year), use available post-IPO data only.
+1. FUNDAMENTALS: Fetch screener.in/company/SYMBOL/consolidated/ — get P&L, Balance Sheet, Cash Flow tabs.
+2. TECHNICALS: Fetch tickertape.in/stocks/SYMBOL for RSI, 50DMA, 200DMA, support/resistance.
+3. SHAREHOLDING: Screener.in shareholding section — columns are "Promoters", "FIIs", "DIIs", "Public".
+4. COMMENTARY: Screener.in concall transcripts tab, or moneycontrol SYMBOL concall.
+Always use CONSOLIDATED figures. For loss-making companies use available data.
+
+CRITICAL FIELD MAPPING from Screener.in:
+- cfOperations = "Cash from Operating Activity" (NOT "CFO") — annual figure in Cr
+- cfInvesting = "Cash from Investing Activity"
+- cfFinancing = "Cash from Financing Activity"
+- debtToReserve = MUST be a NUMBER (e.g. 24.5) — never a text description like "Low (24%)"
+- patMargin = MUST be a NUMBER (e.g. -8.87) — negative for loss-making companies
+- promoterHolding = number from "Promoters" column in shareholding table
+- All financial fields MUST be numbers, never strings or descriptions.
+- For loss-making companies: patMargin will be negative, PE will be negative — return actual numbers.
+- profitTrend: "loss_reducing" if losses are getting smaller QoQ, "loss_expanding" if growing, "profitable" if PAT > 0.
 
 SCORING RULES (apply exactly):
 FUNDAMENTAL (max 70): Promoter>50%+8, PromIncreasing+5, FIIIncreasing+5, CFO+ve+8, CFO>Inv+Fin+7, Debt/Reserve<50%+8, PATmargin>10%+8 or 5-10%+4, RevYOY+ve+8, PATyoy+ve+8, MCap/Sales<3x+5 or 3-5x+3, QoQ+ve 3/4qtrs+3, PE<30+3 or 30-50+1
@@ -308,7 +319,7 @@ commentaryBreakdown[]: use ONLY short format like "GuidanceRaised: +5" or "Promo
 revenueQoQ[4]: MUST be QoQ GROWTH PERCENTAGES like [-2.1, 4.5, 7.2, 1.8] NOT absolute revenue figures.
 dataNote: always mention which source was used e.g. "Fundamentals: Screener.in | Technicals: Tickertape | Commentary: MoneyControl"
 
-Return JSON: company, ticker, exchange, sector, currentPrice, marketCap, mcapToSales, peRatio, fundamental{publicHolding, promoterHolding, promoterHoldingChange, fiiHoldingChange, cfOperations, cfoPositive, cfoVsOthers(string), debtToReserve, revenueQoQ[4], revenueQoQLabels[4], patMargin, revenueGrowthYOY[2], revenueGrowthYOYLabels[2], patGrowthYOY[2], patGrowthYOYLabels[2], managementCommentary, revenueGuidance(raised/maintained/cut/not given), marginGuidance(expanding/stable/contracting/not given), demandOutlook(strong/moderate/weak), majorEvent}, technical{trend, rsi, macdSignal, support1, support2, resistance1, resistance2, entryZone, stopLoss, target1, target2, potentialReturn, riskReward, timeframe, movingAvg50, movingAvg200, above50DMA, above200DMA, technicalSummary}, scoring{fundamentalScore, technicalScore, commentaryScore, fundamentalBreakdown[], technicalBreakdown[], commentaryBreakdown[]}, fitScore, fitRating, fitSummary, redFlags[], positives[], dataNote`;
+Return JSON: company, ticker, exchange, sector, currentPrice, marketCap, mcapToSales, peRatio, fundamental{publicHolding, promoterHolding, promoterHoldingChange, fiiHoldingChange, cfOperations, cfoPositive, cfoVsOthers(string), debtToReserve, revenueQoQ[4], revenueQoQLabels[4], patMargin, revenueGrowthYOY[2], revenueGrowthYOYLabels[2], patGrowthYOY[2], patGrowthYOYLabels[2], managementCommentary, revenueGuidance(raised/maintained/cut/not given), marginGuidance(expanding/stable/contracting/not given), demandOutlook(strong/moderate/weak), majorEvent, profitTrend(profitable/loss_reducing/loss_expanding)}, technical{trend, rsi, macdSignal, support1, support2, resistance1, resistance2, entryZone, stopLoss, target1, target2, potentialReturn, riskReward, timeframe, movingAvg50, movingAvg200, above50DMA, above200DMA, technicalSummary}, scoring{fundamentalScore, technicalScore, commentaryScore, fundamentalBreakdown[], technicalBreakdown[], commentaryBreakdown[]}, fitScore, fitRating, fitSummary, redFlags[], positives[], dataNote`;
 
 const STEPS=["Fetching shareholding…","Analysing cash flows…","Computing P&L trends…","Running technical analysis…","Scoring fit to invest…"];
 let currentData=null,stepIv=null;
@@ -448,7 +459,7 @@ function recalcScore(d){
   if((f.fiiHoldingChange||0)>0){fs+=5;fb.push("FIIIncreasing: +5");}
   if(f.cfoPositive||(f.cfOperations||0)>0){fs+=8;fb.push("CFO+ve: +8");}
   if(String(f.cfoVsOthers||"").toLowerCase().includes("higher")){fs+=7;fb.push("CFO>Inv+Fin: +7");}
-  if((f.debtToReserve||0)>=0&&(f.debtToReserve||0)<50){fs+=8;fb.push("Debt/Res<50%: +8");}
+  const dtr=parseFloat(f.debtToReserve)||0;if(dtr>=0&&dtr<50){fs+=8;fb.push("Debt/Res<50%: +8");}
   if((f.patMargin||0)>10){fs+=8;fb.push("PATmargin>10%: +8");}
   else if((f.patMargin||0)>5){fs+=4;fb.push("PATmargin5-10%: +4");}
   if((f.revenueGrowthYOY||[]).length>=2&&f.revenueGrowthYOY.every(v=>v>0)){fs+=8;fb.push("RevYOY+ve: +8");}
@@ -627,7 +638,8 @@ function buildResult(d){
   ${mrow("CFO Positive?",d.fundamental.cfoPositive?"✓ Yes":"✗ No",d.fundamental.cfoPositive?"g":"b")}
   ${mrow("CFO vs Inv+Fin",d.fundamental.cfoVsOthers,d.fundamental.cfoVsOthers?.toLowerCase().includes("higher")?"g":"")}
   ${mrow("Debt/Reserve",d.fundamental.debtToReserve+"%",d.fundamental.debtToReserve>=50?"b":"g")}
-  ${mrow("PAT Margin",d.fundamental.patMargin+"%",d.fundamental.patMargin<=5?"b":d.fundamental.patMargin>=10?"g":"w")}
+  ${mrow("PAT Margin",(d.fundamental?.patMargin||0)+"%",d.fundamental?.patMargin<=5?"b":d.fundamental?.patMargin>=10?"g":"w")}
+  ${d.fundamental?.profitTrend?`<div class="mr"><span class="ml">Profit Trend</span><span class="mv" style="color:${d.fundamental.profitTrend==="profitable"?"#22c55e":d.fundamental.profitTrend==="loss_reducing"?"#f59e0b":"#ef4444"};font-weight:700">${d.fundamental.profitTrend==="profitable"?"✓ Profitable":d.fundamental.profitTrend==="loss_reducing"?"↑ Loss Reducing":"↓ Loss Expanding"}</span></div>`:""}
   ${mrow("MCap/Sales",d.mcapToSales+"x",d.mcapToSales>5?"b":d.mcapToSales<=3?"g":"")}
   ${mrow("PE Ratio",d.peRatio+"x","")}
   <div style="margin-top:13px">
