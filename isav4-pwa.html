@@ -293,7 +293,11 @@ const SYS = `You are an expert Indian stock analyst. Search specific sources in 
 
 DATA SOURCES — search in this exact order:
 1. FUNDAMENTALS: Fetch screener.in/company/SYMBOL/consolidated/ — get P&L, Balance Sheet, Cash Flow tabs.
-2. TECHNICALS: Fetch tickertape.in/stocks/SYMBOL for RSI, 50DMA, 200DMA, support/resistance.
+2. TECHNICALS: Fetch in this order:
+   a) trendlyne.com/equity/SYMBOL/ — RSI, 50DMA, 200DMA, MACD, support/resistance (primary)
+   b) chartink.com/stocks/SYMBOL — RSI, DMA position, technical rating (fallback)
+   c) tickertape.in/stocks/SYMBOL — if both above fail (third option)
+   Extract actual numeric values for RSI, movingAvg50, movingAvg200, support1, support2, resistance1, resistance2.
 3. SHAREHOLDING: Screener.in shareholding section — columns are "Promoters", "FIIs", "DIIs", "Public".
 4. COMMENTARY: Screener.in concall transcripts tab, or moneycontrol SYMBOL concall.
 Always use CONSOLIDATED figures. For loss-making companies use available data.
@@ -524,7 +528,7 @@ async function analyze(){
         messages:[{role:"user",content:`Analyse Indian stock: ${q}.
 
 STEP 1 - FUNDAMENTALS: Fetch https://www.screener.in/company/${q.replace("-","")}/consolidated/ — get promoter%, FII%, revenue, PAT, CFO, debt. If 404/not found, try tickertape.in then trendlyne.
-STEP 2 - TECHNICALS: Fetch tickertape.in/stocks/${q} for RSI, 50DMA, 200DMA, support/resistance levels.
+STEP 2 - TECHNICALS: Fetch trendlyne.com/equity/${q}/ for RSI, 50DMA, 200DMA, MACD, S/R levels. If data missing, try chartink.com/stocks/${q} as fallback.
 STEP 3 - COMMENTARY: Check Screener.in concall transcripts or MoneyControl for latest management guidance.
 
 IMPORTANT: Use CONSOLIDATED figures. revenueQoQ must be QoQ GROWTH % not absolute values. commentaryBreakdown max 30 chars each like "GuidanceRaised: +5". Always state which source used in dataNote. Return only JSON.`}]
@@ -663,7 +667,14 @@ function buildResult(d){
 </div>
 
 <div class="card">
-  <div class="st">⬡ Technical</div>
+  <div class="st" style="display:flex;justify-content:space-between;align-items:center">
+  <span>⬡ Technical</span>
+  <a href="https://www.tradingview.com/chart/?symbol=NSE:${d.ticker}" target="_blank"
+    style="background:#131722;color:#2962ff;border:1px solid #2962ff44;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;text-decoration:none;display:flex;align-items:center;gap:4px">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="#2962ff"><path d="M3 3h18v18H3z" opacity=".1"/><path d="M3 3h18v2H3zm0 16h18v2H3zM3 3v18H1V3zm20 0v18h-2V3z" fill="#2962ff"/><path d="M7 16l3-4 3 3 4-6" stroke="#2962ff" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+    TradingView
+  </a>
+</div>
   <div class="g3" style="margin-bottom:11px">
     <div class="pb"><div class="pl">TREND</div><div class="pv" style="color:${d.technical.trend==="Bullish"?"#22c55e":d.technical.trend==="Bearish"?"#ef4444":"#f59e0b"}">${d.technical.trend}</div></div>
     <div class="pb"><div class="pl">RSI</div><div class="pv" style="color:${d.technical.rsi>70?"#ef4444":d.technical.rsi<30?"#22c55e":"#e2e8f0"}">${d.technical.rsi}</div></div>
