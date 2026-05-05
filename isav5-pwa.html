@@ -572,7 +572,7 @@ async function analyze(){
       body:JSON.stringify({
         model:"claude-haiku-4-5-20251001",
         max_tokens:4000,
-        tools:[{type:"web_search_20250305",name:"web_search",max_uses:4}],
+        tools:[{type:"web_search_20250305",name:"web_search",max_uses:3}],
         system:SYS,
         messages:[{role:"user",content:`Analyse Indian stock: ${q}. Fetch screener.in/company/${q.replace(/[-\s]/g,"")}/consolidated/ for fundamentals. Fetch trendlyne.com/equity/${q}/ for technicals. Return only JSON.`}]
       })
@@ -586,7 +586,14 @@ async function analyze(){
     addToHist(scored);
     showResult(scored);
 
-    // ── CALL 2: DCF + Peers (async, populates tabs in background) ──
+    // ── CALL 2: DCF + Peers — wait 15s to avoid rate limit ────────────
+    document.getElementById("progressTxt").textContent="⏳ Waiting before DCF call (rate limit)…";
+    // Countdown so user sees progress
+    for(let i=15;i>0;i--){
+      const pt=document.getElementById("progressTxt");
+      if(pt) pt.textContent=`⏳ DCF & Peers loading in ${i}s…`;
+      await new Promise(r=>setTimeout(r,1000));
+    }
     document.getElementById("progressTxt").textContent="Building DCF model & peer ranking…";
     try{
       const res2=await fetch("https://api.anthropic.com/v1/messages",{
@@ -594,8 +601,8 @@ async function analyze(){
         headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
         body:JSON.stringify({
           model:"claude-haiku-4-5-20251001",
-          max_tokens:5000,
-          tools:[{type:"web_search_20250305",name:"web_search",max_uses:3}],
+          max_tokens:4000,
+          tools:[{type:"web_search_20250305",name:"web_search",max_uses:2}],
           system:SYS_DCF,
           messages:[{role:"user",content:`Stock: ${scored.ticker||q}, Company: ${scored.company||q}, Sector: ${scored.sector||"unknown"}, CMP: ${scored.currentPrice||0}, MCap: ${scored.marketCap||"unknown"}, FY25 Revenue growth: ${(scored.fundamental?.revenueGrowthYOY||[]).join(",")}, PAT margin: ${scored.fundamental?.patMargin||0}%. Build DCF (WACC, 5yr projections Bull/Base/Bear) and rank 4-5 NSE sector peers. Return only JSON.`}]
         })
@@ -620,7 +627,36 @@ async function analyze(){
       }
     }catch(e2){
       console.warn("DCF/Peers call failed (non-critical):",e2.message);
-      showToast("DCF tab: retry search","#f59e0b");
+      if(e2.message&&e2.message.includes("rate limit")){
+        showToast("Rate limit hit — DCF will retry in 60s","#f59e0b");
+        setTimeout(async()=>{
+          try{
+            const r3=await fetch("https://api.anthropic.com/v1/messages",{
+              method:"POST",
+              headers:{"Content-Type":"application/json","x-api-key":getKey(),"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+              body:JSON.stringify({
+                model:"claude-haiku-4-5-20251001",max_tokens:4000,
+                tools:[{type:"web_search_20250305",name:"web_search",max_uses:2}],
+                system:SYS_DCF,
+                messages:[{role:"user",content:`Stock: ${currentData?.ticker||""}, Sector: ${currentData?.sector||""}, CMP: ${currentData?.currentPrice||0}, PAT margin: ${currentData?.fundamental?.patMargin||0}%. Build DCF and rank 4-5 NSE sector peers. Return only JSON.`}]
+              })
+            });
+            if(r3.ok){
+              const rj=await r3.json();
+              const rt=(rj.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
+              const rp=extractJSON(rt);
+              if(rp.dcf) currentData.dcf=rp.dcf;
+              if(rp.peers) currentData.peers=rp.peers;
+              addToHist(currentData);
+              const rs2=document.getElementById("resultState");
+              if(rs2&&currentData){rs2.innerHTML=buildResult(currentData);drawGauge(currentData.fitScore);renderCommentaryChips(currentData);}
+              showToast("⬡ DCF & Peers ready","#00d4aa");
+            }
+          }catch(_){}
+        },60000);
+      } else {
+        showToast("DCF/Peers failed (non-critical) — retry later","#f59e0b");
+      }
     }
 
   }catch(e){
