@@ -19,10 +19,15 @@
   &quot;icons&quot;:[{&quot;src&quot;:&quot;https://img.icons8.com/fluency/192/stock-share.png&quot;,&quot;sizes&quot;:&quot;192x192&quot;,&quot;type&quot;:&quot;image/png&quot;},{&quot;src&quot;:&quot;https://img.icons8.com/fluency/512/stock-share.png&quot;,&quot;sizes&quot;:&quot;512x512&quot;,&quot;type&quot;:&quot;image/png&quot;}]
 }"/>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<!-- React 18 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin></script>
+<!-- PropTypes — required by Recharts -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prop-types/15.8.1/prop-types.min.js" crossorigin></script>
+<!-- Recharts 2.1.16 — last version with reliable UMD global -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.1.16/Recharts.js" crossorigin></script>
+<!-- Babel standalone for JSX -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.10.3/Recharts.js"></script>
 
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -93,11 +98,22 @@ const store = (() => {
   };
 })();
 
+// Guard: ensure Recharts loaded before destructuring
+if (typeof Recharts === 'undefined') {
+  throw new Error('Recharts failed to load from CDN. Check your internet connection and reload.');
+}
 const {
   BarChart, Bar, AreaChart, Area, RadarChart, Radar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   ReferenceLine, Legend, PolarGrid, PolarAngleAxis
 } = Recharts;
+
+// Verify key Recharts components loaded
+const _rc = Recharts;
+if (!_rc.BarChart || !_rc.AreaChart) {
+  throw new Error('Recharts components missing. Try hard-refresh (Ctrl+Shift+R).');
+}
+
 const { useState, useEffect, useCallback } = React;
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
