@@ -301,54 +301,31 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
 
 <script>
 // ── Compact system prompt (~60% shorter) ──────────────────────────────────────
-const SYS = `You are an expert Indian stock analyst. Search specific sources in order for consistent data. Return ONLY a raw JSON object, no markdown, no backticks.
+// ── System prompt 1: Core analysis (fast, ~3000 tokens output) ───────────────
+const SYS = `You are an expert Indian stock analyst. Search specific sources in order. Return ONLY a raw JSON object, no markdown, no backticks.
 
 DATA SOURCES — search in this exact order:
-1. FUNDAMENTALS: Fetch screener.in/company/SYMBOL/consolidated/ — get P&L, Balance Sheet, Cash Flow tabs.
-2. TECHNICALS: Fetch in this order:
-   a) trendlyne.com/equity/SYMBOL/ — RSI, 50DMA, 200DMA, MACD, support/resistance (primary)
-   b) chartink.com/stocks/SYMBOL — RSI, DMA position, technical rating (fallback)
-   c) tickertape.in/stocks/SYMBOL — if both above fail (third option)
-   Extract actual numeric values for RSI, movingAvg50, movingAvg200, support1, support2, resistance1, resistance2.
-3. SHAREHOLDING: Screener.in shareholding section — columns are "Promoters", "FIIs", "DIIs", "Public".
-4. COMMENTARY: Screener.in concall transcripts tab, or moneycontrol SYMBOL concall.
-Always use CONSOLIDATED figures. For loss-making companies use available data.
+1. FUNDAMENTALS: screener.in/company/SYMBOL/consolidated/ — P&L, Balance Sheet, Cash Flow.
+2. TECHNICALS: trendlyne.com/equity/SYMBOL/ for RSI, 50DMA, 200DMA, MACD, S/R. Fallback: chartink.com/stocks/SYMBOL or tickertape.in/stocks/SYMBOL.
+3. SHAREHOLDING: Screener.in shareholding — "Promoters", "FIIs", "DIIs", "Public" columns.
+4. COMMENTARY: Screener.in concall transcripts or moneycontrol concall.
+Always use CONSOLIDATED figures.
 
-CRITICAL FIELD MAPPING from Screener.in:
-- cfOperations = "Cash from Operating Activity" (NOT "CFO") — annual figure in Cr
-- cfInvesting = "Cash from Investing Activity"
-- cfFinancing = "Cash from Financing Activity"
-- debtToReserve = MUST be a NUMBER (e.g. 24.5) — never a text description like "Low (24%)"
-- patMargin = MUST be a NUMBER (e.g. -8.87) — negative for loss-making companies
-- promoterHolding = number from "Promoters" column in shareholding table
-- All financial fields MUST be numbers, never strings or descriptions.
-- For loss-making companies: patMargin will be negative, PE will be negative — return actual numbers.
-- profitTrend: "loss_reducing" if losses are getting smaller QoQ, "loss_expanding" if growing, "profitable" if PAT > 0.
+CRITICAL: debtToReserve=NUMBER, patMargin=NUMBER (negative ok), promoterHolding=NUMBER, all fields MUST be numbers not strings.
+revenueQoQ[4]: QoQ GROWTH % like [-2.1, 4.5, 7.2, 1.8] — NOT absolute values.
+profitTrend: "profitable"/"loss_reducing"/"loss_expanding"
+SCORING: Fundamental(max70): Promoter>50%+8,PromUp+5,FIIUp+5,CFO+ve+8,CFO>Inv+Fin+7,Debt<50%+8,PAT>10%+8/5-10%+4,RevYOY+8,PATyoy+8,MCapS<3x+5/3-5x+3,QoQ3/4+3,PE<30+3/30-50+1. Technical(max30): 200DMA+8,50DMA+5,RSI40-65+7/30-40+4,MACD bull+5,NearS1+5. Commentary(±15): GuidanceRaised+5/maintained+2/cut-8,OrderBook+4,MarginExp+4,Debt-3,MgmtChg-5,RegIssue-6,Auditor-8,Pledge-6.
+fitScore=(fund/70)*60+(tech/30)*20+(comm/15)*20 clamped 0-100. >=75 Strong Buy,>=55 Buy,>=35 Hold,else Avoid. PAT<=5% forces Avoid.
+commentaryBreakdown[]: max 30 chars each e.g. "GuidanceRaised: +5"
+dataNote: state sources used.
 
-SCORING RULES (apply exactly):
-FUNDAMENTAL (max 70): Promoter>50%+8, PromIncreasing+5, FIIIncreasing+5, CFO+ve+8, CFO>Inv+Fin+7, Debt/Reserve<50%+8, PATmargin>10%+8 or 5-10%+4, RevYOY+ve+8, PATyoy+ve+8, MCap/Sales<3x+5 or 3-5x+3, QoQ+ve 3/4qtrs+3, PE<30+3 or 30-50+1
-TECHNICAL (max 30): Above200DMA+8, Above50DMA+5, RSI40-65+7 or 30-40/65-70+4, MACDbullish+5, NearS1(3%)+5
-COMMENTARY (max 15, min -15): GuidanceRaised+5 or maintained+2 or cut-8, StrongOrderBook+4, MarginExpansion+4, DebtReduction+3, MgmtChange-5, RegulatoryIssue-6, AuditorConcern-8, PromoterPledge-6
-fitScore = (fundamentalScore/70)*60 + (technicalScore/30)*20 + (clamp(commentaryScore,-15,15)/15)*20, round and clamp 0-100
-Rating: >=75 Strong Buy, >=55 Buy, >=35 Hold, else Avoid. PAT<=5% forces Avoid.
-commentaryBreakdown[]: use ONLY short format like "GuidanceRaised: +5" or "PromoterPledge: -6" — max 30 chars each.
-revenueQoQ[4]: MUST be QoQ GROWTH PERCENTAGES like [-2.1, 4.5, 7.2, 1.8] NOT absolute revenue figures.
-dataNote: always mention which source was used e.g. "Fundamentals: Screener.in | Technicals: Tickertape | Commentary: MoneyControl"
+Return JSON: {company,ticker,exchange,sector,currentPrice,marketCap,mcapToSales,peRatio,fundamental:{publicHolding,promoterHolding,promoterHoldingChange,fiiHoldingChange,cfOperations,cfoPositive,cfoVsOthers,debtToReserve,revenueQoQ,revenueQoQLabels,patMargin,revenueGrowthYOY,revenueGrowthYOYLabels,patGrowthYOY,patGrowthYOYLabels,managementCommentary,revenueGuidance,marginGuidance,demandOutlook,majorEvent,profitTrend},technical:{trend,rsi,macdSignal,support1,support2,resistance1,resistance2,entryZone,stopLoss,target1,target2,potentialReturn,riskReward,timeframe,movingAvg50,movingAvg200,above50DMA,above200DMA,technicalSummary},scoring:{fundamentalScore,technicalScore,commentaryScore,fundamentalBreakdown,technicalBreakdown,commentaryBreakdown},fitScore,fitRating,fitSummary,redFlags,positives,dataNote}`;
 
-Return JSON with ALL of these keys:
-company, ticker, exchange, sector, currentPrice, marketCap, mcapToSales, peRatio,
-fundamental{publicHolding, promoterHolding, promoterHoldingChange, fiiHoldingChange, cfOperations, cfoPositive, cfoVsOthers(string), debtToReserve, revenueQoQ[4], revenueQoQLabels[4], patMargin, revenueGrowthYOY[2], revenueGrowthYOYLabels[2], patGrowthYOY[2], patGrowthYOYLabels[2], managementCommentary, revenueGuidance(raised/maintained/cut/not given), marginGuidance(expanding/stable/contracting/not given), demandOutlook(strong/moderate/weak), majorEvent, profitTrend(profitable/loss_reducing/loss_expanding)},
-technical{trend, rsi, macdSignal, support1, support2, resistance1, resistance2, entryZone, stopLoss, target1, target2, potentialReturn, riskReward, timeframe, movingAvg50, movingAvg200, above50DMA, above200DMA, technicalSummary},
-scoring{fundamentalScore, technicalScore, commentaryScore, fundamentalBreakdown[], technicalBreakdown[], commentaryBreakdown[]},
-fitScore, fitRating, fitSummary, redFlags[], positives[], dataNote,
-dcf{wacc, beta, riskFreeRate, erp, orderBacklogCr, keyOrderNote,
-  bull{projRevenue[5], projPAT[5], projFCFF[5], projLabels[5], ebitMarginTarget, terminalGrowth, intrinsicValue, upside},
-  base{projRevenue[5], projPAT[5], projFCFF[5], projLabels[5], ebitMarginTarget, terminalGrowth, intrinsicValue, upside},
-  bear{projRevenue[5], projPAT[5], projFCFF[5], projLabels[5], ebitMarginTarget, terminalGrowth, intrinsicValue, upside},
-  segments[{name, fy25Rev, fy28eRev, ebitMargin, cagr, desc}],
-  valueBridge{pvExplicitFCFF, pvTerminalValue, enterpriseValue, netCash, equityValue, sharesCr}},
-peers[{name, fullName, ticker, sector, cmp, mcap, promoterHolding, promoterChange, fiiChange, cfoPositive, debtToReserve, patMargin, mcapToSales, peRatio, revenueGrowthYOY[2], patGrowthYOY[2], trend, rsi, above50dma, above200dma, from52wHigh, commentary, redFlags[], positives[], fitRating}]
-For peers: include 4-5 real NSE-listed sector peers with actual current data. Compute fitRating per our scoring rules. peers[0] MUST be the searched scrip itself.`;
+// ── System prompt 2: DCF + Peers (separate call after core succeeds) ──────────
+const SYS_DCF = `You are an expert Indian stock analyst and valuation specialist. Given a stock ticker and its basic financials, return ONLY a raw JSON object (no markdown, no backticks) with DCF valuation and peer comparison.
+
+Return JSON: {dcf:{wacc,beta,riskFreeRate,erp,orderBacklogCr,keyOrderNote,bull:{projRevenue,projPAT,projFCFF,projLabels,ebitMarginTarget,terminalGrowth,intrinsicValue,upside},base:{projRevenue,projPAT,projFCFF,projLabels,ebitMarginTarget,terminalGrowth,intrinsicValue,upside},bear:{projRevenue,projPAT,projFCFF,projLabels,ebitMarginTarget,terminalGrowth,intrinsicValue,upside},segments:[{name,fy25Rev,fy28eRev,ebitMargin,cagr,desc}],valueBridge:{pvExplicitFCFF,pvTerminalValue,enterpriseValue,netCash,equityValue,sharesCr}},peers:[{name,fullName,ticker,sector,cmp,mcap,promoterHolding,promoterChange,fiiChange,cfoPositive,debtToReserve,patMargin,mcapToSales,peRatio,revenueGrowthYOY,patGrowthYOY,trend,rsi,above50dma,above200dma,from52wHigh,commentary,redFlags,positives,fitRating}]}
+All projections cover 5 years (FY26-FY30). peers[0] = searched scrip. Include 4 real NSE sector peers. All numbers not strings.`;
 
 const STEPS=["Fetching shareholding…","Analysing cash flows…","Computing P&L trends…","Running technical analysis…","Scoring fit to invest…"];
 let currentData=null,stepIv=null;
@@ -547,29 +524,65 @@ async function analyze(){
   let si=0;document.getElementById("progressTxt").textContent=STEPS[0];
   stepIv=setInterval(()=>{si=(si+1)%STEPS.length;document.getElementById("progressTxt").textContent=STEPS[si];},2200);
   try{
+    // ── CALL 1: Core analysis (fundamentals + technicals + scoring) ──
+    document.getElementById("progressTxt").textContent="Fetching fundamentals & technicals…";
     const res=await fetch("https://api.anthropic.com/v1/messages",{
       method:"POST",
       headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
       body:JSON.stringify({
         model:"claude-haiku-4-5-20251001",
-        max_tokens:3000,
+        max_tokens:4000,
         tools:[{type:"web_search_20250305",name:"web_search",max_uses:4}],
         system:SYS,
-        messages:[{role:"user",content:`Analyse Indian stock: ${q}.
-
-STEP 1 - FUNDAMENTALS: Fetch https://www.screener.in/company/${q.replace("-","")}/consolidated/ — get promoter%, FII%, revenue, PAT, CFO, debt. If 404/not found, try tickertape.in then trendlyne.
-STEP 2 - TECHNICALS: Fetch trendlyne.com/equity/${q}/ for RSI, 50DMA, 200DMA, MACD, S/R levels. If data missing, try chartink.com/stocks/${q} as fallback.
-STEP 3 - COMMENTARY: Check Screener.in concall transcripts or MoneyControl for latest management guidance.
-
-IMPORTANT: Use CONSOLIDATED figures. revenueQoQ must be QoQ GROWTH % not absolute values. commentaryBreakdown max 30 chars each like "GuidanceRaised: +5". Always state which source used in dataNote. Return only JSON.`}]
+        messages:[{role:"user",content:`Analyse Indian stock: ${q}. Fetch screener.in/company/${q.replace(/[-\s]/g,"")}/consolidated/ for fundamentals. Fetch trendlyne.com/equity/${q}/ for technicals. Return only JSON.`}]
       })
     });
     if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e?.error?.message||`API error ${res.status}`);}
     const result=await res.json();
     const text=(result.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
-    const parsed=extractJSON(text);
-    const scored=recalcScore(parsed); // Always apply local weighted formula
-    currentData=scored;addToHist(scored);showResult(scored);
+    let parsed=extractJSON(text);
+    // Null-safety: ensure nested objects always exist
+    if(!parsed.fundamental) parsed.fundamental={};
+    if(!parsed.technical)   parsed.technical={};
+    if(!parsed.scoring)     parsed.scoring={fundamentalScore:0,technicalScore:0,commentaryScore:0,fundamentalBreakdown:[],technicalBreakdown:[],commentaryBreakdown:[]};
+    const scored=recalcScore(parsed);
+    currentData=scored;
+    addToHist(scored);
+    showResult(scored);
+
+    // ── CALL 2: DCF + Peers (async, populates tabs in background) ──
+    document.getElementById("progressTxt").textContent="Building DCF model & peer ranking…";
+    try{
+      const res2=await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+        body:JSON.stringify({
+          model:"claude-haiku-4-5-20251001",
+          max_tokens:5000,
+          tools:[{type:"web_search_20250305",name:"web_search",max_uses:3}],
+          system:SYS_DCF,
+          messages:[{role:"user",content:`Stock: ${scored.ticker||q}, Company: ${scored.company||q}, Sector: ${scored.sector||"unknown"}, CMP: ${scored.currentPrice||0}, MCap: ${scored.marketCap||"unknown"}, FY25 Revenue growth: ${(scored.fundamental?.revenueGrowthYOY||[]).join(",")}, PAT margin: ${scored.fundamental?.patMargin||0}%. Build DCF (WACC, 5yr projections Bull/Base/Bear) and rank 4-5 NSE sector peers. Return only JSON.`}]
+        })
+      });
+      if(res2.ok){
+        const r2=await res2.json();
+        const t2=(r2.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
+        const p2=extractJSON(t2);
+        // Merge DCF+Peers into currentData
+        if(p2.dcf)   currentData.dcf=p2.dcf;
+        if(p2.peers) currentData.peers=p2.peers;
+        // Update history entry with DCF+Peers
+        addToHist(currentData);
+        // Render DCF+Peers tabs
+        if(typeof renderDCF==="function")   renderDCF(currentData);
+        if(typeof renderPeers==="function") renderPeers(currentData);
+        showToast("⬡ DCF & Peers ready","#00d4aa");
+      }
+    }catch(e2){
+      console.warn("DCF/Peers call failed (non-critical):",e2.message);
+      showToast("DCF tab: retry search","#f59e0b");
+    }
+
   }catch(e){
     showError(e.message||"Check API key and internet connection.");
     console.error(e);
@@ -665,33 +678,33 @@ function buildResult(d){
 
 <div class="card">
   <div class="st">⬡ Fundamental</div>
-  ${mrow("Promoter Holding",d.fundamental.promoterHolding+"%",d.fundamental.promoterHolding>50?"g":"")}
-  ${mrow("Promoter Change",(d.fundamental.promoterHoldingChange>0?"+":"")+d.fundamental.promoterHoldingChange+"%",d.fundamental.promoterHoldingChange<-2?"b":d.fundamental.promoterHoldingChange>=0?"g":"")}
-  ${mrow("Public Holding",d.fundamental.publicHolding+"%","")}
-  ${mrow("FII Change",(d.fundamental.fiiHoldingChange>0?"+":"")+d.fundamental.fiiHoldingChange+"%",d.fundamental.fiiHoldingChange>0?"g":"b")}
-  ${mrow("CFO Positive?",d.fundamental.cfoPositive?"✓ Yes":"✗ No",d.fundamental.cfoPositive?"g":"b")}
-  ${mrow("CFO vs Inv+Fin",d.fundamental.cfoVsOthers,d.fundamental.cfoVsOthers?.toLowerCase().includes("higher")?"g":"")}
-  ${mrow("Debt/Reserve",d.fundamental.debtToReserve+"%",d.fundamental.debtToReserve>=50?"b":"g")}
-  ${mrow("PAT Margin",(d.fundamental?.patMargin||0)+"%",d.fundamental?.patMargin<=5?"b":d.fundamental?.patMargin>=10?"g":"w")}
-  ${d.fundamental?.profitTrend?`<div class="mr"><span class="ml">Profit Trend</span><span class="mv" style="color:${d.fundamental.profitTrend==="profitable"?"#22c55e":d.fundamental.profitTrend==="loss_reducing"?"#f59e0b":"#ef4444"};font-weight:700">${d.fundamental.profitTrend==="profitable"?"✓ Profitable":d.fundamental.profitTrend==="loss_reducing"?"↑ Loss Reducing":"↓ Loss Expanding"}</span></div>`:""}
+  ${mrow("Promoter Holding",(d.fundamental||{}).promoterHolding+"%",(d.fundamental||{}).promoterHolding>50?"g":"")}
+  ${mrow("Promoter Change",((d.fundamental||{}).promoterHoldingChange>0?"+":"")+(d.fundamental||{}).promoterHoldingChange+"%",(d.fundamental||{}).promoterHoldingChange<-2?"b":(d.fundamental||{}).promoterHoldingChange>=0?"g":"")}
+  ${mrow("Public Holding",(d.fundamental||{}).publicHolding+"%","")}
+  ${mrow("FII Change",((d.fundamental||{}).fiiHoldingChange>0?"+":"")+(d.fundamental||{}).fiiHoldingChange+"%",(d.fundamental||{}).fiiHoldingChange>0?"g":"b")}
+  ${mrow("CFO Positive?",(d.fundamental||{}).cfoPositive?"✓ Yes":"✗ No",(d.fundamental||{}).cfoPositive?"g":"b")}
+  ${mrow("CFO vs Inv+Fin",(d.fundamental||{}).cfoVsOthers,(d.fundamental||{}).cfoVsOthers?.toLowerCase().includes("higher")?"g":"")}
+  ${mrow("Debt/Reserve",(d.fundamental||{}).debtToReserve+"%",(d.fundamental||{}).debtToReserve>=50?"b":"g")}
+  ${mrow("PAT Margin",((d.fundamental||{}).patMargin||0)+"%",(d.fundamental||{}).patMargin<=5?"b":(d.fundamental||{}).patMargin>=10?"g":"w")}
+  ${(d.fundamental||{}).profitTrend?`<div class="mr"><span class="ml">Profit Trend</span><span class="mv" style="color:${(d.fundamental||{}).profitTrend==="profitable"?"#22c55e":(d.fundamental||{}).profitTrend==="loss_reducing"?"#f59e0b":"#ef4444"};font-weight:700">${(d.fundamental||{}).profitTrend==="profitable"?"✓ Profitable":(d.fundamental||{}).profitTrend==="loss_reducing"?"↑ Loss Reducing":"↓ Loss Expanding"}</span></div>`:""}
   ${mrow("MCap/Sales",d.mcapToSales+"x",d.mcapToSales>5?"b":d.mcapToSales<=3?"g":"")}
   ${mrow("PE Ratio",d.peRatio+"x","")}
   <div style="margin-top:13px">
     <div style="color:#64748b;font-size:10px;margin-bottom:7px;letter-spacing:1px">QUARTERLY REVENUE GROWTH (QoQ %)</div>
-    ${bars(d.fundamental.revenueQoQ,d.fundamental.revenueQoQLabels,30,"#00d4aa")}
+    ${bars((d.fundamental||{}).revenueQoQ,(d.fundamental||{}).revenueQoQLabels,30,"#00d4aa")}
   </div>
   <div class="g2" style="margin-top:11px;gap:14px">
-    <div><div style="color:#64748b;font-size:10px;margin-bottom:6px">REVENUE YOY</div>${bars(d.fundamental.revenueGrowthYOY,d.fundamental.revenueGrowthYOYLabels,50,"#38bdf8")}</div>
-    <div><div style="color:#64748b;font-size:10px;margin-bottom:6px">PAT YOY</div>${bars(d.fundamental.patGrowthYOY,d.fundamental.patGrowthYOYLabels,50,"#22c55e")}</div>
+    <div><div style="color:#64748b;font-size:10px;margin-bottom:6px">REVENUE YOY</div>${bars((d.fundamental||{}).revenueGrowthYOY,(d.fundamental||{}).revenueGrowthYOYLabels,50,"#38bdf8")}</div>
+    <div><div style="color:#64748b;font-size:10px;margin-bottom:6px">PAT YOY</div>${bars((d.fundamental||{}).patGrowthYOY,(d.fundamental||{}).patGrowthYOYLabels,50,"#22c55e")}</div>
   </div>
   <div class="cbox">
     <div style="color:#00d4aa;font-size:10px;letter-spacing:2px;margin-bottom:7px;font-weight:700">MANAGEMENT COMMENTARY</div>
-    <div style="color:#94a3b8;font-size:12px;line-height:1.6;margin-bottom:9px">${d.fundamental?.managementCommentary||"N/A"}</div>
+    <div style="color:#94a3b8;font-size:12px;line-height:1.6;margin-bottom:9px">${(d.fundamental||{}).managementCommentary||"N/A"}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px"><div style="color:#64748b;font-size:9px;margin-bottom:2px">REVENUE GUIDANCE</div><div style="font-weight:700;font-size:11px;color:${String(d.fundamental?.revenueGuidance||"")=="raised"?"#22c55e":String(d.fundamental?.revenueGuidance||"")=="cut"?"#ef4444":"#f59e0b"}">${String(d.fundamental?.revenueGuidance||"--").toUpperCase()}</div></div>
-      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px"><div style="color:#64748b;font-size:9px;margin-bottom:2px">MARGIN GUIDANCE</div><div style="font-weight:700;font-size:11px;color:${String(d.fundamental?.marginGuidance||"")=="expanding"?"#22c55e":String(d.fundamental?.marginGuidance||"")=="contracting"?"#ef4444":"#f59e0b"}">${String(d.fundamental?.marginGuidance||"--").toUpperCase()}</div></div>
-      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px"><div style="color:#64748b;font-size:9px;margin-bottom:2px">DEMAND OUTLOOK</div><div style="font-weight:700;font-size:11px;color:${String(d.fundamental?.demandOutlook||"")=="strong"?"#22c55e":String(d.fundamental?.demandOutlook||"")=="weak"?"#ef4444":"#f59e0b"}">${String(d.fundamental?.demandOutlook||"--").toUpperCase()}</div></div>
-      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px"><div style="color:#64748b;font-size:9px;margin-bottom:2px">MAJOR EVENT</div><div style="color:#94a3b8;font-size:10px;font-weight:600">${String(d.fundamental?.majorEvent||"--")}</div></div>
+      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px"><div style="color:#64748b;font-size:9px;margin-bottom:2px">REVENUE GUIDANCE</div><div style="font-weight:700;font-size:11px;color:${String((d.fundamental||{}).revenueGuidance||"")=="raised"?"#22c55e":String((d.fundamental||{}).revenueGuidance||"")=="cut"?"#ef4444":"#f59e0b"}">${String((d.fundamental||{}).revenueGuidance||"--").toUpperCase()}</div></div>
+      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px"><div style="color:#64748b;font-size:9px;margin-bottom:2px">MARGIN GUIDANCE</div><div style="font-weight:700;font-size:11px;color:${String((d.fundamental||{}).marginGuidance||"")=="expanding"?"#22c55e":String((d.fundamental||{}).marginGuidance||"")=="contracting"?"#ef4444":"#f59e0b"}">${String((d.fundamental||{}).marginGuidance||"--").toUpperCase()}</div></div>
+      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px"><div style="color:#64748b;font-size:9px;margin-bottom:2px">DEMAND OUTLOOK</div><div style="font-weight:700;font-size:11px;color:${String((d.fundamental||{}).demandOutlook||"")=="strong"?"#22c55e":String((d.fundamental||{}).demandOutlook||"")=="weak"?"#ef4444":"#f59e0b"}">${String((d.fundamental||{}).demandOutlook||"--").toUpperCase()}</div></div>
+      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px"><div style="color:#64748b;font-size:9px;margin-bottom:2px">MAJOR EVENT</div><div style="color:#94a3b8;font-size:10px;font-weight:600">${String((d.fundamental||{}).majorEvent||"--")}</div></div>
     </div>
   </div>
 </div>
@@ -706,36 +719,36 @@ function buildResult(d){
   </a>
 </div>
   <div class="g3" style="margin-bottom:11px">
-    <div class="pb"><div class="pl">TREND</div><div class="pv" style="color:${d.technical.trend==="Bullish"?"#22c55e":d.technical.trend==="Bearish"?"#ef4444":"#f59e0b"}">${d.technical.trend}</div></div>
-    <div class="pb"><div class="pl">RSI</div><div class="pv" style="color:${d.technical.rsi>70?"#ef4444":d.technical.rsi<30?"#22c55e":"#e2e8f0"}">${d.technical.rsi}</div></div>
-    <div class="pb"><div class="pl">MACD</div><div class="pv" style="font-size:10px;color:${d.technical.macdSignal?.includes("Bullish")?"#22c55e":d.technical.macdSignal?.includes("Bearish")?"#ef4444":"#f59e0b"}">${d.technical.macdSignal}</div></div>
+    <div class="pb"><div class="pl">TREND</div><div class="pv" style="color:${(d.technical||{}).trend==="Bullish"?"#22c55e":(d.technical||{}).trend==="Bearish"?"#ef4444":"#f59e0b"}">${(d.technical||{}).trend}</div></div>
+    <div class="pb"><div class="pl">RSI</div><div class="pv" style="color:${(d.technical||{}).rsi>70?"#ef4444":(d.technical||{}).rsi<30?"#22c55e":"#e2e8f0"}">${(d.technical||{}).rsi}</div></div>
+    <div class="pb"><div class="pl">MACD</div><div class="pv" style="font-size:10px;color:${(d.technical||{}).macdSignal?.includes("Bullish")?"#22c55e":(d.technical||{}).macdSignal?.includes("Bearish")?"#ef4444":"#f59e0b"}">${(d.technical||{}).macdSignal}</div></div>
   </div>
   <div class="g4" style="margin-bottom:11px">
-    ${pbox("S1","Rs."+d.technical.support1,"#22c55e",true)}
-    ${pbox("S2","Rs."+d.technical.support2,"#22c55e",true)}
-    ${pbox("R1","Rs."+d.technical.resistance1,"#ef4444",true)}
-    ${pbox("R2","Rs."+d.technical.resistance2,"#ef4444",true)}
+    ${pbox("S1","Rs."+(d.technical||{}).support1,"#22c55e",true)}
+    ${pbox("S2","Rs."+(d.technical||{}).support2,"#22c55e",true)}
+    ${pbox("R1","Rs."+(d.technical||{}).resistance1,"#ef4444",true)}
+    ${pbox("R2","Rs."+(d.technical||{}).resistance2,"#ef4444",true)}
   </div>
   <div class="tbox">
-    <div style="color:#22c55e;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:9px">TRADE SETUP · ${d.technical.timeframe}</div>
+    <div style="color:#22c55e;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:9px">TRADE SETUP · ${(d.technical||{}).timeframe}</div>
     <div class="g2">
-      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">ENTRY ZONE</div><div style="color:#00d4aa;font-weight:700;font-family:monospace;font-size:12px">${d.technical.entryZone}</div></div>
-      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">STOP LOSS</div><div style="color:#ef4444;font-weight:700;font-family:monospace;font-size:12px">Rs.${d.technical.stopLoss}</div></div>
-      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">TARGET 1</div><div style="color:#22c55e;font-weight:700;font-family:monospace;font-size:12px">Rs.${d.technical.target1}</div></div>
-      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">TARGET 2</div><div style="color:#22c55e;font-weight:700;font-family:monospace;font-size:12px">Rs.${d.technical.target2}</div></div>
+      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">ENTRY ZONE</div><div style="color:#00d4aa;font-weight:700;font-family:monospace;font-size:12px">${(d.technical||{}).entryZone}</div></div>
+      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">STOP LOSS</div><div style="color:#ef4444;font-weight:700;font-family:monospace;font-size:12px">Rs.${(d.technical||{}).stopLoss}</div></div>
+      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">TARGET 1</div><div style="color:#22c55e;font-weight:700;font-family:monospace;font-size:12px">Rs.${(d.technical||{}).target1}</div></div>
+      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">TARGET 2</div><div style="color:#22c55e;font-weight:700;font-family:monospace;font-size:12px">Rs.${(d.technical||{}).target2}</div></div>
     </div>
     <div style="display:flex;gap:16px;margin-top:9px;border-top:1px solid #22c55e22;padding-top:7px">
-      <div><span style="color:#64748b;font-size:11px">Return: </span><span style="color:#22c55e;font-weight:700;font-family:monospace">${d.technical.potentialReturn}%</span></div>
-      <div><span style="color:#64748b;font-size:11px">R:R: </span><span style="color:#00d4aa;font-weight:700;font-family:monospace">${d.technical.riskReward}</span></div>
+      <div><span style="color:#64748b;font-size:11px">Return: </span><span style="color:#22c55e;font-weight:700;font-family:monospace">${(d.technical||{}).potentialReturn}%</span></div>
+      <div><span style="color:#64748b;font-size:11px">R:R: </span><span style="color:#00d4aa;font-weight:700;font-family:monospace">${(d.technical||{}).riskReward}</span></div>
     </div>
   </div>
   <div class="g2" style="margin-bottom:9px">
-    <div class="pb"><div class="pl">50-Day MA</div><div class="pv" style="color:${d.technical.above50DMA?"#22c55e":"#ef4444"}">Rs.${d.technical.movingAvg50} ${d.technical.above50DMA?"↑":"↓"}</div></div>
-    <div class="pb"><div class="pl">200-Day MA</div><div class="pv" style="color:${d.technical.above200DMA?"#22c55e":"#ef4444"}">Rs.${d.technical.movingAvg200} ${d.technical.above200DMA?"↑":"↓"}</div></div>
+    <div class="pb"><div class="pl">50-Day MA</div><div class="pv" style="color:${(d.technical||{}).above50DMA?"#22c55e":"#ef4444"}">Rs.${(d.technical||{}).movingAvg50} ${(d.technical||{}).above50DMA?"↑":"↓"}</div></div>
+    <div class="pb"><div class="pl">200-Day MA</div><div class="pv" style="color:${(d.technical||{}).above200DMA?"#22c55e":"#ef4444"}">Rs.${(d.technical||{}).movingAvg200} ${(d.technical||{}).above200DMA?"↑":"↓"}</div></div>
   </div>
   <div class="obox">
     <div style="color:#38bdf8;font-size:10px;letter-spacing:2px;margin-bottom:4px;font-weight:700">TECHNICAL OUTLOOK</div>
-    <div style="color:#94a3b8;font-size:12px;line-height:1.6">${d.technical.technicalSummary}</div>
+    <div style="color:#94a3b8;font-size:12px;line-height:1.6">${(d.technical||{}).technicalSummary}</div>
   </div>
 </div>
 
@@ -819,53 +832,53 @@ function downloadReport(){
 </div>
 <div class="card"><div style="color:#00d4aa;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:9px;text-transform:uppercase">Fundamental Analysis</div>
   <div class="g2"><div>
-    <div class="row"><span style="color:#64748b">Promoter Holding</span><span style="color:${d.fundamental.promoterHolding>50?"#22c55e":"#e2e8f0"};font-family:monospace">${d.fundamental.promoterHolding}%</span></div>
-    <div class="row"><span style="color:#64748b">Promoter Change</span><span style="color:${d.fundamental.promoterHoldingChange<-2?"#ef4444":d.fundamental.promoterHoldingChange>=0?"#22c55e":"#e2e8f0"};font-family:monospace">${d.fundamental.promoterHoldingChange>0?"+":""}${d.fundamental.promoterHoldingChange}%</span></div>
-    <div class="row"><span style="color:#64748b">FII Change</span><span style="color:${d.fundamental.fiiHoldingChange>0?"#22c55e":"#ef4444"};font-family:monospace">${d.fundamental.fiiHoldingChange>0?"+":""}${d.fundamental.fiiHoldingChange}%</span></div>
-    <div class="row"><span style="color:#64748b">CFO Positive?</span><span style="color:${d.fundamental.cfoPositive?"#22c55e":"#ef4444"};font-family:monospace">${d.fundamental.cfoPositive?"Yes":"No"}</span></div>
+    <div class="row"><span style="color:#64748b">Promoter Holding</span><span style="color:${(d.fundamental||{}).promoterHolding>50?"#22c55e":"#e2e8f0"};font-family:monospace">${(d.fundamental||{}).promoterHolding}%</span></div>
+    <div class="row"><span style="color:#64748b">Promoter Change</span><span style="color:${(d.fundamental||{}).promoterHoldingChange<-2?"#ef4444":(d.fundamental||{}).promoterHoldingChange>=0?"#22c55e":"#e2e8f0"};font-family:monospace">${(d.fundamental||{}).promoterHoldingChange>0?"+":""}${(d.fundamental||{}).promoterHoldingChange}%</span></div>
+    <div class="row"><span style="color:#64748b">FII Change</span><span style="color:${(d.fundamental||{}).fiiHoldingChange>0?"#22c55e":"#ef4444"};font-family:monospace">${(d.fundamental||{}).fiiHoldingChange>0?"+":""}${(d.fundamental||{}).fiiHoldingChange}%</span></div>
+    <div class="row"><span style="color:#64748b">CFO Positive?</span><span style="color:${(d.fundamental||{}).cfoPositive?"#22c55e":"#ef4444"};font-family:monospace">${(d.fundamental||{}).cfoPositive?"Yes":"No"}</span></div>
   </div><div>
-    <div class="row"><span style="color:#64748b">Debt/Reserve</span><span style="color:${d.fundamental.debtToReserve>=50?"#ef4444":"#22c55e"};font-family:monospace">${d.fundamental.debtToReserve}%</span></div>
-    <div class="row"><span style="color:#64748b">PAT Margin</span><span style="color:${d.fundamental.patMargin<=5?"#ef4444":d.fundamental.patMargin>=10?"#22c55e":"#f59e0b"};font-family:monospace">${d.fundamental.patMargin}%</span></div>
+    <div class="row"><span style="color:#64748b">Debt/Reserve</span><span style="color:${(d.fundamental||{}).debtToReserve>=50?"#ef4444":"#22c55e"};font-family:monospace">${(d.fundamental||{}).debtToReserve}%</span></div>
+    <div class="row"><span style="color:#64748b">PAT Margin</span><span style="color:${(d.fundamental||{}).patMargin<=5?"#ef4444":(d.fundamental||{}).patMargin>=10?"#22c55e":"#f59e0b"};font-family:monospace">${(d.fundamental||{}).patMargin}%</span></div>
     <div class="row"><span style="color:#64748b">MCap/Sales</span><span style="color:${d.mcapToSales>5?"#ef4444":d.mcapToSales<=3?"#22c55e":"#e2e8f0"};font-family:monospace">${d.mcapToSales}x</span></div>
     <div class="row"><span style="color:#64748b">PE Ratio</span><span style="font-family:monospace">${d.peRatio}x</span></div>
   </div></div>
-  <div style="margin-top:11px"><div style="color:#64748b;font-size:10px;margin-bottom:7px">QoQ REVENUE GROWTH</div>${bars(d.fundamental.revenueQoQ,d.fundamental.revenueQoQLabels,30,"#00d4aa")}</div>
+  <div style="margin-top:11px"><div style="color:#64748b;font-size:10px;margin-bottom:7px">QoQ REVENUE GROWTH</div>${bars((d.fundamental||{}).revenueQoQ,(d.fundamental||{}).revenueQoQLabels,30,"#00d4aa")}</div>
   <div class="g2" style="margin-top:9px">
-    <div><div style="color:#64748b;font-size:10px;margin-bottom:6px">REVENUE YOY</div>${bars(d.fundamental.revenueGrowthYOY,d.fundamental.revenueGrowthYOYLabels,50,"#38bdf8")}</div>
-    <div><div style="color:#64748b;font-size:10px;margin-bottom:6px">PAT YOY</div>${bars(d.fundamental.patGrowthYOY,d.fundamental.patGrowthYOYLabels,50,"#22c55e")}</div>
+    <div><div style="color:#64748b;font-size:10px;margin-bottom:6px">REVENUE YOY</div>${bars((d.fundamental||{}).revenueGrowthYOY,(d.fundamental||{}).revenueGrowthYOYLabels,50,"#38bdf8")}</div>
+    <div><div style="color:#64748b;font-size:10px;margin-bottom:6px">PAT YOY</div>${bars((d.fundamental||{}).patGrowthYOY,(d.fundamental||{}).patGrowthYOYLabels,50,"#22c55e")}</div>
   </div>
-  <div style="background:#111827;border-left:3px solid #00d4aa;border-radius:5px;padding:10px;margin-top:9px"><div style="color:#00d4aa;font-size:10px;letter-spacing:2px;margin-bottom:4px;font-weight:700">MANAGEMENT COMMENTARY</div><div style="color:#94a3b8;font-size:12px;line-height:1.5">${d.fundamental.managementCommentary}</div></div>
+  <div style="background:#111827;border-left:3px solid #00d4aa;border-radius:5px;padding:10px;margin-top:9px"><div style="color:#00d4aa;font-size:10px;letter-spacing:2px;margin-bottom:4px;font-weight:700">MANAGEMENT COMMENTARY</div><div style="color:#94a3b8;font-size:12px;line-height:1.5">${(d.fundamental||{}).managementCommentary}</div></div>
 </div>
 <div class="card"><div style="color:#00d4aa;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:9px;text-transform:uppercase">Technical Analysis</div>
   <div class="g3" style="margin-bottom:11px">
-    <div class="box"><div style="color:#64748b;font-size:10px;margin-bottom:2px">TREND</div><div style="font-weight:700;font-family:monospace;color:${d.technical.trend==="Bullish"?"#22c55e":d.technical.trend==="Bearish"?"#ef4444":"#f59e0b"}">${d.technical.trend}</div></div>
-    <div class="box"><div style="color:#64748b;font-size:10px;margin-bottom:2px">RSI</div><div style="font-weight:700;font-family:monospace;color:${d.technical.rsi>70?"#ef4444":d.technical.rsi<30?"#22c55e":"#e2e8f0"}">${d.technical.rsi}</div></div>
-    <div class="box"><div style="color:#64748b;font-size:10px;margin-bottom:2px">MACD</div><div style="font-weight:700;font-size:11px;color:${d.technical.macdSignal?.includes("Bullish")?"#22c55e":d.technical.macdSignal?.includes("Bearish")?"#ef4444":"#f59e0b"}">${d.technical.macdSignal}</div></div>
+    <div class="box"><div style="color:#64748b;font-size:10px;margin-bottom:2px">TREND</div><div style="font-weight:700;font-family:monospace;color:${(d.technical||{}).trend==="Bullish"?"#22c55e":(d.technical||{}).trend==="Bearish"?"#ef4444":"#f59e0b"}">${(d.technical||{}).trend}</div></div>
+    <div class="box"><div style="color:#64748b;font-size:10px;margin-bottom:2px">RSI</div><div style="font-weight:700;font-family:monospace;color:${(d.technical||{}).rsi>70?"#ef4444":(d.technical||{}).rsi<30?"#22c55e":"#e2e8f0"}">${(d.technical||{}).rsi}</div></div>
+    <div class="box"><div style="color:#64748b;font-size:10px;margin-bottom:2px">MACD</div><div style="font-weight:700;font-size:11px;color:${(d.technical||{}).macdSignal?.includes("Bullish")?"#22c55e":(d.technical||{}).macdSignal?.includes("Bearish")?"#ef4444":"#f59e0b"}">${(d.technical||{}).macdSignal}</div></div>
   </div>
   <div class="g4" style="margin-bottom:11px">
-    <div class="box" style="border:1px solid #22c55e44"><div style="color:#64748b;font-size:10px">S1</div><div style="color:#22c55e;font-weight:700;font-family:monospace">Rs.${d.technical.support1}</div></div>
-    <div class="box" style="border:1px solid #22c55e44"><div style="color:#64748b;font-size:10px">S2</div><div style="color:#22c55e;font-weight:700;font-family:monospace">Rs.${d.technical.support2}</div></div>
-    <div class="box" style="border:1px solid #ef444444"><div style="color:#64748b;font-size:10px">R1</div><div style="color:#ef4444;font-weight:700;font-family:monospace">Rs.${d.technical.resistance1}</div></div>
-    <div class="box" style="border:1px solid #ef444444"><div style="color:#64748b;font-size:10px">R2</div><div style="color:#ef4444;font-weight:700;font-family:monospace">Rs.${d.technical.resistance2}</div></div>
+    <div class="box" style="border:1px solid #22c55e44"><div style="color:#64748b;font-size:10px">S1</div><div style="color:#22c55e;font-weight:700;font-family:monospace">Rs.${(d.technical||{}).support1}</div></div>
+    <div class="box" style="border:1px solid #22c55e44"><div style="color:#64748b;font-size:10px">S2</div><div style="color:#22c55e;font-weight:700;font-family:monospace">Rs.${(d.technical||{}).support2}</div></div>
+    <div class="box" style="border:1px solid #ef444444"><div style="color:#64748b;font-size:10px">R1</div><div style="color:#ef4444;font-weight:700;font-family:monospace">Rs.${(d.technical||{}).resistance1}</div></div>
+    <div class="box" style="border:1px solid #ef444444"><div style="color:#64748b;font-size:10px">R2</div><div style="color:#ef4444;font-weight:700;font-family:monospace">Rs.${(d.technical||{}).resistance2}</div></div>
   </div>
   <div class="trade" style="margin-bottom:9px">
-    <div style="color:#22c55e;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:9px">TRADE SETUP | ${d.technical.timeframe}</div>
+    <div style="color:#22c55e;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:9px">TRADE SETUP | ${(d.technical||{}).timeframe}</div>
     <div class="g4">
-      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">ENTRY</div><div style="color:#00d4aa;font-weight:700;font-family:monospace">${d.technical.entryZone}</div></div>
-      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">SL</div><div style="color:#ef4444;font-weight:700;font-family:monospace">Rs.${d.technical.stopLoss}</div></div>
-      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">T1</div><div style="color:#22c55e;font-weight:700;font-family:monospace">Rs.${d.technical.target1}</div></div>
-      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">T2</div><div style="color:#22c55e;font-weight:700;font-family:monospace">Rs.${d.technical.target2}</div></div>
+      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">ENTRY</div><div style="color:#00d4aa;font-weight:700;font-family:monospace">${(d.technical||{}).entryZone}</div></div>
+      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">SL</div><div style="color:#ef4444;font-weight:700;font-family:monospace">Rs.${(d.technical||{}).stopLoss}</div></div>
+      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">T1</div><div style="color:#22c55e;font-weight:700;font-family:monospace">Rs.${(d.technical||{}).target1}</div></div>
+      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">T2</div><div style="color:#22c55e;font-weight:700;font-family:monospace">Rs.${(d.technical||{}).target2}</div></div>
     </div>
     <div style="display:flex;gap:18px;margin-top:9px;border-top:1px solid #22c55e22;padding-top:7px">
-      <div><span style="color:#64748b;font-size:11px">Return: </span><span style="color:#22c55e;font-weight:700;font-family:monospace">${d.technical.potentialReturn}%</span></div>
-      <div><span style="color:#64748b;font-size:11px">R:R: </span><span style="color:#00d4aa;font-weight:700;font-family:monospace">${d.technical.riskReward}</span></div>
+      <div><span style="color:#64748b;font-size:11px">Return: </span><span style="color:#22c55e;font-weight:700;font-family:monospace">${(d.technical||{}).potentialReturn}%</span></div>
+      <div><span style="color:#64748b;font-size:11px">R:R: </span><span style="color:#00d4aa;font-weight:700;font-family:monospace">${(d.technical||{}).riskReward}</span></div>
     </div>
   </div>
   <div class="g2" style="margin-bottom:9px">
-    <div class="box"><div style="color:#64748b;font-size:10px;margin-bottom:2px">50-Day MA</div><div style="font-weight:700;font-family:monospace;color:${d.technical.above50DMA?"#22c55e":"#ef4444"}">Rs.${d.technical.movingAvg50} ${d.technical.above50DMA?"↑":"↓"}</div></div>
-    <div class="box"><div style="color:#64748b;font-size:10px;margin-bottom:2px">200-Day MA</div><div style="font-weight:700;font-family:monospace;color:${d.technical.above200DMA?"#22c55e":"#ef4444"}">Rs.${d.technical.movingAvg200} ${d.technical.above200DMA?"↑":"↓"}</div></div>
+    <div class="box"><div style="color:#64748b;font-size:10px;margin-bottom:2px">50-Day MA</div><div style="font-weight:700;font-family:monospace;color:${(d.technical||{}).above50DMA?"#22c55e":"#ef4444"}">Rs.${(d.technical||{}).movingAvg50} ${(d.technical||{}).above50DMA?"↑":"↓"}</div></div>
+    <div class="box"><div style="color:#64748b;font-size:10px;margin-bottom:2px">200-Day MA</div><div style="font-weight:700;font-family:monospace;color:${(d.technical||{}).above200DMA?"#22c55e":"#ef4444"}">Rs.${(d.technical||{}).movingAvg200} ${(d.technical||{}).above200DMA?"↑":"↓"}</div></div>
   </div>
-  <div style="background:#111827;border-left:3px solid #38bdf8;border-radius:5px;padding:10px"><div style="color:#38bdf8;font-size:10px;letter-spacing:2px;margin-bottom:4px;font-weight:700">TECHNICAL OUTLOOK</div><div style="color:#94a3b8;font-size:12px;line-height:1.5">${d.technical.technicalSummary}</div></div>
+  <div style="background:#111827;border-left:3px solid #38bdf8;border-radius:5px;padding:10px"><div style="color:#38bdf8;font-size:10px;letter-spacing:2px;margin-bottom:4px;font-weight:700">TECHNICAL OUTLOOK</div><div style="color:#94a3b8;font-size:12px;line-height:1.5">${(d.technical||{}).technicalSummary}</div></div>
 </div>
 <div style="color:#64748b;font-size:10px;text-align:center;margin-top:9px;line-height:1.5">${d.dataNote?`<div style="color:#f59e0b;margin-bottom:3px">ⓘ ${d.dataNote}</div>`:""}IndiaStock Analyser | AI-generated | Not financial advice</div>
 </body></html>`;
