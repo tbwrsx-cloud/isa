@@ -22,7 +22,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.7/Recharts.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.10.3/Recharts.js"></script>
 
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -72,6 +72,27 @@ window.addEventListener('beforeinstallprompt',e=>{
 </script>
 
 <script type="text/babel">
+
+// ── Storage shim: works as localStorage when window.storage unavailable ───────
+const store = (() => {
+  const isNative = typeof window !== 'undefined' && window.storage && typeof window.storage.get === 'function';
+  return {
+    async get(key) {
+      if (isNative) return store.get(key);
+      const v = localStorage.getItem(key);
+      return v ? { value: v } : null;
+    },
+    async set(key, value) {
+      if (isNative) return store.set(key, value);
+      localStorage.setItem(key, value); return { value };
+    },
+    async delete(key) {
+      if (isNative) return store.delete(key);
+      localStorage.removeItem(key); return { deleted: true };
+    }
+  };
+})();
+
 const {
   BarChart, Bar, AreaChart, Area, RadarChart, Radar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -1028,7 +1049,7 @@ function App() {
   // Load saved index
   useEffect(()=>{
     (async()=>{
-      try { const r=await window.storage.get("isa6:index"); if(r) setSaved(JSON.parse(r.value)); } catch(_){}
+      try { const r=await store.get("isa6:index"); if(r) setSaved(JSON.parse(r.value)); } catch(_){}
       setStorageOk(true);
     })();
   },[]);
@@ -1036,23 +1057,23 @@ function App() {
   const saveAnalysis = useCallback(async d => {
     try {
       const key=`isa6:${d.meta.ticker}:${Date.now()}`;
-      await window.storage.set(key, JSON.stringify(d));
+      await store.set(key, JSON.stringify(d));
       const entry={key,ticker:d.meta.ticker,company:d.meta.company,fitScore:d.analyser.fitScore,fitRating:d.analyser.fitRating,date:new Date().toLocaleDateString("en-IN")};
       const newList=[entry,...saved].slice(0,30);
-      await window.storage.set("isa6:index",JSON.stringify(newList));
+      await store.set("isa6:index",JSON.stringify(newList));
       setSaved(newList);
     } catch(e){ console.error(e); }
   },[saved]);
 
   const loadAnalysis = async key => {
-    try { const r=await window.storage.get(key); if(r){setData(JSON.parse(r.value));setPage("analyse");} } catch(e){ console.error(e); }
+    try { const r=await store.get(key); if(r){setData(JSON.parse(r.value));setPage("analyse");} } catch(e){ console.error(e); }
   };
 
   const deleteAnalysis = async key => {
     try {
-      await window.storage.delete(key);
+      await store.delete(key);
       const newList=saved.filter(s=>s.key!==key);
-      await window.storage.set("isa6:index",JSON.stringify(newList));
+      await store.set("isa6:index",JSON.stringify(newList));
       setSaved(newList);
     } catch(e){ console.error(e); }
   };
@@ -1078,7 +1099,12 @@ function App() {
       if(result.error) throw new Error(result.error.message||"API error");
       const text=(result.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
       const clean=text.replace(/```json|```/g,"").trim();
-      const parsed=JSON.parse(clean);
+      // Find JSON object boundaries robustly
+      const jsonStart=clean.indexOf("{");
+      const jsonEnd=clean.lastIndexOf("}");
+      if(jsonStart===-1||jsonEnd===-1) throw new Error("No JSON found in response. Try again.");
+      const parsed=JSON.parse(clean.slice(jsonStart,jsonEnd+1));
+      if(!parsed.meta||!parsed.analyser) throw new Error("Incomplete response. Try again.");
       setData(parsed);
       await saveAnalysis(parsed);
     } catch(e){
@@ -1172,7 +1198,30 @@ function App() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+// Error boundary component
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(e) { return { error: e }; }
+  render() {
+    if (this.state.error) return (
+      <div style={{padding:30,color:"#f87171",fontFamily:"monospace",background:"#060910",minHeight:"100vh"}}>
+        <div style={{fontSize:18,marginBottom:12}}>⚠ App Error</div>
+        <div style={{fontSize:12,color:"#6b8aad",marginBottom:8}}>ISA v6 encountered an error:</div>
+        <pre style={{fontSize:11,color:"#f87171",background:"#0c1220",padding:12,borderRadius:8,overflow:"auto"}}>{this.state.error.message}</pre>
+        <button onClick={()=>window.location.reload()} style={{marginTop:16,background:"#00d4aa",color:"#000",border:"none",borderRadius:6,padding:"8px 16px",fontWeight:700,cursor:"pointer"}}>Reload</button>
+      </div>
+    );
+    return this.props.children;
+  }
+}
+
+try {
+  ReactDOM.createRoot(document.getElementById("root")).render(
+    <ErrorBoundary><App/></ErrorBoundary>
+  );
+} catch(e) {
+  document.getElementById("root").innerHTML = '<div style="padding:30px;color:#f87171;font-family:monospace;background:#060910;min-height:100vh"><div style="font-size:18px;margin-bottom:12px">⚠ Startup Error</div><pre style="font-size:11px">' + e.message + '</pre><button onclick="location.reload()" style="margin-top:16px;background:#00d4aa;color:#000;border:none;border-radius:6px;padding:8px 16px;font-weight:700;cursor:pointer">Reload</button></div>';
+}
 </script>
 </body>
 </html>
