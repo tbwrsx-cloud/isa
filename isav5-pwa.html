@@ -398,7 +398,7 @@ function switchTab(t){
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const rc=r=>r.includes("Strong Buy")?"#22c55e":r.includes("Buy")?"#00d4aa":r.includes("Hold")?"#f59e0b":"#ef4444";
+const rc=r=>{const s=String(r||"");return s.includes("Strong Buy")?"#22c55e":s.includes("Buy")?"#00d4aa":s.includes("Hold")?"#f59e0b":"#ef4444";};
 const bdg=(l,c)=>`<span class="bdg" style="background:${c}22;color:${c};border:1px solid ${c}44">${l}</span>`;
 const mrow=(l,v,t)=>`<div class="mr"><span class="ml">${l}</span><span class="mv ${t}">${v}</span></div>`;
 const miniBar=(l,v,max,col)=>{const pct=Math.min(Math.abs(v)/max*100,100),neg=v<0;return`<div class="mbar"><div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:#64748b">${l}</span><span style="color:${neg?"#ef4444":"#22c55e"};font-family:monospace">${neg?"":"+"}${v}%</span></div><div class="mbt"><div class="mbf" style="width:${pct}%;background:${neg?"#ef4444":col}"></div></div></div>`;};
@@ -455,6 +455,31 @@ const updateHistCount=()=>{const el=document.getElementById("histCount");if(el)e
 
 
 // ── Data sanitizer — fixes non-string fields from old/bad API responses ──────
+
+// ── Normalize fitRating — Haiku sometimes returns garbage strings ─────────────
+function normalizeFitRating(rating, score){
+  if(!rating) return scoreToRating(score);
+  const r = String(rating).trim();
+  // Valid values
+  if(r==="Strong Buy"||r==="Buy"||r==="Hold"||r==="Avoid") return r;
+  // Common variations
+  const rl = r.toLowerCase();
+  if(rl.includes("strong")&&rl.includes("buy")) return "Strong Buy";
+  if(rl.includes("buy"))   return "Buy";
+  if(rl.includes("hold"))  return "Hold";
+  if(rl.includes("avoid")||rl.includes("sell")) return "Avoid";
+  // Garbage string — fall back to score-based rating
+  return scoreToRating(score);
+}
+
+function scoreToRating(score){
+  const s = Number(score)||0;
+  if(s>=75) return "Strong Buy";
+  if(s>=55) return "Buy";
+  if(s>=35) return "Hold";
+  return "Avoid";
+}
+
 function sanitizeData(d){
   if(!d) return d;
   if(!d.fundamental) d.fundamental={};
@@ -483,6 +508,14 @@ function sanitizeData(d){
    "debtToReserve","patMargin","publicHolding"].forEach(k=>{
     if(f[k]!==undefined && typeof f[k]!=="number") f[k]=parseFloat(f[k])||0;
   });
+  // Normalize fitRating to valid values only
+  d.fitRating = normalizeFitRating(d.fitRating, d.fitScore);
+  // Also normalize peer fitRatings
+  if(Array.isArray(d.peers)){
+    d.peers.forEach(p=>{
+      p.fitRating = normalizeFitRating(p.fitRating, p._fit||p.fitScore||0);
+    });
+  }
   return d;
 }
 
@@ -803,7 +836,8 @@ function buildPeersBody(data){
     const techS=p.trend==="Bullish"&&p.above50dma&&p.above200dma&&rsiOk?20:p.trend==="Bullish"?13:p.trend==="Sideways"?8:3;
     const fit=Math.min(promS+cfS+profS+growS+techS,100);
     const rating=(p.patMargin||0)<=5?"Avoid":fit>=75?"Strong Buy":fit>=55?"Buy":fit>=35?"Hold":"Avoid";
-    return {...p,_fit:fit,_rating:p.fitRating||rating};
+    // Use local computed rating (client-side) — override Haiku's unreliable fitRating
+    return {...p,_fit:fit,_rating:rating};
   }).sort((a,b)=>b._fit-a._fit);
 
   // Store for detail panel
@@ -893,9 +927,10 @@ function getPeerHistBadge(ticker){
   const hist = loadHist();
   const entry = hist.find(h => String(h.ticker||'').toUpperCase() === String(ticker||'').toUpperCase());
   if(!entry) return '';
-  const col = rc(entry.fitRating);
-  return `<span class="peer-hist-badge" onclick="event.stopPropagation();loadPeerFromHist('${ticker}')" title="Load saved analysis">
-    ✓ ${entry.fitScore} · ${entry.fitRating}
+  const cleanRating = normalizeFitRating(entry.fitRating, entry.fitScore);
+  const col = rc(cleanRating);
+  return `<span class="peer-hist-badge" style="background:${col}18;border-color:${col}44;color:${col}" onclick="event.stopPropagation();loadPeerFromHist('${ticker}')" title="Load saved analysis">
+    ✓ ${entry.fitScore} · ${cleanRating}
   </span>`;
 }
 
@@ -2066,7 +2101,7 @@ function renderPeers(data){
     const techS=p.trend==="Bullish"&&p.above50dma&&p.above200dma&&rsiOk?20:p.trend==="Bullish"?13:p.trend==="Sideways"?8:3;
     const fit=Math.min(promS+cfS+profS+growS+techS,100);
     const rating=p.patMargin<=5?"Avoid":fit>=75?"Strong Buy":fit>=55?"Buy":fit>=35?"Hold":"Avoid";
-    return{...p,_fit:fit,_rating:p.fitRating||rating,_s:{pr:promS,cf:cfS,prof:profS,gr:growS,te:techS}};
+    return{...p,_fit:fit,_rating:rating,_s:{pr:promS,cf:cfS,prof:profS,gr:growS,te:techS}};
   }).sort((a,b)=>b._fit-a._fit);
   window._scoredPeers=scored;
 
