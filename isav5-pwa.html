@@ -446,6 +446,39 @@ function addToHist(d){
 }
 const updateHistCount=()=>{const el=document.getElementById("histCount");if(el)el.textContent=loadHist().length;};
 
+
+// ── Data sanitizer — fixes non-string fields from old/bad API responses ──────
+function sanitizeData(d){
+  if(!d) return d;
+  if(!d.fundamental) d.fundamental={};
+  if(!d.technical)   d.technical={};
+  if(!d.scoring)     d.scoring={fundamentalScore:0,technicalScore:0,commentaryScore:0,fundamentalBreakdown:[],technicalBreakdown:[],commentaryBreakdown:[]};
+  // Ensure array fields are actually arrays
+  const f=d.fundamental;
+  ["revenueQoQ","revenueQoQLabels","revenueGrowthYOY","revenueGrowthYOYLabels",
+   "patGrowthYOY","patGrowthYOYLabels"].forEach(k=>{ if(!Array.isArray(f[k])) f[k]=[]; });
+  ["fundamentalBreakdown","technicalBreakdown","commentaryBreakdown"].forEach(k=>{
+    if(!Array.isArray(d.scoring[k])) d.scoring[k]=[];
+  });
+  if(!Array.isArray(d.redFlags))  d.redFlags=[];
+  if(!Array.isArray(d.positives)) d.positives=[];
+  // Ensure string fields are strings
+  ["cfoVsOthers","managementCommentary","revenueGuidance","marginGuidance",
+   "demandOutlook","majorEvent","profitTrend"].forEach(k=>{
+    if(f[k]!==undefined && typeof f[k]!=="string") f[k]=String(f[k]);
+  });
+  const t=d.technical;
+  ["trend","macdSignal","entryZone","timeframe","technicalSummary","riskReward"].forEach(k=>{
+    if(t[k]!==undefined && typeof t[k]!=="string") t[k]=String(t[k]);
+  });
+  // Ensure numeric fields are numbers
+  ["promoterHolding","promoterHoldingChange","fiiHoldingChange","cfOperations",
+   "debtToReserve","patMargin","publicHolding"].forEach(k=>{
+    if(f[k]!==undefined && typeof f[k]!=="number") f[k]=parseFloat(f[k])||0;
+  });
+  return d;
+}
+
 // ── Robust JSON extractor ─────────────────────────────────────────────────────
 function extractJSON(text){
   let s=text.replace(/```json|```/gi,"").trim();
@@ -540,11 +573,7 @@ async function analyze(){
     if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e?.error?.message||`API error ${res.status}`);}
     const result=await res.json();
     const text=(result.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
-    let parsed=extractJSON(text);
-    // Null-safety: ensure nested objects always exist
-    if(!parsed.fundamental) parsed.fundamental={};
-    if(!parsed.technical)   parsed.technical={};
-    if(!parsed.scoring)     parsed.scoring={fundamentalScore:0,technicalScore:0,commentaryScore:0,fundamentalBreakdown:[],technicalBreakdown:[],commentaryBreakdown:[]};
+    let parsed=sanitizeData(extractJSON(text));
     const scored=recalcScore(parsed);
     currentData=scored;
     addToHist(scored);
@@ -809,6 +838,7 @@ function delHist(i){const l=loadHist();l.splice(i,1);saveHist(l);updateHistCount
 // ── Download Report ───────────────────────────────────────────────────────────
 function downloadReport(){
   if(!currentData)return;
+  currentData=sanitizeData(currentData);
   const d=currentData,col=rc(d.fitRating),sc=d.fitScore>=75?"#22c55e":d.fitScore>=55?"#00d4aa":d.fitScore>=35?"#f59e0b":"#ef4444";
   const bars=(arr,lbs,max,c)=>(arr||[]).map((v,i)=>{const pct=Math.min(Math.abs(v)/max*100,100),neg=v<0;return`<div style="margin-bottom:6px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px"><span style="color:#94a3b8">${lbs?.[i]||`Q${i+1}`}</span><span style="color:${neg?"#ef4444":"#22c55e"};font-family:monospace">${neg?"":"+"}${v}%</span></div><div style="background:#1e2d45;border-radius:3px;height:5px"><div style="width:${pct}%;background:${neg?"#ef4444":c};border-radius:3px;height:5px"></div></div></div>`;}).join("");
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${d.company} Analysis</title>
@@ -1039,7 +1069,7 @@ function loadHist2(i){
   if(!d.fundamental)d.fundamental={};
   if(!d.technical)d.technical={};
   if(!d.company&&d.ticker)d.company=d.ticker;
-  currentData=d;showResult(d);switchTab("analyse");
+  d=sanitizeData(d);currentData=d;showResult(d);switchTab("analyse");
 }
 function delHist(i){const l=loadHist();l.splice(i,1);saveHist(l);updateHistCount();renderHistory();}
 
@@ -1280,7 +1310,7 @@ function loadWL(i){
   if(!d.scoring)d.scoring={fundamentalScore:0,technicalScore:0,commentaryScore:0,fundamentalBreakdown:[],technicalBreakdown:[],commentaryBreakdown:[]};
   if(!d.fitScore&&wl[i].fitScore)d.fitScore=wl[i].fitScore;
   if(!d.fitRating&&wl[i].fitRating)d.fitRating=wl[i].fitRating;
-  currentData=d;showResult(d);switchTab("analyse");
+  d=sanitizeData(d);currentData=d;showResult(d);switchTab("analyse");
 }
 
 // ══════════════════════════════════════════════════════════
