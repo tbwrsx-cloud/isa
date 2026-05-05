@@ -19,14 +19,9 @@
   &quot;icons&quot;:[{&quot;src&quot;:&quot;https://img.icons8.com/fluency/192/stock-share.png&quot;,&quot;sizes&quot;:&quot;192x192&quot;,&quot;type&quot;:&quot;image/png&quot;},{&quot;src&quot;:&quot;https://img.icons8.com/fluency/512/stock-share.png&quot;,&quot;sizes&quot;:&quot;512x512&quot;,&quot;type&quot;:&quot;image/png&quot;}]
 }"/>
 
-<!-- React 18 -->
+<!-- React 18 + Babel only — no Recharts dependency -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin></script>
-<!-- PropTypes — required by Recharts -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/prop-types/15.8.1/prop-types.min.js" crossorigin></script>
-<!-- Recharts 2.1.16 — last version with reliable UMD global -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.1.16/Recharts.js" crossorigin></script>
-<!-- Babel standalone for JSX -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 
 <style>
@@ -98,21 +93,129 @@ const store = (() => {
   };
 })();
 
-// Guard: ensure Recharts loaded before destructuring
-if (typeof Recharts === 'undefined') {
-  throw new Error('Recharts failed to load from CDN. Check your internet connection and reload.');
-}
-const {
-  BarChart, Bar, AreaChart, Area, RadarChart, Radar,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  ReferenceLine, Legend, PolarGrid, PolarAngleAxis
-} = Recharts;
 
-// Verify key Recharts components loaded
-const _rc = Recharts;
-if (!_rc.BarChart || !_rc.AreaChart) {
-  throw new Error('Recharts components missing. Try hard-refresh (Ctrl+Shift+R).');
-}
+// ── Pure SVG chart components (no external deps) ─────────────────────────────
+
+// Mini bar chart — pure SVG
+const MiniBarChart = ({ data, dataKey, color="#00d4aa", height=120 }) => {
+  if (!data?.length) return null;
+  const vals = data.map(d => Number(d[dataKey]||0));
+  const max = Math.max(...vals.map(Math.abs), 1);
+  const w = 100/vals.length;
+  return (
+    <svg width="100%" height={height} style={{overflow:"visible"}}>
+      {vals.map((v,i) => {
+        const pct = Math.abs(v)/max;
+        const barH = pct * (height-24);
+        const neg = v < 0;
+        const col = neg ? "#f87171" : color;
+        return (
+          <g key={i}>
+            <rect x={`${i*w+0.5}%`} y={height-24-barH} width={`${w-1}%`} height={barH}
+              fill={col} opacity={0.85} rx={2}/>
+            <text x={`${i*w+w/2}%`} y={height-8} textAnchor="middle"
+              fill="#4a6080" fontSize={8} fontFamily="monospace">
+              {data[i].name||data[i].yr||data[i].year||""}
+            </text>
+            <text x={`${i*w+w/2}%`} y={height-24-barH-4} textAnchor="middle"
+              fill={col} fontSize={8} fontFamily="monospace">
+              {v>0?"+":""}{v}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+};
+
+// Mini area chart — pure SVG
+const MiniAreaChart = ({ data, keys=[], colors=["#e8b84b","#34d399"], height=160, labels=true }) => {
+  if (!data?.length) return null;
+  const pw = 100/(data.length-1||1);
+  const allVals = data.flatMap(d => keys.map(k => Number(d[k]||0)));
+  const max = Math.max(...allVals, 1);
+  const toY = v => height - 28 - (Number(v)/max)*(height-36);
+  const toX = i => `${i*pw}%`;
+
+  return (
+    <svg width="100%" height={height} style={{overflow:"visible"}}>
+      <defs>
+        {keys.map((k,ki) => (
+          <linearGradient key={k} id={`ag${ki}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={colors[ki%colors.length]} stopOpacity={0.3}/>
+            <stop offset="100%" stopColor={colors[ki%colors.length]} stopOpacity={0}/>
+          </linearGradient>
+        ))}
+      </defs>
+      {/* grid lines */}
+      {[0,0.25,0.5,0.75,1].map(f => (
+        <line key={f} x1="0" x2="100%" y1={height-28-(f*(height-36))} y2={height-28-(f*(height-36))}
+          stroke="#1a2640" strokeWidth={1}/>
+      ))}
+      {keys.map((k,ki) => {
+        const pts = data.map((d,i) => `${toX(i)},${toY(d[k])}`);
+        const area = `M ${pts[0]} ${pts.slice(1).map(p=>`L ${p}`).join(' ')} L 100%,${height-28} L 0,${height-28} Z`;
+        const line = `M ${pts[0]} ${pts.slice(1).map(p=>`L ${p}`).join(' ')}`;
+        return (
+          <g key={k}>
+            <path d={area} fill={`url(#ag${ki})`}/>
+            <path d={line} fill="none" stroke={colors[ki%colors.length]} strokeWidth={1.5}/>
+            {data.map((d,i) => (
+              <circle key={i} cx={toX(i)} cy={toY(d[k])} r={2.5}
+                fill={colors[ki%colors.length]}/>
+            ))}
+          </g>
+        );
+      })}
+      {/* x labels */}
+      {labels && data.map((d,i) => (
+        <text key={i} x={toX(i)} y={height-10} textAnchor="middle"
+          fill="#4a6080" fontSize={8} fontFamily="monospace">
+          {d.yr||d.year||d.label||""}
+        </text>
+      ))}
+      {/* ref line between historical and projected */}
+      {data.findIndex(d=>d.type==='proj') > 0 && (
+        <line x1={toX(data.findIndex(d=>d.type==='proj'))}
+              x2={toX(data.findIndex(d=>d.type==='proj'))}
+              y1={0} y2={height-28}
+              stroke="#243558" strokeDasharray="4,3" strokeWidth={1}/>
+      )}
+    </svg>
+  );
+};
+
+// Spider/Radar chart — pure SVG
+const MiniRadar = ({ data, color="#00d4aa", size=150 }) => {
+  if (!data?.length) return null;
+  const cx=size/2, cy=size/2, r=size*0.38;
+  const n=data.length;
+  const angle = i => (i/n)*2*Math.PI - Math.PI/2;
+  const pt = (i,frac) => ({
+    x: cx + Math.cos(angle(i))*r*frac,
+    y: cy + Math.sin(angle(i))*r*frac
+  });
+  const rings = [0.25,0.5,0.75,1];
+  const dataPoints = data.map((d,i) => pt(i, Math.min((d.score||0)/100,1)));
+  const poly = dataPoints.map(p=>`${p.x},${p.y}`).join(' ');
+  return (
+    <svg width={size} height={size}>
+      {rings.map(f => (
+        <polygon key={f} points={Array.from({length:n},(_,i)=>pt(i,f)).map(p=>`${p.x},${p.y}`).join(' ')}
+          fill="none" stroke="#1a2640" strokeWidth={1}/>
+      ))}
+      {Array.from({length:n},(_,i) => {
+        const p=pt(i,1); return <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke="#1a2640" strokeWidth={1}/>;
+      })}
+      <polygon points={poly} fill={color+"33"} stroke={color} strokeWidth={1.5}/>
+      {data.map((d,i) => {
+        const lp=pt(i,1.22);
+        return <text key={i} x={lp.x} y={lp.y} textAnchor="middle" dominantBaseline="middle"
+          fill="#6b8aad" fontSize={7} fontFamily="monospace">{d.axis}</text>;
+      })}
+    </svg>
+  );
+};
 
 const { useState, useEffect, useCallback } = React;
 
@@ -359,17 +462,6 @@ const SectionCard = ({ title, color=C.gold, children }) => (
   </div>
 );
 
-const CustomTooltip = ({ active, payload, label }) => {
-  if (!active||!payload?.length) return null;
-  return (
-    <div style={{background:C.surface,border:`1px solid ${C.borderLight}`,borderRadius:8,padding:"10px 14px",fontSize:11}}>
-      <div style={{color:C.gold,fontWeight:700,marginBottom:6}}>{label}</div>
-      {payload.map((p,i)=>(
-        <div key={i} style={{color:p.color,marginBottom:2}}>{p.name}: <strong>₹{Number(p.value).toLocaleString()}</strong></div>
-      ))}
-    </div>
-  );
-};
 
 const EmptyState = ({ icon, title, sub }) => (
   <div style={{textAlign:"center",padding:"70px 20px"}}>
@@ -638,28 +730,12 @@ function DCFView({ data }) {
 
           {/* Revenue+PAT chart */}
           <SectionCard title="Revenue & PAT trajectory (₹ Cr)">
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={chartData} margin={{top:5,right:5,left:5,bottom:0}}>
-                <defs>
-                  <linearGradient id="rg" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={C.gold} stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor={C.gold} stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="pg" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={scColor} stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor={scColor} stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke={C.border}/>
-                <XAxis dataKey="yr" tick={{fill:C.muted,fontSize:9}} axisLine={false} tickLine={false}/>
-                <YAxis tick={{fill:C.muted,fontSize:9}} axisLine={false} tickLine={false} tickFormatter={v=>`₹${(v/1000).toFixed(0)}K`}/>
-                <Tooltip content={<CustomTooltip/>}/>
-                <ReferenceLine x={dcf.revenueFYLabels?.at(-1)} stroke={C.borderLight} strokeDasharray="4 4"/>
-                <Legend formatter={v=><span style={{color:C.textDim,fontSize:10}}>{v}</span>}/>
-                <Area type="monotone" dataKey="revenue" name="Revenue" stroke={C.gold} fill="url(#rg)" strokeWidth={2} dot={{fill:C.gold,r:2}}/>
-                <Area type="monotone" dataKey="pat" name="PAT" stroke={scColor} fill="url(#pg)" strokeWidth={2} dot={{fill:scColor,r:2}}/>
-              </AreaChart>
-            </ResponsiveContainer>
+            <MiniAreaChart
+              data={chartData}
+              keys={["revenue","pat"]}
+              colors={[C.gold, scColor]}
+              height={180}
+            />
           </SectionCard>
 
           {/* Projection table */}
@@ -966,13 +1042,9 @@ function PeersView({ data }) {
                   </div>
                   <span style={{color:col,fontWeight:700,fontSize:18,fontFamily:"monospace"}}>{p.fitScore}</span>
                 </div>
-                <ResponsiveContainer width="100%" height={150}>
-                  <RadarChart data={buildRadar(p)}>
-                    <PolarGrid stroke={C.border}/>
-                    <PolarAngleAxis dataKey="axis" tick={{fill:C.textDim,fontSize:8}}/>
-                    <Radar dataKey="score" stroke={col} fill={col} fillOpacity={0.2}/>
-                  </RadarChart>
-                </ResponsiveContainer>
+                <div style={{display:"flex",justifyContent:"center"}}>
+                  <MiniRadar data={buildRadar(p)} color={col} size={140}/>
+                </div>
               </div>
             );
           })}
