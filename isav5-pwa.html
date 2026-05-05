@@ -74,6 +74,15 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
 .disc{color:#64748b;font-size:10px;text-align:center;line-height:1.7;padding:4px 14px 10px}
 ::-webkit-scrollbar{width:3px}
 ::-webkit-scrollbar-thumb{background:#1e2d45;border-radius:2px}
+/* Collapsible sections */
+.sec-hdr{display:flex;justify-content:space-between;align-items:center;cursor:pointer;padding:2px 0;user-select:none;-webkit-user-select:none}
+.sec-hdr:active{opacity:0.7}
+.sec-arrow{color:#64748b;font-size:14px;transition:transform 0.25s;display:inline-block;margin-left:4px}
+.sec-arrow.open{transform:rotate(180deg)}
+.sec-body{overflow:hidden;transition:max-height 0.3s ease;max-height:0}
+.sec-body.open{max-height:4000px}
+.peer-hist-badge{display:inline-flex;align-items:center;gap:4px;background:#00d4aa18;border:1px solid #00d4aa44;border-radius:10px;padding:2px 8px;font-size:10px;font-weight:700;color:#00d4aa;cursor:pointer;margin-left:6px}
+.peer-hist-badge:active{opacity:0.7}
 </style>
 </head>
 <body>
@@ -140,8 +149,6 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
     <button class="tb" id="tab-watchlist" onclick="switchTab('watchlist')" style="white-space:nowrap;flex-shrink:0;padding:14px 10px">⭐ Watchlist (<span id="watchCount">0</span>)</button>
     <button class="tb" id="tab-portfolio" onclick="switchTab('portfolio')" style="white-space:nowrap;flex-shrink:0;padding:14px 10px">💼 Portfolio</button>
     <button class="tb" id="tab-trends" onclick="switchTab('trends')" style="white-space:nowrap;flex-shrink:0;padding:14px 10px">📈 Trends</button>
-    <button class="tb" id="tab-dcf" onclick="switchTab('dcf')" style="white-space:nowrap;flex-shrink:0;padding:14px 10px">⬡ DCF</button>
-    <button class="tb" id="tab-peers" onclick="switchTab('peers')" style="white-space:nowrap;flex-shrink:0;padding:14px 10px">🏆 Peers</button>
     <button class="tb" id="tab-gtt" onclick="switchTab('gtt')" style="white-space:nowrap;flex-shrink:0;padding:14px 10px">🎯 GTT</button>
     <button class="tb" id="tab-settings" onclick="switchTab('settings')" style="white-space:nowrap;flex-shrink:0;padding:14px 10px">⚙ Settings</button>
   </div>
@@ -377,7 +384,7 @@ window.addEventListener("load",()=>{
 
 // ── Tab switching ─────────────────────────────────────────────────────────────
 function switchTab(t){
-  ["analyse","history","watchlist","portfolio","trends","dcf","peers","gtt","settings"].forEach(x=>{
+  ["analyse","history","watchlist","portfolio","trends","gtt","settings"].forEach(x=>{
     const v=document.getElementById("view-"+x);
     const b=document.getElementById("tab-"+x);
     if(v)v.style.display=x===t?"block":"none";
@@ -600,12 +607,16 @@ async function analyze(){
         // Merge DCF+Peers into currentData
         if(p2.dcf)   currentData.dcf=p2.dcf;
         if(p2.peers) currentData.peers=p2.peers;
-        // Update history entry with DCF+Peers
+        // Update history entry with DCF+Peers stored
         addToHist(currentData);
-        // Render DCF+Peers tabs
-        if(typeof renderDCF==="function")   renderDCF(currentData);
-        if(typeof renderPeers==="function") renderPeers(currentData);
-        showToast("⬡ DCF & Peers ready","#00d4aa");
+        // Refresh the inline DCF+Peers sections within Analyse page
+        const rs=document.getElementById("resultState");
+        if(rs&&currentData){
+          rs.innerHTML=buildResult(currentData);
+          drawGauge(currentData.fitScore);
+          renderCommentaryChips(currentData);
+        }
+        showToast("⬡ DCF & Peers ready — scroll down","#00d4aa");
       }
     }catch(e2){
       console.warn("DCF/Peers call failed (non-critical):",e2.message);
@@ -634,6 +645,231 @@ function showError(msg){
   document.getElementById("errorState").style.display="block";
   document.getElementById("errorState").innerHTML=`<div class="ebox">⚠ ${msg}</div>`;
 }
+
+
+// ── Inline DCF body builder (returns HTML string) ────────────────────────────
+function buildDCFBody(data){
+  const d=data?.dcf;
+  if(!d?.base) return `<div style="color:#64748b;font-size:12px;text-align:center;padding:16px">
+    <div style="font-size:24px;margin-bottom:8px">⬡</div>
+    DCF data not yet loaded.<br/>
+    <span style="font-size:11px">Run a fresh analysis to generate DCF model.</span>
+  </div>`;
+
+  const rc2=s=>s==="bull"?"#34d399":s==="base"?"#e8b84b":"#f87171";
+  const wacc=d.wacc||15;
+
+  // Chart data
+  const revYOY=data.fundamental?.revenueGrowthYOY||[];
+  const patYOY=data.fundamental?.patGrowthYOY||[];
+  const revLbls=data.fundamental?.revenueGrowthYOYLabels||[];
+  const chartData=[...revLbls.map((yr,i)=>({yr,revenue:revYOY[i]||0,pat:patYOY[i]||0,type:"hist"})),
+    ...(d.base?.projLabels||["FY26","FY27","FY28","FY29","FY30"]).map((yr,i)=>({yr,revenue:d.base?.projRevenue?.[i]||0,pat:d.base?.projPAT?.[i]||0,type:"proj"}))];
+
+  // WACC bar
+  const waccHtml=`<div class="g4" style="margin-bottom:11px">
+    <div class="pb" style="border:1px solid #1e2d45"><div class="pl">WACC</div><div class="pv" style="color:#64748b">${d.wacc||"--"}%</div></div>
+    <div class="pb" style="border:1px solid #1e2d45"><div class="pl">BETA</div><div class="pv" style="color:#64748b">${d.beta||"--"}</div></div>
+    <div class="pb" style="border:1px solid #22d3ee44"><div class="pl">BACKLOG</div><div class="pv" style="color:#22d3ee;font-size:10px">₹${((d.orderBacklogCr||0)/1000).toFixed(0)}K Cr</div></div>
+    <div class="pb" style="border:1px solid #1e2d45"><div class="pl">ERP</div><div class="pv" style="color:#64748b">${d.erp||"--"}%</div></div>
+  </div>
+  ${d.keyOrderNote?`<div style="background:#e8b84b10;border-left:3px solid #e8b84b;border-radius:5px;padding:9px;margin-bottom:10px;font-size:11px;color:#94a3b8"><span style="color:#e8b84b;font-weight:700">Key: </span>${d.keyOrderNote}</div>`:""}`;
+
+  // Scenario cards
+  const scenarios=["bull","base","bear"].map(s=>{
+    const sc=d[s]||{},col=rc2(s),up=sc.upside||0;
+    return `<div style="background:#111827;border:1px solid ${col}44;border-radius:9px;padding:11px;text-align:center;cursor:pointer" onclick="showDCFTable('${s}','${data.ticker||''}')">
+      <div style="color:${col};font-weight:700;font-size:10px;margin-bottom:3px">${s.toUpperCase()}</div>
+      <div style="color:#e2e8f0;font-weight:800;font-size:18px;font-family:monospace">₹${(sc.intrinsicValue||0).toLocaleString()}</div>
+      <div style="color:${up>=0?"#34d399":"#f87171"};font-weight:700;font-size:12px;margin-top:2px">${up>=0?"▲":"▼"} ${Math.abs(up)}%</div>
+      <div style="color:#64748b;font-size:9px">g=${sc.terminalGrowth||"--"}%</div>
+    </div>`;
+  }).join("");
+
+  // Value bridge
+  const vb=d.valueBridge||{};
+  const vbHtml=vb.enterpriseValue?`<div style="margin-top:11px">
+    ${[["PV Explicit FCFFs",`₹${(vb.pvExplicitFCFF||0).toLocaleString()} Cr`,""],
+       ["PV Terminal Value",`₹${(vb.pvTerminalValue||0).toLocaleString()} Cr`,""],
+       ["Enterprise Value",`₹${(vb.enterpriseValue||0).toLocaleString()} Cr`,"col:#22d3ee"],
+       ["Net Cash/(Debt)",`₹${(vb.netCash||0).toLocaleString()} Cr`,(vb.netCash||0)>=0?"g":"b"],
+       ["Intrinsic Value/share",`₹${(d.base?.intrinsicValue||0).toLocaleString()}`,"w"],
+    ].map(([l,v,cls])=>mrow(l,v,cls)).join("")}
+  </div>`:"";
+
+  // Segments
+  const segsHtml=(d.segments||[]).length?`<div style="margin-top:11px">
+    <div style="color:#64748b;font-size:10px;margin-bottom:7px;letter-spacing:1px">SEGMENT MIX</div>
+    ${(d.segments||[]).map(s=>`<div style="background:#111827;border-radius:7px;padding:9px;margin-bottom:7px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+        <span style="font-weight:700;color:#e2e8f0;font-size:12px">${s.name}</span>
+        <span style="color:#e8b84b;font-size:10px;font-weight:700">${s.cagr||""} CAGR</span>
+      </div>
+      <div style="display:flex;gap:10px;font-size:10px;margin-bottom:3px">
+        <span>FY25: <span style="color:#94a3b8;font-family:monospace">₹${(s.fy25Rev||0).toLocaleString()}</span></span>
+        <span>FY28E: <span style="color:#e8b84b;font-family:monospace">₹${(s.fy28eRev||0).toLocaleString()}</span></span>
+      </div>
+      <div style="color:#64748b;font-size:10px">${s.desc||""}</div>
+    </div>`).join("")}
+  </div>`:"";
+
+  // Projection table placeholder (populated by showDCFTable on click)
+  return waccHtml
+    + `<div style="margin-bottom:10px"><div style="color:#64748b;font-size:10px;margin-bottom:5px;letter-spacing:1px">REVENUE & PAT — BASE CASE</div>
+       ${svgArea(chartData,["revenue","pat"],["#e8b84b","#34d399"],160)}</div>`
+    + `<div class="g3" style="margin-bottom:10px">${scenarios}</div>`
+    + `<div id="dcfTableInline_${data.ticker||'x'}"><div style="color:#64748b;font-size:11px;text-align:center;padding:10px">Tap a scenario card to see projections</div></div>`
+    + vbHtml + segsHtml;
+}
+
+// Show DCF projection table inline
+function showDCFTable(scenario, ticker){
+  const wrap=document.getElementById("dcfTableInline_"+ticker); if(!wrap) return;
+  const data=currentData; if(!data?.dcf) return;
+  const s=data.dcf[scenario]||{};
+  const col=scenario==="bull"?"#34d399":scenario==="base"?"#e8b84b":"#f87171";
+  const wacc=data.dcf.wacc||15;
+  const labels=s.projLabels||["FY26","FY27","FY28","FY29","FY30"];
+  wrap.innerHTML=`<div style="overflow-x:auto;margin-top:4px"><table style="width:100%;border-collapse:collapse;font-size:10px;min-width:380px">
+    <thead><tr style="border-bottom:1px solid #1e2d45">
+      ${["YEAR","REV (₹Cr)","GROWTH","PAT","FCFF","PV FCFF"].map((h,i)=>`<th style="padding:5px 6px;color:${i===0?col:"#64748b"};font-size:9px;text-align:${i===0?"left":"right"}">${h}</th>`).join("")}
+    </tr></thead><tbody>
+    ${labels.map((yr,i)=>{
+      const g=i===0?0:((s.projRevenue?.[i]||0)/(s.projRevenue?.[i-1]||1)-1)*100;
+      const disc=Math.pow(1+wacc/100,i+1);
+      const pv=Math.round((s.projFCFF?.[i]||0)/disc);
+      return `<tr style="border-bottom:1px solid #1e2d45">
+        <td style="padding:5px 6px;font-family:monospace;color:#e2e8f0">${yr}</td>
+        <td style="padding:5px 6px;text-align:right;font-family:monospace">₹${(s.projRevenue?.[i]||0).toLocaleString()}</td>
+        <td style="padding:5px 6px;text-align:right;color:${g>=10?"#34d399":"#e8b84b"}">${i===0?"base":(g>=0?"+":"")+g.toFixed(1)+"%"}</td>
+        <td style="padding:5px 6px;text-align:right;font-family:monospace">₹${(s.projPAT?.[i]||0).toLocaleString()}</td>
+        <td style="padding:5px 6px;text-align:right;font-family:monospace;color:${col}">₹${(s.projFCFF?.[i]||0).toLocaleString()}</td>
+        <td style="padding:5px 6px;text-align:right;font-family:monospace;color:#64748b">₹${pv.toLocaleString()}</td>
+      </tr>`;}).join("")}
+    </tbody></table></div>`;
+}
+
+// ── Inline Peers body builder (returns HTML string) ───────────────────────────
+function buildPeersBody(data){
+  const peers=data?.peers||[];
+  if(!peers.length) return `<div style="color:#64748b;font-size:12px;text-align:center;padding:16px">
+    <div style="font-size:24px;margin-bottom:8px">🏆</div>
+    Peer data not yet loaded.<br/>
+    <span style="font-size:11px">Run a fresh analysis to generate peer comparison.</span>
+  </div>`;
+
+  const scored=peers.map(p=>{
+    const promS=(p.promoterHolding||0)>50?15:(p.promoterHolding||0)>30?9:4;
+    const cfS=p.cfoPositive?((p.debtToReserve||0)<50?20:13):0;
+    const profS=(p.patMargin||0)<=5?0:(p.patMargin||0)>=15?20:(p.patMargin||0)>=10?13:7;
+    const growS=Math.min(((p.revenueGrowthYOY||[])[1]||0)>15&&((p.patGrowthYOY||[])[1]||0)>15?15:((p.revenueGrowthYOY||[])[1]||0)>10?10:5,15);
+    const rsiOk=(p.rsi||0)>=30&&(p.rsi||0)<=70;
+    const techS=p.trend==="Bullish"&&p.above50dma&&p.above200dma&&rsiOk?20:p.trend==="Bullish"?13:p.trend==="Sideways"?8:3;
+    const fit=Math.min(promS+cfS+profS+growS+techS,100);
+    const rating=(p.patMargin||0)<=5?"Avoid":fit>=75?"Strong Buy":fit>=55?"Buy":fit>=35?"Hold":"Avoid";
+    return {...p,_fit:fit,_rating:p.fitRating||rating};
+  }).sort((a,b)=>b._fit-a._fit);
+
+  // Store for detail panel
+  window._scoredPeers=scored;
+
+  const medals=["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣"];
+  const pCols=["#34d399","#22d3ee","#e8b84b","#a78bfa","#fbbf24","#f87171"];
+  const rCol=r=>r?.includes("Strong Buy")?"#22c55e":r?.includes("Buy")?"#00d4aa":r?.includes("Hold")?"#f59e0b":"#ef4444";
+
+  // Peer cards with history badges
+  const cards=scored.map((p,i)=>{
+    const col=pCols[i]||"#64748b";
+    const ratingCol=rCol(p._rating);
+    const histBadge=getPeerHistBadge(p.ticker||p.name);
+    return `<div style="background:#111827;border:1px solid ${col}33;border-radius:10px;padding:12px;margin-bottom:9px" onclick="showPeerDetail(${i})">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:4px">
+            <span style="font-size:14px">${medals[i]||"•"}</span>
+            <span style="color:#e2e8f0;font-weight:700;font-size:13px">${p.fullName||p.name}</span>
+            ${histBadge}
+          </div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:5px">
+            ${bdg(p.ticker||"","#38bdf8")}
+            <span style="background:${ratingCol}22;color:${ratingCol};border:1px solid ${ratingCol}44;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">${p._rating}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;font-size:10px">
+            <div style="color:#64748b">Promo: <span style="color:${(p.promoterHolding||0)>50?"#22c55e":"#e2e8f0"};font-weight:600">${p.promoterHolding||"--"}%</span></div>
+            <div style="color:#64748b">PAT: <span style="color:${(p.patMargin||0)>=10?"#22c55e":(p.patMargin||0)<=5?"#ef4444":"#f59e0b"};font-weight:600">${p.patMargin||"--"}%</span></div>
+            <div style="color:#64748b">D/R: <span style="color:${(p.debtToReserve||0)>=50?"#ef4444":"#22c55e"};font-weight:600">${p.debtToReserve||"--"}%</span></div>
+            <div style="color:#64748b">RSI: <span style="color:${(p.rsi||0)>70?"#ef4444":(p.rsi||0)<30?"#22c55e":"#e2e8f0"};font-weight:600">${p.rsi||"--"}</span></div>
+            <div style="color:#64748b">Trend: <span style="color:${p.trend==="Bullish"?"#22c55e":p.trend==="Bearish"?"#ef4444":"#f59e0b"};font-weight:600">${p.trend||"--"}</span></div>
+            <div style="color:#64748b">M/S: <span style="color:${(p.mcapToSales||0)>5?"#ef4444":"#22c55e"};font-weight:600">${p.mcapToSales||"--"}x</span></div>
+          </div>
+          ${p.commentary?`<div style="margin-top:6px;color:#64748b;font-size:10px;line-height:1.4">${p.commentary.slice(0,120)}${p.commentary.length>120?"…":""}</div>`:""}
+        </div>
+        <div style="text-align:center;min-width:42px">
+          <div style="color:${col};font-weight:800;font-size:22px;font-family:monospace;line-height:1">${p._fit}</div>
+          <div style="color:#64748b;font-size:9px">/100</div>
+          <div style="font-size:16px;margin-top:4px">›</div>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+
+  return cards + `<div style="color:#64748b;font-size:10px;text-align:center;margin-top:4px">Tap any peer card for full detail · ✓ badge = saved in History</div>`;
+}
+
+// ── Collapsible sections ──────────────────────────────────────────────────────
+// Track open/closed state per section per ticker
+const _secState = {};
+function toggleSec(id){
+  const body = document.getElementById('sb_'+id);
+  const arrow = document.getElementById('sa_'+id);
+  if(!body||!arrow) return;
+  const isOpen = body.classList.contains('open');
+  body.classList.toggle('open', !isOpen);
+  arrow.classList.toggle('open', !isOpen);
+  _secState[id] = !isOpen;
+}
+function initSecs(openIds){
+  // openIds = array of section ids to open by default
+  openIds.forEach(id=>{
+    const body=document.getElementById('sb_'+id);
+    const arrow=document.getElementById('sa_'+id);
+    if(body){body.classList.add('open');}
+    if(arrow){arrow.classList.add('open');}
+    _secState[id]=true;
+  });
+}
+
+// ── Build section wrapper HTML ─────────────────────────────────────────────────
+function mkSec(id, icon, title, bodyHtml, defaultOpen=false){
+  return `<div class="card" style="margin-bottom:11px;padding:0">
+    <div class="sec-hdr" onclick="toggleSec('${id}')" style="padding:13px 13px 13px">
+      <span class="st" style="margin-bottom:0">${icon} ${title}</span>
+      <span class="sec-arrow ${defaultOpen?'open':''}" id="sa_${id}">▼</span>
+    </div>
+    <div class="sec-body ${defaultOpen?'open':''}" id="sb_${id}">
+      <div style="padding:0 13px 13px">${bodyHtml}</div>
+    </div>
+  </div>`;
+}
+
+// ── Peer history lookup ───────────────────────────────────────────────────────
+function getPeerHistBadge(ticker){
+  const hist = loadHist();
+  const entry = hist.find(h => String(h.ticker||'').toUpperCase() === String(ticker||'').toUpperCase());
+  if(!entry) return '';
+  const col = rc(entry.fitRating);
+  return `<span class="peer-hist-badge" onclick="event.stopPropagation();loadPeerFromHist('${ticker}')" title="Load saved analysis">
+    ✓ ${entry.fitScore} · ${entry.fitRating}
+  </span>`;
+}
+
+function loadPeerFromHist(ticker){
+  const hist = loadHist();
+  const idx = hist.findIndex(h => String(h.ticker||'').toUpperCase() === String(ticker||'').toUpperCase());
+  if(idx >= 0) loadHist2(idx);
+  else showToast('No saved analysis for '+ticker,'#f59e0b');
+}
+
 function showResult(d){
   document.getElementById("loadingState").style.display="none";
   document.getElementById("resultState").style.display="block";
@@ -662,8 +898,12 @@ function renderCommentaryChips(d){
 function buildResult(d){
   const col=rc(d.fitRating);
   const sc=d.scoring||{};
+  const f=d.fundamental||{};
+  const t=d.technical||{};
   const bars=(arr,lbs,max,c)=>(arr||[]).map((v,i)=>miniBar(lbs?.[i]||`Q${i+1}`,v,max,c)).join("");
-  return`
+
+  // ── HERO (always visible) ─────────────────────────────────────────────────
+  const hero=`
 <div class="hero">
   <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
     <div style="flex:1">
@@ -686,10 +926,10 @@ function buildResult(d){
   <div style="margin-top:8px">
     <button onclick="refreshAnalysis()" style="background:#7c3aed18;color:#a78bfa;border:1px solid #7c3aed44;border-radius:8px;padding:9px;font-weight:700;font-size:12px;width:100%;cursor:pointer">🔄 Refresh Analysis</button>
   </div>
-</div>
+</div>`;
 
-<div class="card" style="margin-bottom:11px">
-  <div class="st">⚡ Score Breakdown</div>
+  // ── SCORE BREAKDOWN ───────────────────────────────────────────────────────
+  const scoreBody=`
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px">
     <div class="pb" style="border:1px solid #38bdf833"><div class="pl">FUNDAMENTAL</div><div class="pv" style="color:#38bdf8">${sc.fundamentalScore||0}<span style="font-size:9px;color:#64748b">/70</span></div><div style="color:#64748b;font-size:9px">→ ${sc.fundamentalWeighted||0}pts (60%)</div></div>
     <div class="pb" style="border:1px solid #a78bfa33"><div class="pl">TECHNICAL</div><div class="pv" style="color:#a78bfa">${sc.technicalScore||0}<span style="font-size:9px;color:#64748b">/30</span></div><div style="color:#64748b;font-size:9px">→ ${sc.technicalWeighted||0}pts (20%)</div></div>
@@ -697,95 +937,111 @@ function buildResult(d){
   </div>
   <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:4px">${(sc.fundamentalBreakdown||[]).map(b=>`<span style="background:#38bdf811;color:#38bdf8;border:1px solid #38bdf822;border-radius:10px;padding:2px 7px;font-size:10px">${b}</span>`).join("")}</div>
   <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:4px">${(sc.technicalBreakdown||[]).map(b=>`<span style="background:#a78bfa11;color:#a78bfa;border:1px solid #a78bfa22;border-radius:10px;padding:2px 7px;font-size:10px">${b}</span>`).join("")}</div>
-  <div style="display:flex;flex-wrap:wrap;gap:3px" id="commentaryChips_${d.ticker||'x'}"></div>
-</div>
+  <div style="display:flex;flex-wrap:wrap;gap:3px" id="commentaryChips_${d.ticker||'x'}"></div>`;
 
-<div class="g2" style="margin-bottom:11px">
-  ${d.redFlags?.length?`<div class="fbox"><div style="color:#ef4444;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:6px">⚠ RED FLAGS</div>${d.redFlags.map(f=>`<div style="color:#fca5a5;font-size:11px;margin-bottom:3px">• ${f}</div>`).join("")}</div>`:"<div></div>"}
-  ${d.positives?.length?`<div class="pbox2"><div style="color:#22c55e;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:6px">✓ POSITIVES</div>${d.positives.map(p=>`<div style="color:#86efac;font-size:11px;margin-bottom:3px">• ${p}</div>`).join("")}</div>`:"<div></div>"}
-</div>
+  // ── RED FLAGS & POSITIVES ─────────────────────────────────────────────────
+  const fpBody=`
+  <div class="g2">
+    ${d.redFlags?.length?`<div class="fbox"><div style="color:#ef4444;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:6px">⚠ RED FLAGS</div>${d.redFlags.map(f=>`<div style="color:#fca5a5;font-size:11px;margin-bottom:3px">• ${f}</div>`).join("")}</div>`:"<div></div>"}
+    ${d.positives?.length?`<div class="pbox2"><div style="color:#22c55e;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:6px">✓ POSITIVES</div>${d.positives.map(p=>`<div style="color:#86efac;font-size:11px;margin-bottom:3px">• ${p}</div>`).join("")}</div>`:"<div></div>"}
+  </div>`;
 
-<div class="card">
-  <div class="st">⬡ Fundamental</div>
-  ${mrow("Promoter Holding",(d.fundamental||{}).promoterHolding+"%",(d.fundamental||{}).promoterHolding>50?"g":"")}
-  ${mrow("Promoter Change",((d.fundamental||{}).promoterHoldingChange>0?"+":"")+(d.fundamental||{}).promoterHoldingChange+"%",(d.fundamental||{}).promoterHoldingChange<-2?"b":(d.fundamental||{}).promoterHoldingChange>=0?"g":"")}
-  ${mrow("Public Holding",(d.fundamental||{}).publicHolding+"%","")}
-  ${mrow("FII Change",((d.fundamental||{}).fiiHoldingChange>0?"+":"")+(d.fundamental||{}).fiiHoldingChange+"%",(d.fundamental||{}).fiiHoldingChange>0?"g":"b")}
-  ${mrow("CFO Positive?",(d.fundamental||{}).cfoPositive?"✓ Yes":"✗ No",(d.fundamental||{}).cfoPositive?"g":"b")}
-  ${mrow("CFO vs Inv+Fin",(d.fundamental||{}).cfoVsOthers,String((d.fundamental||{}).cfoVsOthers||"").toLowerCase().includes("higher")?"g":"")}
-  ${mrow("Debt/Reserve",(d.fundamental||{}).debtToReserve+"%",(d.fundamental||{}).debtToReserve>=50?"b":"g")}
-  ${mrow("PAT Margin",((d.fundamental||{}).patMargin||0)+"%",(d.fundamental||{}).patMargin<=5?"b":(d.fundamental||{}).patMargin>=10?"g":"w")}
-  ${(d.fundamental||{}).profitTrend?`<div class="mr"><span class="ml">Profit Trend</span><span class="mv" style="color:${(d.fundamental||{}).profitTrend==="profitable"?"#22c55e":(d.fundamental||{}).profitTrend==="loss_reducing"?"#f59e0b":"#ef4444"};font-weight:700">${(d.fundamental||{}).profitTrend==="profitable"?"✓ Profitable":(d.fundamental||{}).profitTrend==="loss_reducing"?"↑ Loss Reducing":"↓ Loss Expanding"}</span></div>`:""}
+  // ── FUNDAMENTAL ───────────────────────────────────────────────────────────
+  const fundBody=`
+  ${mrow("Promoter Holding",f.promoterHolding+"%",f.promoterHolding>50?"g":"")}
+  ${mrow("Promoter Change",(f.promoterHoldingChange>0?"+":"")+f.promoterHoldingChange+"%",f.promoterHoldingChange<-2?"b":f.promoterHoldingChange>=0?"g":"")}
+  ${mrow("Public Holding",f.publicHolding+"%","")}
+  ${mrow("FII Change",(f.fiiHoldingChange>0?"+":"")+f.fiiHoldingChange+"%",f.fiiHoldingChange>0?"g":"b")}
+  ${mrow("CFO Positive?",f.cfoPositive?"✓ Yes":"✗ No",f.cfoPositive?"g":"b")}
+  ${mrow("CFO vs Inv+Fin",String(f.cfoVsOthers||""),String(f.cfoVsOthers||"").toLowerCase().includes("higher")?"g":"")}
+  ${mrow("Debt/Reserve",f.debtToReserve+"%",f.debtToReserve>=50?"b":"g")}
+  ${mrow("PAT Margin",(f.patMargin||0)+"%",f.patMargin<=5?"b":f.patMargin>=10?"g":"w")}
+  ${f.profitTrend?`<div class="mr"><span class="ml">Profit Trend</span><span class="mv" style="color:${f.profitTrend==="profitable"?"#22c55e":f.profitTrend==="loss_reducing"?"#f59e0b":"#ef4444"};font-weight:700">${f.profitTrend==="profitable"?"✓ Profitable":f.profitTrend==="loss_reducing"?"↑ Loss Reducing":"↓ Loss Expanding"}</span></div>`:""}
   ${mrow("MCap/Sales",d.mcapToSales+"x",d.mcapToSales>5?"b":d.mcapToSales<=3?"g":"")}
   ${mrow("PE Ratio",d.peRatio+"x","")}
   <div style="margin-top:13px">
     <div style="color:#64748b;font-size:10px;margin-bottom:7px;letter-spacing:1px">QUARTERLY REVENUE GROWTH (QoQ %)</div>
-    ${bars((d.fundamental||{}).revenueQoQ,(d.fundamental||{}).revenueQoQLabels,30,"#00d4aa")}
+    ${bars(f.revenueQoQ,f.revenueQoQLabels,30,"#00d4aa")}
   </div>
   <div class="g2" style="margin-top:11px;gap:14px">
-    <div><div style="color:#64748b;font-size:10px;margin-bottom:6px">REVENUE YOY</div>${bars((d.fundamental||{}).revenueGrowthYOY,(d.fundamental||{}).revenueGrowthYOYLabels,50,"#38bdf8")}</div>
-    <div><div style="color:#64748b;font-size:10px;margin-bottom:6px">PAT YOY</div>${bars((d.fundamental||{}).patGrowthYOY,(d.fundamental||{}).patGrowthYOYLabels,50,"#22c55e")}</div>
+    <div><div style="color:#64748b;font-size:10px;margin-bottom:6px">REVENUE YOY</div>${bars(f.revenueGrowthYOY,f.revenueGrowthYOYLabels,50,"#38bdf8")}</div>
+    <div><div style="color:#64748b;font-size:10px;margin-bottom:6px">PAT YOY</div>${bars(f.patGrowthYOY,f.patGrowthYOYLabels,50,"#22c55e")}</div>
   </div>
-  <div class="cbox">
+  <div class="cbox" style="margin-top:11px">
     <div style="color:#00d4aa;font-size:10px;letter-spacing:2px;margin-bottom:7px;font-weight:700">MANAGEMENT COMMENTARY</div>
-    <div style="color:#94a3b8;font-size:12px;line-height:1.6;margin-bottom:9px">${(d.fundamental||{}).managementCommentary||"N/A"}</div>
+    <div style="color:#94a3b8;font-size:12px;line-height:1.6;margin-bottom:9px">${f.managementCommentary||"N/A"}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px"><div style="color:#64748b;font-size:9px;margin-bottom:2px">REVENUE GUIDANCE</div><div style="font-weight:700;font-size:11px;color:${String((d.fundamental||{}).revenueGuidance||"")=="raised"?"#22c55e":String((d.fundamental||{}).revenueGuidance||"")=="cut"?"#ef4444":"#f59e0b"}">${String((d.fundamental||{}).revenueGuidance||"--").toUpperCase()}</div></div>
-      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px"><div style="color:#64748b;font-size:9px;margin-bottom:2px">MARGIN GUIDANCE</div><div style="font-weight:700;font-size:11px;color:${String((d.fundamental||{}).marginGuidance||"")=="expanding"?"#22c55e":String((d.fundamental||{}).marginGuidance||"")=="contracting"?"#ef4444":"#f59e0b"}">${String((d.fundamental||{}).marginGuidance||"--").toUpperCase()}</div></div>
-      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px"><div style="color:#64748b;font-size:9px;margin-bottom:2px">DEMAND OUTLOOK</div><div style="font-weight:700;font-size:11px;color:${String((d.fundamental||{}).demandOutlook||"")=="strong"?"#22c55e":String((d.fundamental||{}).demandOutlook||"")=="weak"?"#ef4444":"#f59e0b"}">${String((d.fundamental||{}).demandOutlook||"--").toUpperCase()}</div></div>
-      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px"><div style="color:#64748b;font-size:9px;margin-bottom:2px">MAJOR EVENT</div><div style="color:#94a3b8;font-size:10px;font-weight:600">${String((d.fundamental||{}).majorEvent||"--")}</div></div>
+      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px"><div style="color:#64748b;font-size:9px;margin-bottom:2px">REVENUE GUIDANCE</div><div style="font-weight:700;font-size:11px;color:${String(f.revenueGuidance||"")==="raised"?"#22c55e":String(f.revenueGuidance||"")==="cut"?"#ef4444":"#f59e0b"}">${String(f.revenueGuidance||"--").toUpperCase()}</div></div>
+      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px"><div style="color:#64748b;font-size:9px;margin-bottom:2px">MARGIN GUIDANCE</div><div style="font-weight:700;font-size:11px;color:${String(f.marginGuidance||"")==="expanding"?"#22c55e":String(f.marginGuidance||"")==="contracting"?"#ef4444":"#f59e0b"}">${String(f.marginGuidance||"--").toUpperCase()}</div></div>
+      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px"><div style="color:#64748b;font-size:9px;margin-bottom:2px">DEMAND OUTLOOK</div><div style="font-weight:700;font-size:11px;color:${String(f.demandOutlook||"")==="strong"?"#22c55e":String(f.demandOutlook||"")==="weak"?"#ef4444":"#f59e0b"}">${String(f.demandOutlook||"--").toUpperCase()}</div></div>
+      <div style="background:#0a0e1a;border-radius:6px;padding:7px 8px"><div style="color:#64748b;font-size:9px;margin-bottom:2px">MAJOR EVENT</div><div style="color:#94a3b8;font-size:10px;font-weight:600">${String(f.majorEvent||"--")}</div></div>
     </div>
-  </div>
-</div>
+  </div>`;
 
-<div class="card">
-  <div class="st" style="display:flex;justify-content:space-between;align-items:center">
-  <span>⬡ Technical</span>
-  <a href="https://www.tradingview.com/chart/?symbol=NSE:${d.ticker}" target="_blank"
-    style="background:#131722;color:#2962ff;border:1px solid #2962ff44;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;text-decoration:none;display:flex;align-items:center;gap:4px">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="#2962ff"><path d="M3 3h18v18H3z" opacity=".1"/><path d="M3 3h18v2H3zm0 16h18v2H3zM3 3v18H1V3zm20 0v18h-2V3z" fill="#2962ff"/><path d="M7 16l3-4 3 3 4-6" stroke="#2962ff" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
-    TradingView
-  </a>
-</div>
+  // ── TECHNICAL ─────────────────────────────────────────────────────────────
+  const techBody=`
   <div class="g3" style="margin-bottom:11px">
-    <div class="pb"><div class="pl">TREND</div><div class="pv" style="color:${(d.technical||{}).trend==="Bullish"?"#22c55e":(d.technical||{}).trend==="Bearish"?"#ef4444":"#f59e0b"}">${(d.technical||{}).trend}</div></div>
-    <div class="pb"><div class="pl">RSI</div><div class="pv" style="color:${(d.technical||{}).rsi>70?"#ef4444":(d.technical||{}).rsi<30?"#22c55e":"#e2e8f0"}">${(d.technical||{}).rsi}</div></div>
-    <div class="pb"><div class="pl">MACD</div><div class="pv" style="font-size:10px;color:${String((d.technical||{}).macdSignal||"").includes("Bullish")?"#22c55e":String((d.technical||{}).macdSignal||"").includes("Bearish")?"#ef4444":"#f59e0b"}">${(d.technical||{}).macdSignal}</div></div>
+    <div class="pb"><div class="pl">TREND</div><div class="pv" style="color:${t.trend==="Bullish"?"#22c55e":t.trend==="Bearish"?"#ef4444":"#f59e0b"}">${t.trend}</div></div>
+    <div class="pb"><div class="pl">RSI</div><div class="pv" style="color:${t.rsi>70?"#ef4444":t.rsi<30?"#22c55e":"#e2e8f0"}">${t.rsi}</div></div>
+    <div class="pb"><div class="pl">MACD</div><div class="pv" style="font-size:10px;color:${String(t.macdSignal||"").includes("Bullish")?"#22c55e":String(t.macdSignal||"").includes("Bearish")?"#ef4444":"#f59e0b"}">${t.macdSignal}</div></div>
   </div>
   <div class="g4" style="margin-bottom:11px">
-    ${pbox("S1","Rs."+(d.technical||{}).support1,"#22c55e",true)}
-    ${pbox("S2","Rs."+(d.technical||{}).support2,"#22c55e",true)}
-    ${pbox("R1","Rs."+(d.technical||{}).resistance1,"#ef4444",true)}
-    ${pbox("R2","Rs."+(d.technical||{}).resistance2,"#ef4444",true)}
+    ${pbox("S1","Rs."+t.support1,"#22c55e",true)}
+    ${pbox("S2","Rs."+t.support2,"#22c55e",true)}
+    ${pbox("R1","Rs."+t.resistance1,"#ef4444",true)}
+    ${pbox("R2","Rs."+t.resistance2,"#ef4444",true)}
   </div>
-  <div class="tbox">
-    <div style="color:#22c55e;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:9px">TRADE SETUP · ${(d.technical||{}).timeframe}</div>
+  <div class="tbox" style="margin-bottom:10px">
+    <div style="color:#22c55e;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:9px">TRADE SETUP · ${t.timeframe}</div>
     <div class="g2">
-      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">ENTRY ZONE</div><div style="color:#00d4aa;font-weight:700;font-family:monospace;font-size:12px">${(d.technical||{}).entryZone}</div></div>
-      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">STOP LOSS</div><div style="color:#ef4444;font-weight:700;font-family:monospace;font-size:12px">Rs.${(d.technical||{}).stopLoss}</div></div>
-      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">TARGET 1</div><div style="color:#22c55e;font-weight:700;font-family:monospace;font-size:12px">Rs.${(d.technical||{}).target1}</div></div>
-      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">TARGET 2</div><div style="color:#22c55e;font-weight:700;font-family:monospace;font-size:12px">Rs.${(d.technical||{}).target2}</div></div>
+      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">ENTRY ZONE</div><div style="color:#00d4aa;font-weight:700;font-family:monospace;font-size:12px">${t.entryZone}</div></div>
+      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">STOP LOSS</div><div style="color:#ef4444;font-weight:700;font-family:monospace;font-size:12px">Rs.${t.stopLoss}</div></div>
+      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">TARGET 1</div><div style="color:#22c55e;font-weight:700;font-family:monospace;font-size:12px">Rs.${t.target1}</div></div>
+      <div><div style="color:#64748b;font-size:10px;margin-bottom:2px">TARGET 2</div><div style="color:#22c55e;font-weight:700;font-family:monospace;font-size:12px">Rs.${t.target2}</div></div>
     </div>
     <div style="display:flex;gap:16px;margin-top:9px;border-top:1px solid #22c55e22;padding-top:7px">
-      <div><span style="color:#64748b;font-size:11px">Return: </span><span style="color:#22c55e;font-weight:700;font-family:monospace">${(d.technical||{}).potentialReturn}%</span></div>
-      <div><span style="color:#64748b;font-size:11px">R:R: </span><span style="color:#00d4aa;font-weight:700;font-family:monospace">${(d.technical||{}).riskReward}</span></div>
+      <div><span style="color:#64748b;font-size:11px">Return: </span><span style="color:#22c55e;font-weight:700;font-family:monospace">${t.potentialReturn}%</span></div>
+      <div><span style="color:#64748b;font-size:11px">R:R: </span><span style="color:#00d4aa;font-weight:700;font-family:monospace">${t.riskReward}</span></div>
     </div>
   </div>
   <div class="g2" style="margin-bottom:9px">
-    <div class="pb"><div class="pl">50-Day MA</div><div class="pv" style="color:${(d.technical||{}).above50DMA?"#22c55e":"#ef4444"}">Rs.${(d.technical||{}).movingAvg50} ${(d.technical||{}).above50DMA?"↑":"↓"}</div></div>
-    <div class="pb"><div class="pl">200-Day MA</div><div class="pv" style="color:${(d.technical||{}).above200DMA?"#22c55e":"#ef4444"}">Rs.${(d.technical||{}).movingAvg200} ${(d.technical||{}).above200DMA?"↑":"↓"}</div></div>
+    <div class="pb"><div class="pl">50-Day MA</div><div class="pv" style="color:${t.above50DMA?"#22c55e":"#ef4444"}">Rs.${t.movingAvg50} ${t.above50DMA?"↑":"↓"}</div></div>
+    <div class="pb"><div class="pl">200-Day MA</div><div class="pv" style="color:${t.above200DMA?"#22c55e":"#ef4444"}">Rs.${t.movingAvg200} ${t.above200DMA?"↑":"↓"}</div></div>
+  </div>
+  <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+    <a href="https://www.tradingview.com/chart/?symbol=NSE:${d.ticker}" target="_blank"
+      style="background:#131722;color:#2962ff;border:1px solid #2962ff44;border-radius:6px;padding:5px 11px;font-size:11px;font-weight:700;text-decoration:none;display:flex;align-items:center;gap:4px">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="#2962ff"><path d="M7 16l3-4 3 3 4-6" stroke="#2962ff" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+      TradingView
+    </a>
   </div>
   <div class="obox">
     <div style="color:#38bdf8;font-size:10px;letter-spacing:2px;margin-bottom:4px;font-weight:700">TECHNICAL OUTLOOK</div>
-    <div style="color:#94a3b8;font-size:12px;line-height:1.6">${(d.technical||{}).technicalSummary}</div>
-  </div>
-</div>
+    <div style="color:#94a3b8;font-size:12px;line-height:1.6">${t.technicalSummary}</div>
+  </div>`;
 
-<div class="disc">
-  ${d.dataNote?`<div style="color:#f59e0b;margin-bottom:3px">ⓘ ${d.dataNote}</div>`:""}
-  AI-generated · not financial advice · do your own research
-</div>`;
+  // ── DCF (inline, from stored data) ────────────────────────────────────────
+  const dcfBody = buildDCFBody(d);
+
+  // ── PEERS (inline, with history badges) ───────────────────────────────────
+  const peersBody = buildPeersBody(d);
+
+  // ── DISC ──────────────────────────────────────────────────────────────────
+  const disc=`<div class="disc">
+    ${d.dataNote?`<div style="color:#f59e0b;margin-bottom:3px">ⓘ ${d.dataNote}</div>`:""}
+    AI-generated · not financial advice · do your own research
+  </div>`;
+
+  return hero
+    + mkSec('score',  '⚡', 'Score Breakdown',    scoreBody,  true)
+    + mkSec('fp',     '⚑', 'Flags & Positives',   fpBody,     true)
+    + mkSec('fund',   '⬡', 'Fundamental Analysis', fundBody,   true)
+    + mkSec('tech',   '📈','Technical Analysis',   techBody,   false)
+    + mkSec('dcf',    '⬡', 'DCF Valuation',        dcfBody,    false)
+    + mkSec('peers',  '🏆','Peer Comparison',       peersBody,  false)
+    + disc;
 }
+
 
 // ── Canvas Gauge ──────────────────────────────────────────────────────────────
 function drawGauge(score){
