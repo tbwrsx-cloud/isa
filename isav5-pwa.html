@@ -391,7 +391,7 @@ function switchTab(t){
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const rc=r=>r?.includes("Strong Buy")?"#22c55e":r?.includes("Buy")?"#00d4aa":r?.includes("Hold")?"#f59e0b":"#ef4444";
+const rc=r=>r.includes("Strong Buy")?"#22c55e":r.includes("Buy")?"#00d4aa":r.includes("Hold")?"#f59e0b":"#ef4444";
 const bdg=(l,c)=>`<span class="bdg" style="background:${c}22;color:${c};border:1px solid ${c}44">${l}</span>`;
 const mrow=(l,v,t)=>`<div class="mr"><span class="ml">${l}</span><span class="mv ${t}">${v}</span></div>`;
 const miniBar=(l,v,max,col)=>{const pct=Math.min(Math.abs(v)/max*100,100),neg=v<0;return`<div class="mbar"><div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:#64748b">${l}</span><span style="color:${neg?"#ef4444":"#22c55e"};font-family:monospace">${neg?"":"+"}${v}%</span></div><div class="mbt"><div class="mbf" style="width:${pct}%;background:${neg?"#ef4444":col}"></div></div></div>`;};
@@ -683,7 +683,7 @@ function buildResult(d){
   ${mrow("Public Holding",(d.fundamental||{}).publicHolding+"%","")}
   ${mrow("FII Change",((d.fundamental||{}).fiiHoldingChange>0?"+":"")+(d.fundamental||{}).fiiHoldingChange+"%",(d.fundamental||{}).fiiHoldingChange>0?"g":"b")}
   ${mrow("CFO Positive?",(d.fundamental||{}).cfoPositive?"✓ Yes":"✗ No",(d.fundamental||{}).cfoPositive?"g":"b")}
-  ${mrow("CFO vs Inv+Fin",(d.fundamental||{}).cfoVsOthers,(d.fundamental||{}).cfoVsOthers?.toLowerCase().includes("higher")?"g":"")}
+  ${mrow("CFO vs Inv+Fin",(d.fundamental||{}).cfoVsOthers,String((d.fundamental||{}).cfoVsOthers||"").toLowerCase().includes("higher")?"g":"")}
   ${mrow("Debt/Reserve",(d.fundamental||{}).debtToReserve+"%",(d.fundamental||{}).debtToReserve>=50?"b":"g")}
   ${mrow("PAT Margin",((d.fundamental||{}).patMargin||0)+"%",(d.fundamental||{}).patMargin<=5?"b":(d.fundamental||{}).patMargin>=10?"g":"w")}
   ${(d.fundamental||{}).profitTrend?`<div class="mr"><span class="ml">Profit Trend</span><span class="mv" style="color:${(d.fundamental||{}).profitTrend==="profitable"?"#22c55e":(d.fundamental||{}).profitTrend==="loss_reducing"?"#f59e0b":"#ef4444"};font-weight:700">${(d.fundamental||{}).profitTrend==="profitable"?"✓ Profitable":(d.fundamental||{}).profitTrend==="loss_reducing"?"↑ Loss Reducing":"↓ Loss Expanding"}</span></div>`:""}
@@ -721,7 +721,7 @@ function buildResult(d){
   <div class="g3" style="margin-bottom:11px">
     <div class="pb"><div class="pl">TREND</div><div class="pv" style="color:${(d.technical||{}).trend==="Bullish"?"#22c55e":(d.technical||{}).trend==="Bearish"?"#ef4444":"#f59e0b"}">${(d.technical||{}).trend}</div></div>
     <div class="pb"><div class="pl">RSI</div><div class="pv" style="color:${(d.technical||{}).rsi>70?"#ef4444":(d.technical||{}).rsi<30?"#22c55e":"#e2e8f0"}">${(d.technical||{}).rsi}</div></div>
-    <div class="pb"><div class="pl">MACD</div><div class="pv" style="font-size:10px;color:${(d.technical||{}).macdSignal?.includes("Bullish")?"#22c55e":(d.technical||{}).macdSignal?.includes("Bearish")?"#ef4444":"#f59e0b"}">${(d.technical||{}).macdSignal}</div></div>
+    <div class="pb"><div class="pl">MACD</div><div class="pv" style="font-size:10px;color:${String((d.technical||{}).macdSignal||"").includes("Bullish")?"#22c55e":String((d.technical||{}).macdSignal||"").includes("Bearish")?"#ef4444":"#f59e0b"}">${(d.technical||{}).macdSignal}</div></div>
   </div>
   <div class="g4" style="margin-bottom:11px">
     ${pbox("S1","Rs."+(d.technical||{}).support1,"#22c55e",true)}
@@ -780,7 +780,7 @@ function renderHistory(){
   if(!list.length){el.innerHTML=`<div class="empty"><div style="font-size:34px;margin-bottom:10px">🗂</div><div style="font-size:13px">No saved analyses yet.</div><div style="font-size:11px;margin-top:3px">Every analysis saves automatically.</div></div>`;return;}
   el.innerHTML=list.map((h,i)=>{
     const c=rc(h.fitRating);
-    const inPort=window._portfolioSymbols?.has(h.ticker?.toUpperCase());
+    const inPort=window._portfolioSymbols?.has(String(h.ticker||"").toUpperCase());
     const inWL=wlSet.has(h.ticker);
     return`<div class="hi" onclick="loadHist2(${i})">
       <div style="flex:1">
@@ -853,7 +853,7 @@ function downloadReport(){
   <div class="g3" style="margin-bottom:11px">
     <div class="box"><div style="color:#64748b;font-size:10px;margin-bottom:2px">TREND</div><div style="font-weight:700;font-family:monospace;color:${(d.technical||{}).trend==="Bullish"?"#22c55e":(d.technical||{}).trend==="Bearish"?"#ef4444":"#f59e0b"}">${(d.technical||{}).trend}</div></div>
     <div class="box"><div style="color:#64748b;font-size:10px;margin-bottom:2px">RSI</div><div style="font-weight:700;font-family:monospace;color:${(d.technical||{}).rsi>70?"#ef4444":(d.technical||{}).rsi<30?"#22c55e":"#e2e8f0"}">${(d.technical||{}).rsi}</div></div>
-    <div class="box"><div style="color:#64748b;font-size:10px;margin-bottom:2px">MACD</div><div style="font-weight:700;font-size:11px;color:${(d.technical||{}).macdSignal?.includes("Bullish")?"#22c55e":(d.technical||{}).macdSignal?.includes("Bearish")?"#ef4444":"#f59e0b"}">${(d.technical||{}).macdSignal}</div></div>
+    <div class="box"><div style="color:#64748b;font-size:10px;margin-bottom:2px">MACD</div><div style="font-weight:700;font-size:11px;color:${String((d.technical||{}).macdSignal||"").includes("Bullish")?"#22c55e":String((d.technical||{}).macdSignal||"").includes("Bearish")?"#ef4444":"#f59e0b"}">${(d.technical||{}).macdSignal}</div></div>
   </div>
   <div class="g4" style="margin-bottom:11px">
     <div class="box" style="border:1px solid #22c55e44"><div style="color:#64748b;font-size:10px">S1</div><div style="color:#22c55e;font-weight:700;font-family:monospace">Rs.${(d.technical||{}).support1}</div></div>
@@ -998,7 +998,7 @@ function renderHistory(){
   const ratingOrder={"Strong Buy":4,"Buy":3,"Hold":2,"Avoid":1};
   let list=[...rawList.map((h,i)=>({...h,_orig:i}))];
   if(searchQ) list=list.filter(h=>(h.ticker||"").toLowerCase().includes(searchQ)||(h.company||"").toLowerCase().includes(searchQ));
-  if(filter==="portfolio") list=list.filter(h=>window._portfolioSymbols?.has(h.ticker?.toUpperCase()));
+  if(filter==="portfolio") list=list.filter(h=>window._portfolioSymbols?.has(String(h.ticker||"").toUpperCase()));
   if(filter==="watchlist") list=list.filter(h=>wlSet.has(h.ticker));
   if(sort==="oldest") list.reverse();
   else if(sort==="score_desc") list.sort((a,b)=>(b.fitScore||0)-(a.fitScore||0));
@@ -1008,7 +1008,7 @@ function renderHistory(){
   const warn=rawList.length>=90?`<div style="background:#f59e0b18;border:1px solid #f59e0b44;border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px;color:#f59e0b">⚠ ${rawList.length}/100 entries used</div>`:"";
   el.innerHTML=warn+list.map((h)=>{
     const i=h._orig; const c=rc(h.fitRating);
-    const inPort=window._portfolioSymbols?.has(h.ticker?.toUpperCase());
+    const inPort=window._portfolioSymbols?.has(String(h.ticker||"").toUpperCase());
     const inWL=wlSet.has(h.ticker);
     return`<div class="hi" onclick="loadHist2(${i})">
       <div style="flex:1">
@@ -1169,7 +1169,7 @@ ${payload}
     localStorage.setItem("isa_gd_last_backup",Date.now());
     updateGDStatus();
     if(showMsg) alert("✓ Backed up to Google Drive");
-  }catch(e){ if(e.message?.includes("401")){gdAccessToken=null;localStorage.removeItem("isa_gd_signed_in");updateGDStatus();} console.log("Backup failed:",e.message); }
+  }catch(e){ if(e.message.includes("401")){gdAccessToken=null;localStorage.removeItem("isa_gd_signed_in");updateGDStatus();} console.log("Backup failed:",e.message); }
 }
 
 async function restoreFromGDrive(){
@@ -1244,7 +1244,7 @@ function renderWatchlist(){
   const wl=loadWatchlist();
   const el=document.getElementById("watchlistList");if(!el)return;
   if(!wl.length){el.innerHTML=`<div class="empty"><div style="font-size:34px;margin-bottom:10px">⭐</div><div>No stocks in watchlist.</div><div style="font-size:11px;margin-top:4px;color:#64748b">Tap ☆ on any history entry to add.</div></div>`;return;}
-  const inPort=s=>window._portfolioSymbols?.has(s?.toUpperCase());
+  const inPort=s=>window._portfolioSymbols?.has(s.toUpperCase());
   el.innerHTML=wl.map((h,i)=>{
     const c=rc(h.fitRating);
     return`<div class="card" style="margin-bottom:9px">
@@ -1362,9 +1362,9 @@ function renderPortfolio(holdings){
   try{localStorage.setItem("isa_portfolio_symbols",JSON.stringify(syms));}catch(_){}
   if(!holdings.length){showPortfolioStatus("No holdings found","");if(el)el.innerHTML=`<div class="empty"><div style="font-size:34px;margin-bottom:10px">💼</div><div>No holdings in Upstox account.</div></div>`;return;}
   const hist=loadHist();
-  const histMap={};hist.forEach(h=>{histMap[h.ticker?.toUpperCase()]=h;});
-  const sorted=[...holdings].sort((a,b)=>{const aA=histMap[a.trading_symbol?.toUpperCase()],bA=histMap[b.trading_symbol?.toUpperCase()];if(aA&&!bA)return -1;if(!aA&&bA)return 1;return(b.pnl||0)-(a.pnl||0);});
-  showPortfolioStatus(`${holdings.length} holdings · ${sorted.filter(h=>histMap[h.trading_symbol?.toUpperCase()]).length} analysed`,"#00d4aa");
+  const histMap={};hist.forEach(h=>{histMap[String(h.ticker||"").toUpperCase()]=h;});
+  const sorted=[...holdings].sort((a,b)=>{const aA=histMap[a.trading_symbol.toUpperCase()],bA=histMap[b.trading_symbol.toUpperCase()];if(aA&&!bA)return -1;if(!aA&&bA)return 1;return(b.pnl||0)-(a.pnl||0);});
+  showPortfolioStatus(`${holdings.length} holdings · ${sorted.filter(h=>histMap[h.trading_symbol.toUpperCase()]).length} analysed`,"#00d4aa");
   el.innerHTML=sorted.map(h=>{
     const sym=h.trading_symbol||h.tradingsymbol||"--";
     const name=h.company_name||sym;
@@ -1374,7 +1374,7 @@ function renderPortfolio(holdings){
     const dayChg=h.day_change_percentage||0,dayCol=dayChg>=0?"#22c55e":"#ef4444";
     const inv=Math.round(avg*qty);
     const he=histMap[sym.toUpperCase()];
-    const c2=r=>r?.includes("Strong Buy")?"#22c55e":r?.includes("Buy")?"#00d4aa":r?.includes("Hold")?"#f59e0b":"#ef4444";
+    const c2=r=>r.includes("Strong Buy")?"#22c55e":r.includes("Buy")?"#00d4aa":r.includes("Hold")?"#f59e0b":"#ef4444";
     const histBadge=he?`<span style="background:${c2(he.fitRating)}22;color:${c2(he.fitRating)};border:1px solid ${c2(he.fitRating)}44;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700;margin-left:5px">${he.fitRating} ${he.fitScore}/100</span>`:`<span style="background:#64748b22;color:#64748b;border-radius:4px;padding:2px 7px;font-size:10px">Not analysed</span>`;
     const action=he?`<button onclick="loadHist2(${hist.findIndex(x=>x.ticker===he.ticker)})" style="background:#00d4aa18;color:#00d4aa;border:1px solid #00d4aa33;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700;cursor:pointer">View Analysis</button>`:`<button onclick="document.getElementById('scripInput').value='${sym}';switchTab('analyse');analyze()" style="background:#00d4aa;color:#000;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">Analyse ${sym} →</button>`;
     return`<div class="card" style="margin-bottom:10px">
@@ -1567,7 +1567,7 @@ async function submitGTT(){
     const sr=await fetch(`${UPSTOX_BASE}/instruments/search?query=${encodeURIComponent(gttCurrentTicker)}&exchanges=NSE&segments=EQ&records=15`,{headers:{"Authorization":`Bearer ${tok}`,"Accept":"application/json"}});
     const sd=await sr.json();
     const items=(sd.data||[]).filter(x=>x.segment==="NSE_EQ");
-    const exact=items.find(x=>x.trading_symbol?.toUpperCase()===gttCurrentTicker.toUpperCase());
+    const exact=items.find(x=>x.trading_symbol.toUpperCase()===gttCurrentTicker.toUpperCase());
     if(!exact){const found=items.slice(0,3).map(x=>x.trading_symbol).join(", ");throw new Error(`"${gttCurrentTicker}" not found exactly on NSE. Found: ${found||"nothing"}`);}
     gttCurrentInstrKey=exact.instrument_key;
     const resolvedSymbol=exact.trading_symbol;
@@ -1748,7 +1748,7 @@ function renderPeers(data){
   }).sort((a,b)=>b._fit-a._fit);
   window._scoredPeers=scored;
 
-  const rCol=r=>r?.includes("Strong Buy")?"#22c55e":r?.includes("Buy")?"#00d4aa":r?.includes("Hold")?"#f59e0b":"#ef4444";
+  const rCol=r=>r.includes("Strong Buy")?"#22c55e":r.includes("Buy")?"#00d4aa":r.includes("Hold")?"#f59e0b":"#ef4444";
   const medals=["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣"];
   const pCols=["#34d399","#22d3ee","#e8b84b","#a78bfa","#fbbf24","#f87171"];
 
@@ -1790,7 +1790,7 @@ function renderPeers(data){
 
 function showPeerDetail(idx){
   const p=window._scoredPeers?.[idx];if(!p)return;
-  const rCol=r=>r?.includes("Strong Buy")?"#22c55e":r?.includes("Buy")?"#00d4aa":r?.includes("Hold")?"#f59e0b":"#ef4444";
+  const rCol=r=>r.includes("Strong Buy")?"#22c55e":r.includes("Buy")?"#00d4aa":r.includes("Hold")?"#f59e0b":"#ef4444";
   const col=rCol(p._rating);
   const sc=p._s||{};
   const radarData=[
