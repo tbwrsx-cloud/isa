@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+<meta name="theme-color" content="#060910"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="ISA v6"/>
+<title>IndiaStock Analyser v6</title>
+
+<link rel="manifest" href="data:application/json,{
+  &quot;name&quot;:&quot;IndiaStock Analyser v6&quot;,
+  &quot;short_name&quot;:&quot;ISA v6&quot;,
+  &quot;start_url&quot;:&quot;.&quot;,
+  &quot;display&quot;:&quot;standalone&quot;,
+  &quot;background_color&quot;:&quot;#060910&quot;,
+  &quot;theme_color&quot;:&quot;#00d4aa&quot;,
+  &quot;icons&quot;:[{&quot;src&quot;:&quot;https://img.icons8.com/fluency/192/stock-share.png&quot;,&quot;sizes&quot;:&quot;192x192&quot;,&quot;type&quot;:&quot;image/png&quot;},{&quot;src&quot;:&quot;https://img.icons8.com/fluency/512/stock-share.png&quot;,&quot;sizes&quot;:&quot;512x512&quot;,&quot;type&quot;:&quot;image/png&quot;}]
+}"/>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.7/Recharts.js"></script>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body,#root{height:100%;background:#060910}
+body{overflow-x:hidden}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:#060910}
+::-webkit-scrollbar-thumb{background:#1a2640;border-radius:2px}
+input,button,select{font-family:inherit;-webkit-appearance:none;border-radius:0}
+.bottom-nav{padding-bottom:env(safe-area-inset-bottom,8px)}
+#install-banner{display:none;position:fixed;bottom:76px;left:12px;right:12px;
+  background:#0f2035;border:1px solid #e8b84b44;border-radius:12px;
+  padding:12px 14px;z-index:9999;align-items:center;gap:10px}
+#install-banner.show{display:flex}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.spin{animation:spin 1.6s linear infinite}
+.pulse{animation:pulse 1.8s ease-in-out infinite}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    const swCode=`const CACHE='isa-v6-cache-v1';
+    self.addEventListener('install',e=>self.skipWaiting());
+    self.addEventListener('activate',e=>clients.claim());
+    self.addEventListener('fetch',e=>{
+      if(e.request.method!=='GET')return;
+      e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).then(res=>{
+        if(res.ok){const c=res.clone();caches.open(CACHE).then(ca=>ca.put(e.request,c));}
+        return res;
+      }).catch(()=>caches.match(e.request))));
+    });`;
+    const blob=new Blob([swCode],{type:'application/javascript'});
+    navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(()=>{});
+  });
+}
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt',e=>{
+  e.preventDefault();deferredPrompt=e;
+  const b=document.getElementById('install-banner');
+  if(b)b.classList.add('show');
+});
+</script>
+
+<script type="text/babel">
+const {
+  BarChart, Bar, AreaChart, Area, RadarChart, Radar,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  ReferenceLine, Legend, PolarGrid, PolarAngleAxis
+} = Recharts;
+const { useState, useEffect, useCallback } = React;
+
+// ─── Theme ────────────────────────────────────────────────────────────────────
+const C = {
+  bg:"#060910", surface:"#0c1220", card:"#101828", border:"#1a2640",
+  borderLight:"#243558", accent:"#00d4aa", accentDim:"#00d4aa18",
+  gold:"#e8b84b", goldDim:"#e8b84b18", goldMid:"#e8b84b44",
+  cyan:"#22d3ee", cyanDim:"#22d3ee18",
+  green:"#34d399", greenDim:"#34d39918",
+  red:"#f87171", redDim:"#f8717118",
+  amber:"#fbbf24", purple:"#a78bfa",
+  warn:"#f59e0b", highlight:"#38bdf8",
+  muted:"#4a6080", text:"#c8d8ed", textDim:"#6b8aad", white:"#f0f6ff",
+};
+
+// ─── Master System Prompt (one call → three tabs) ─────────────────────────────
+const MASTER_PROMPT = `You are an expert Indian stock market analyst. Given a NSE/BSE-listed scrip, search for the latest data and return ONLY a single valid JSON object (no markdown, no backticks, nothing else) with this exact structure:
+
+{
+  "meta": {
+    "company": "Full company name",
+    "ticker": "NSE ticker",
+    "exchange": "NSE or BSE",
+    "sector": "Sector",
+    "currentPrice": number,
+    "marketCap": "e.g. Rs.12345 Cr",
+    "marketCapCr": number,
+    "peRatio": number,
+    "mcapToSales": number,
+    "dataNote": "Data freshness note",
+    "searchedAt": "May 2026"
+  },
+
+  "analyser": {
+    "fitScore": number,
+    "fitRating": "Strong Buy / Buy / Hold / Avoid",
+    "fitSummary": "3-4 sentence summary",
+    "redFlags": ["flag1","flag2"],
+    "positives": ["pos1","pos2"],
+    "fundamental": {
+      "publicHolding": number,
+      "promoterHolding": number,
+      "promoterHoldingChange": number,
+      "fiiHoldingChange": number,
+      "cfOperations": number,
+      "cfInvesting": number,
+      "cfFinancing": number,
+      "cfoPositive": boolean,
+      "cfoVsOthers": "CFO is higher/lower than investing+financing",
+      "debtToReserve": number,
+      "revenueQoQ": [number,number,number,number],
+      "revenueQoQLabels": ["Q1FY25","Q2FY25","Q3FY25","Q4FY25"],
+      "patMargin": number,
+      "revenueGrowthYOY": [number,number],
+      "revenueGrowthYOYLabels": ["FY23","FY24"],
+      "patGrowthYOY": [number,number],
+      "patGrowthYOYLabels": ["FY23","FY24"],
+      "managementCommentary": "2-3 sentence summary"
+    },
+    "technical": {
+      "trend": "Bullish / Bearish / Sideways",
+      "rsi": number,
+      "macdSignal": "Bullish crossover / Bearish crossover / Neutral",
+      "support1": number, "support2": number,
+      "resistance1": number, "resistance2": number,
+      "entryZone": "e.g. Rs.450-Rs.470",
+      "stopLoss": number, "target1": number, "target2": number,
+      "potentialReturn": number,
+      "riskReward": "e.g. 1:3",
+      "timeframe": "Short-term (1-3 months) / Medium-term (3-6 months)",
+      "movingAvg50": number, "movingAvg200": number,
+      "above50DMA": boolean, "above200DMA": boolean,
+      "technicalSummary": "2-3 sentence outlook"
+    }
+  },
+
+  "dcf": {
+    "wacc": number,
+    "riskFreeRate": number,
+    "erp": number,
+    "beta": number,
+    "terminalGrowthBase": number,
+    "revenueFY": [number,number,number,number,number],
+    "revenueFYLabels": ["FY21","FY22","FY23","FY24","FY25"],
+    "patFY": [number,number,number,number,number],
+    "ebitMarginFY": [number,number,number,number,number],
+    "orderBacklogCr": number,
+    "keyOrderNote": "1-2 sentence note on largest order or revenue driver",
+    "bull": {
+      "projRevenue": [number,number,number,number,number],
+      "projPAT":     [number,number,number,number,number],
+      "projFCFF":    [number,number,number,number,number],
+      "projLabels":  ["FY26","FY27","FY28","FY29","FY30"],
+      "ebitMarginTarget": number,
+      "terminalGrowth": number,
+      "intrinsicValue": number,
+      "upside": number
+    },
+    "base": {
+      "projRevenue": [number,number,number,number,number],
+      "projPAT":     [number,number,number,number,number],
+      "projFCFF":    [number,number,number,number,number],
+      "projLabels":  ["FY26","FY27","FY28","FY29","FY30"],
+      "ebitMarginTarget": number,
+      "terminalGrowth": number,
+      "intrinsicValue": number,
+      "upside": number
+    },
+    "bear": {
+      "projRevenue": [number,number,number,number,number],
+      "projPAT":     [number,number,number,number,number],
+      "projFCFF":    [number,number,number,number,number],
+      "projLabels":  ["FY26","FY27","FY28","FY29","FY30"],
+      "ebitMarginTarget": number,
+      "terminalGrowth": number,
+      "intrinsicValue": number,
+      "upside": number
+    },
+    "segments": [
+      {"name":"Segment1","fy25Rev":number,"fy28eRev":number,"ebitMargin":"x-y%","cagr":"xx%","desc":"brief desc","bull":"bull driver","risk":"key risk"}
+    ],
+    "valueBridge": {
+      "pvExplicitFCFF": number,
+      "terminalValue": number,
+      "pvTerminalValue": number,
+      "enterpriseValue": number,
+      "netCash": number,
+      "equityValue": number,
+      "sharesCr": number
+    },
+    "peerComps": [
+      {"name":"Company","pe":number,"evEbitda":number,"mcapSales":number,"revenueCAGR":number,"ebitMargin":number,"verdict":"brief"}
+    ]
+  },
+
+  "peers": [
+    {
+      "name": "Short name",
+      "fullName": "Full company name",
+      "ticker": "NSE ticker",
+      "sector": "sector",
+      "cmp": number,
+      "mcap": "Rs.X Cr",
+      "promoterHolding": number,
+      "promoterChange": number,
+      "fiiChange": number,
+      "cfoPositive": boolean,
+      "cfoVsOthers": "Higher or Lower",
+      "debtToReserve": number,
+      "patMargin": number,
+      "mcapToSales": number,
+      "peRatio": number,
+      "revenueGrowthYOY": [number,number],
+      "patGrowthYOY": [number,number],
+      "orderBacklog": "Rs.X Cr",
+      "trend": "Bullish / Bearish / Sideways",
+      "rsi": number,
+      "macd": "Bullish crossover / Bearish crossover / Neutral",
+      "above50dma": boolean,
+      "above200dma": boolean,
+      "from52wHigh": number,
+      "commentary": "2 sentence mgmt commentary",
+      "redFlags": ["flag1"],
+      "positives": ["pos1"],
+      "fitRating": "Strong Buy / Buy / Hold / Avoid"
+    }
+  ]
+}
+
+SCORING RULES (compute these yourself for each peer):
+- peers[].fitScore = promoterScore(0-15) + cashFlowScore(0-20) + profitScore(0-20) + growthScore(0-15) + technicalScore(0-20) + commentaryScore(0-10)
+- promoterScore: 15 if holding>50% and stable/rising; scale down otherwise
+- cashFlowScore: 20 if CFO positive + CFO>others + debt/reserve<50%; 0 if CFO negative
+- profitScore: 20 if patMargin>=15%; 10 if 10-14%; 5 if 5-9%; 0 if <=5% (auto-Avoid)
+- growthScore: 15 if both revenue+PAT growing >15% YOY; 10 if 10-15%; 5 if <10%
+- technicalScore: 20 if bullish+above both DMAs+RSI 40-65; deduct for overbought RSI>70
+- commentaryScore: 0-10 based on clarity, catalyst strength, no negatives
+- fitRating: Strong Buy 75-100, Buy 55-74, Hold 35-54, Avoid 0-34
+- Force Avoid if patMargin<=5%
+- Include the searched scrip itself as first peer with its own scores
+- Include 4-5 direct sector peers with real NSE-listed companies
+
+SEARCH STRATEGY: Search screener.in, tickertape.in, moneycontrol.com for financials. Search exchange filings for order book. Search for recent management commentary.
+Return ONLY raw JSON. No markdown. No explanation.`;
+
+// ─── Shared helpers ───────────────────────────────────────────────────────────
+const ratingColor = r => {
+  if (!r) return C.muted;
+  if (r.includes("Strong Buy")) return C.green;
+  if (r.includes("Buy")) return C.accent;
+  if (r.includes("Hold")) return C.warn;
+  return C.red;
+};
+
+const Badge = ({ label, color }) => (
+  <span style={{background:color+"22",color,border:`1px solid ${color}44`,
+    borderRadius:4,padding:"2px 9px",fontSize:11,fontWeight:700,
+    fontFamily:"monospace",display:"inline-block"}}>{label}</span>
+);
+
+const MetricRow = ({ label, value, flag, good }) => (
+  <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${C.border}`}}>
+    <span style={{color:C.muted,fontSize:12}}>{label}</span>
+    <span style={{color:flag?C.red:good?C.green:C.text,fontWeight:600,fontSize:12,fontFamily:"monospace"}}>{value}</span>
+  </div>
+);
+
+const MiniBar = ({ label, value, max, color }) => {
+  const pct = Math.min(Math.abs(value||0)/max*100,100);
+  const neg = value < 0;
+  return (
+    <div style={{marginBottom:8}}>
+      <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
+        <span style={{color:C.muted,fontSize:11}}>{label}</span>
+        <span style={{color:neg?C.red:C.green,fontSize:11,fontFamily:"monospace"}}>{neg?"":"+"}{ value}%</span>
+      </div>
+      <div style={{background:C.border,borderRadius:3,height:5}}>
+        <div style={{width:`${pct}%`,background:neg?C.red:color,borderRadius:3,height:5}}/>
+      </div>
+    </div>
+  );
+};
+
+const ScoreGauge = ({ score }) => {
+  const r=54, circ=2*Math.PI*r, dash=(score/100)*circ;
+  const col = score>=75?C.green:score>=55?C.accent:score>=35?C.warn:C.red;
+  return (
+    <svg width={110} height={110} viewBox="0 0 140 140">
+      <circle cx={70} cy={70} r={r} fill="none" stroke={C.border} strokeWidth={10}/>
+      <circle cx={70} cy={70} r={r} fill="none" stroke={col} strokeWidth={10}
+        strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
+        transform="rotate(-90 70 70)" style={{filter:`drop-shadow(0 0 6px ${col})`}}/>
+      <text x={70} y={65} textAnchor="middle" fill={col} fontSize={28} fontWeight={700} fontFamily="monospace">{score}</text>
+      <text x={70} y={84} textAnchor="middle" fill={C.muted} fontSize={11} fontFamily="monospace">/100</text>
+    </svg>
+  );
+};
+
+const SectionCard = ({ title, color=C.gold, children }) => (
+  <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:11,padding:"14px 14px",marginBottom:12}}>
+    <div style={{color,fontSize:10,fontWeight:700,letterSpacing:2,marginBottom:12,textTransform:"uppercase"}}>{title}</div>
+    {children}
+  </div>
+);
+
+const CustomTooltip = ({ active, payload, label }) => {
+  if (!active||!payload?.length) return null;
+  return (
+    <div style={{background:C.surface,border:`1px solid ${C.borderLight}`,borderRadius:8,padding:"10px 14px",fontSize:11}}>
+      <div style={{color:C.gold,fontWeight:700,marginBottom:6}}>{label}</div>
+      {payload.map((p,i)=>(
+        <div key={i} style={{color:p.color,marginBottom:2}}>{p.name}: <strong>₹{Number(p.value).toLocaleString()}</strong></div>
+      ))}
+    </div>
+  );
+};
+
+const EmptyState = ({ icon, title, sub }) => (
+  <div style={{textAlign:"center",padding:"70px 20px"}}>
+    <div style={{fontSize:46,marginBottom:12}}>{icon}</div>
+    <div style={{color:C.muted,fontSize:13}}>{title}</div>
+    {sub && <div style={{color:C.muted,fontSize:11,marginTop:4}}>{sub}</div>}
+  </div>
+);
+
+// ─── Loading overlay ──────────────────────────────────────────────────────────
+const STEPS = [
+  "🔍 Searching NSE/BSE filings…",
+  "📊 Fetching shareholding pattern…",
+  "💰 Analysing cash flows & debt…",
+  "📈 Computing revenue & PAT trends…",
+  "⬡  Building DCF model (Bull/Base/Bear)…",
+  "🏆 Ranking sector peers…",
+  "🤖 Scoring investment fitness…",
+];
+
+const Loader = ({ step }) => (
+  <div style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"60px 20px",gap:16}}>
+    <div className="spin" style={{fontSize:36}}>⚙️</div>
+    <div style={{color:C.accent,fontSize:12,fontFamily:"monospace",textAlign:"center"}}>{step}</div>
+    <div style={{color:C.muted,fontSize:10}}>Powered by Claude Haiku · Web Search</div>
+  </div>
+);
+
+// ════════════════════════════════════════════════════════════════════════════
+// TAB 1 — ANALYSER VIEW
+// ════════════════════════════════════════════════════════════════════════════
+function AnalyserView({ data }) {
+  if (!data) return null;
+  const { meta, analyser } = data;
+  const { fundamental: f, technical: t } = analyser;
+
+  const PriceBox = ({ label, value, color }) => (
+    <div style={{background:C.surface,border:`1px solid ${color}44`,borderRadius:7,padding:"8px 6px",textAlign:"center"}}>
+      <div style={{color:C.muted,fontSize:10,marginBottom:3}}>{label}</div>
+      <div style={{color,fontWeight:700,fontSize:13,fontFamily:"monospace"}}>₹{value}</div>
+    </div>
+  );
+
+  return (
+    <div style={{padding:"0 14px 20px"}}>
+      {/* Hero */}
+      <div style={{background:"linear-gradient(135deg,#0d1929,#060910)",border:`1px solid ${C.border}`,borderRadius:13,padding:16,marginBottom:12}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap"}}>
+          <div style={{flex:1}}>
+            <div style={{fontWeight:800,fontSize:19,marginBottom:7,color:C.white}}>{meta.company}</div>
+            <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:9}}>
+              <Badge label={meta.ticker} color={C.highlight}/>
+              <Badge label={meta.exchange} color={C.muted}/>
+              <Badge label={meta.sector} color={C.warn}/>
+            </div>
+            <div style={{color:C.muted,fontSize:12}}>CMP <span style={{color:C.text,fontWeight:700,fontFamily:"monospace",fontSize:18}}>₹{meta.currentPrice}</span></div>
+            <div style={{color:C.muted,fontSize:11,marginTop:2}}>MCap: {meta.marketCap} · PE: {meta.peRatio}x · P/S: {meta.mcapToSales}x</div>
+          </div>
+          <div style={{textAlign:"center"}}>
+            <ScoreGauge score={analyser.fitScore}/>
+            <Badge label={analyser.fitRating} color={ratingColor(analyser.fitRating)}/>
+            <div style={{color:C.muted,fontSize:10,marginTop:3}}>FIT SCORE</div>
+          </div>
+        </div>
+        <div style={{marginTop:12,color:C.textDim,fontSize:12,lineHeight:1.7,borderTop:`1px solid ${C.border}`,paddingTop:10}}>{analyser.fitSummary}</div>
+      </div>
+
+      {/* Flags & Positives */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+        {analyser.redFlags?.length>0 && (
+          <div style={{background:C.redDim,border:`1px solid ${C.red}44`,borderRadius:9,padding:12}}>
+            <div style={{color:C.red,fontSize:10,fontWeight:700,letterSpacing:2,marginBottom:7}}>⚠ RED FLAGS</div>
+            {analyser.redFlags.map((fl,i)=><div key={i} style={{color:"#fca5a5",fontSize:11,marginBottom:4}}>• {fl}</div>)}
+          </div>
+        )}
+        {analyser.positives?.length>0 && (
+          <div style={{background:C.greenDim,border:`1px solid ${C.green}44`,borderRadius:9,padding:12}}>
+            <div style={{color:C.green,fontSize:10,fontWeight:700,letterSpacing:2,marginBottom:7}}>✓ POSITIVES</div>
+            {analyser.positives.map((p,i)=><div key={i} style={{color:"#86efac",fontSize:11,marginBottom:4}}>• {p}</div>)}
+          </div>
+        )}
+      </div>
+
+      {/* Fundamental */}
+      <SectionCard title="⬡ Fundamental Analysis">
+        <MetricRow label="Promoter Holding" value={`${f.promoterHolding}%`} good={f.promoterHolding>50}/>
+        <MetricRow label="Promoter Change" value={`${f.promoterHoldingChange>0?"+":""}${f.promoterHoldingChange}%`} good={f.promoterHoldingChange>=0} flag={f.promoterHoldingChange<-2}/>
+        <MetricRow label="Public Holding" value={`${f.publicHolding}%`}/>
+        <MetricRow label="FII Change" value={`${f.fiiHoldingChange>0?"+":""}${f.fiiHoldingChange}%`} good={f.fiiHoldingChange>0}/>
+        <MetricRow label="CFO Positive?" value={f.cfoPositive?"✓ Yes":"✗ No"} good={f.cfoPositive} flag={!f.cfoPositive}/>
+        <MetricRow label="CFO vs Inv+Fin" value={f.cfoVsOthers} good={f.cfoVsOthers?.toLowerCase().includes("higher")}/>
+        <MetricRow label="Debt / Reserve" value={`${f.debtToReserve}%`} flag={f.debtToReserve>=50} good={f.debtToReserve<50}/>
+        <MetricRow label="PAT Margin" value={`${f.patMargin}%`} flag={f.patMargin<=5} good={f.patMargin>=10}/>
+        <MetricRow label="MCap / Sales" value={`${meta.mcapToSales}x`} flag={meta.mcapToSales>5} good={meta.mcapToSales<=3}/>
+        <MetricRow label="PE Ratio" value={`${meta.peRatio}x`}/>
+
+        <div style={{marginTop:16}}>
+          <div style={{color:C.muted,fontSize:10,marginBottom:8,letterSpacing:1}}>QUARTERLY REVENUE GROWTH (QoQ %)</div>
+          {f.revenueQoQ?.map((v,i)=><MiniBar key={i} label={f.revenueQoQLabels?.[i]||`Q${i+1}`} value={v} max={30} color={C.accent}/>)}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginTop:12}}>
+          <div>
+            <div style={{color:C.muted,fontSize:10,marginBottom:7}}>REVENUE GROWTH YOY</div>
+            {f.revenueGrowthYOY?.map((v,i)=><MiniBar key={i} label={f.revenueGrowthYOYLabels?.[i]||`FY${i}`} value={v} max={50} color={C.highlight}/>)}
+          </div>
+          <div>
+            <div style={{color:C.muted,fontSize:10,marginBottom:7}}>PAT GROWTH YOY</div>
+            {f.patGrowthYOY?.map((v,i)=><MiniBar key={i} label={f.patGrowthYOYLabels?.[i]||`FY${i}`} value={v} max={50} color={C.green}/>)}
+          </div>
+        </div>
+        <div style={{marginTop:14,background:C.surface,borderRadius:7,padding:12,borderLeft:`3px solid ${C.accent}`}}>
+          <div style={{color:C.accent,fontSize:10,letterSpacing:2,marginBottom:5,fontWeight:700}}>MANAGEMENT COMMENTARY</div>
+          <div style={{color:C.muted,fontSize:12,lineHeight:1.6}}>{f.managementCommentary}</div>
+        </div>
+      </SectionCard>
+
+      {/* Technical */}
+      <SectionCard title="⬡ Technical Analysis">
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:12}}>
+          {[
+            ["TREND",t.trend,t.trend==="Bullish"?C.green:t.trend==="Bearish"?C.red:C.warn],
+            ["RSI",t.rsi,t.rsi>70?C.red:t.rsi<30?C.green:C.text],
+            ["MACD",t.macdSignal,t.macdSignal?.includes("Bullish")?C.green:t.macdSignal?.includes("Bearish")?C.red:C.warn]
+          ].map(([lbl,val,col])=>(
+            <div key={lbl} style={{background:C.surface,borderRadius:7,padding:10,textAlign:"center"}}>
+              <div style={{color:C.muted,fontSize:10,marginBottom:3}}>{lbl}</div>
+              <div style={{color:col,fontWeight:700,fontSize:12}}>{val}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:7,marginBottom:12}}>
+          {[["S1",t.support1,C.green],["S2",t.support2,C.green],["R1",t.resistance1,C.red],["R2",t.resistance2,C.red]].map(([l,v,col])=>(
+            <div key={l} style={{background:C.surface,border:`1px solid ${col}44`,borderRadius:7,padding:"8px 6px",textAlign:"center"}}>
+              <div style={{color:C.muted,fontSize:10,marginBottom:3}}>{l}</div>
+              <div style={{color:col,fontWeight:700,fontSize:13,fontFamily:"monospace"}}>₹{v}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{background:"linear-gradient(135deg,#0f2a1e,#0a1f1a)",border:`1px solid ${C.green}33`,borderRadius:9,padding:13,marginBottom:10}}>
+          <div style={{color:C.green,fontSize:10,fontWeight:700,letterSpacing:2,marginBottom:10}}>TRADE SETUP · {t.timeframe}</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            {[["ENTRY ZONE",t.entryZone,C.accent],["STOP LOSS",`₹${t.stopLoss}`,C.red],["TARGET 1",`₹${t.target1}`,C.green],["TARGET 2",`₹${t.target2}`,C.green]].map(([lbl,val,col])=>(
+              <div key={lbl}>
+                <div style={{color:C.muted,fontSize:10,marginBottom:3}}>{lbl}</div>
+                <div style={{color:col,fontWeight:700,fontSize:13,fontFamily:"monospace"}}>{val}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{display:"flex",gap:18,marginTop:10,borderTop:`1px solid ${C.green}22`,paddingTop:8}}>
+            <div><span style={{color:C.muted,fontSize:11}}>Return: </span><span style={{color:C.green,fontWeight:700,fontFamily:"monospace"}}>{t.potentialReturn}%</span></div>
+            <div><span style={{color:C.muted,fontSize:11}}>R:R: </span><span style={{color:C.accent,fontWeight:700,fontFamily:"monospace"}}>{t.riskReward}</span></div>
+          </div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+          {[["50-Day MA",t.movingAvg50,t.above50DMA],["200-Day MA",t.movingAvg200,t.above200DMA]].map(([lbl,val,up])=>(
+            <div key={lbl} style={{background:C.surface,borderRadius:7,padding:10}}>
+              <div style={{color:C.muted,fontSize:10,marginBottom:3}}>{lbl}</div>
+              <div style={{color:up?C.green:C.red,fontWeight:700,fontFamily:"monospace",fontSize:12}}>₹{val} {up?"↑":"↓"}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{background:C.surface,borderRadius:7,padding:12,borderLeft:`3px solid ${C.highlight}`}}>
+          <div style={{color:C.highlight,fontSize:10,letterSpacing:2,marginBottom:5,fontWeight:700}}>TECHNICAL OUTLOOK</div>
+          <div style={{color:C.muted,fontSize:12,lineHeight:1.6}}>{t.technicalSummary}</div>
+        </div>
+      </SectionCard>
+
+      <div style={{color:C.muted,fontSize:10,textAlign:"center",lineHeight:1.7,padding:"0 10px 10px"}}>
+        {meta.dataNote && <div style={{color:C.warn,marginBottom:4}}>ⓘ {meta.dataNote}</div>}
+        Claude Haiku · Web Search · Not financial advice
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TAB 2 — DCF VALUATION VIEW
+// ════════════════════════════════════════════════════════════════════════════
+function DCFView({ data }) {
+  const [scenario, setScenario] = useState("base");
+  const [dcfTab, setDcfTab] = useState("dcf");
+
+  if (!data) return null;
+  const { meta, dcf } = data;
+  const sc = dcf[scenario];
+  const scColor = scenario==="bull"?C.green:scenario==="base"?C.gold:C.red;
+
+  const histData = (dcf.revenueFYLabels||[]).map((yr,i)=>({yr,revenue:dcf.revenueFY[i],pat:dcf.patFY[i]}));
+  const projData = (sc.projLabels||[]).map((yr,i)=>({yr,revenue:sc.projRevenue[i],pat:sc.projPAT[i]}));
+  const chartData = [...histData,...projData];
+
+  return (
+    <div style={{padding:"0 14px 20px"}}>
+      {/* Header */}
+      <div style={{background:"linear-gradient(180deg,#0a1320,#060910)",border:`1px solid ${C.border}`,borderRadius:12,padding:"14px 16px",marginBottom:14}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:10}}>
+          <div>
+            <div style={{color:C.white,fontWeight:700,fontSize:17}}>{meta.company}</div>
+            <div style={{color:C.textDim,fontSize:11}}>Damodaran FCFF · WACC {dcf.wacc}% · Haiku + Web Search</div>
+          </div>
+          <div style={{textAlign:"right"}}>
+            <div style={{color:C.white,fontSize:22,fontWeight:700,fontFamily:"monospace"}}>₹{meta.currentPrice}</div>
+            <div style={{color:C.textDim,fontSize:10}}>CMP · {meta.ticker}</div>
+          </div>
+        </div>
+        {/* KPIs */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginTop:12}}>
+          {[
+            ["WACC",`${dcf.wacc}%`,C.muted],
+            ["BACKLOG",`₹${(dcf.orderBacklogCr/1000).toFixed(0)}K Cr`,C.cyan],
+            ["Beta",`${dcf.beta}`,C.textDim],
+            ["ERP",`${dcf.erp}%`,C.textDim],
+          ].map(([l,v,col])=>(
+            <div key={l} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",textAlign:"center"}}>
+              <div style={{color:C.muted,fontSize:9,letterSpacing:1,marginBottom:3}}>{l}</div>
+              <div style={{color:col,fontWeight:700,fontSize:14,fontFamily:"monospace"}}>{v}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Sub-tabs */}
+      <div style={{display:"flex",borderBottom:`1px solid ${C.border}`,marginBottom:14,gap:2}}>
+        {[["dcf","DCF Model"],["segment","Segments"],["peers","Peer Comps"]].map(([k,l])=>(
+          <button key={k} onClick={()=>setDcfTab(k)}
+            style={{background:"none",border:"none",borderBottom:dcfTab===k?`2px solid ${C.gold}`:"2px solid transparent",
+              color:dcfTab===k?C.gold:C.muted,fontWeight:600,fontSize:11,padding:"7px 14px",cursor:"pointer",letterSpacing:0.5}}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {dcfTab==="dcf" && (
+        <div>
+          {/* Scenario selector */}
+          <div style={{display:"flex",gap:8,marginBottom:14}}>
+            {["bull","base","bear"].map(s=>{
+              const col=s==="bull"?C.green:s==="base"?C.gold:C.red;
+              return (
+                <button key={s} onClick={()=>setScenario(s)}
+                  style={{flex:1,padding:"9px 0",background:scenario===s?col+"20":C.surface,
+                    border:`1px solid ${scenario===s?col:C.border}`,borderRadius:8,
+                    color:scenario===s?col:C.muted,fontWeight:700,fontSize:11,cursor:"pointer",letterSpacing:1,textTransform:"capitalize"}}>
+                  {s} Case
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Scenario summary */}
+          <div style={{background:C.card,border:`1px solid ${scColor}44`,borderRadius:11,padding:"14px 16px",marginBottom:14}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+              {[
+                ["Intrinsic Value",`₹${(sc.intrinsicValue||0).toLocaleString()}`,scColor],
+                [`vs CMP ₹${meta.currentPrice}`,`${sc.upside>0?"+":""}${sc.upside}%`,sc.upside>0?C.green:C.red],
+                ["Terminal Growth",`${sc.terminalGrowth}%`,C.textDim],
+                ["Target EBIT%",`${sc.ebitMarginTarget}%`,C.cyan],
+              ].map(([l,v,col])=>(
+                <div key={l} style={{textAlign:"center"}}>
+                  <div style={{color:C.muted,fontSize:9,letterSpacing:1,marginBottom:3}}>{l}</div>
+                  <div style={{color:col,fontWeight:700,fontSize:16,fontFamily:"monospace"}}>{v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Revenue+PAT chart */}
+          <SectionCard title="Revenue & PAT trajectory (₹ Cr)">
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={chartData} margin={{top:5,right:5,left:5,bottom:0}}>
+                <defs>
+                  <linearGradient id="rg" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={C.gold} stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor={C.gold} stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="pg" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={scColor} stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor={scColor} stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke={C.border}/>
+                <XAxis dataKey="yr" tick={{fill:C.muted,fontSize:9}} axisLine={false} tickLine={false}/>
+                <YAxis tick={{fill:C.muted,fontSize:9}} axisLine={false} tickLine={false} tickFormatter={v=>`₹${(v/1000).toFixed(0)}K`}/>
+                <Tooltip content={<CustomTooltip/>}/>
+                <ReferenceLine x={dcf.revenueFYLabels?.at(-1)} stroke={C.borderLight} strokeDasharray="4 4"/>
+                <Legend formatter={v=><span style={{color:C.textDim,fontSize:10}}>{v}</span>}/>
+                <Area type="monotone" dataKey="revenue" name="Revenue" stroke={C.gold} fill="url(#rg)" strokeWidth={2} dot={{fill:C.gold,r:2}}/>
+                <Area type="monotone" dataKey="pat" name="PAT" stroke={scColor} fill="url(#pg)" strokeWidth={2} dot={{fill:scColor,r:2}}/>
+              </AreaChart>
+            </ResponsiveContainer>
+          </SectionCard>
+
+          {/* Projection table */}
+          <SectionCard title="5-Year Projection Table">
+            <div style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                <thead>
+                  <tr style={{borderBottom:`1px solid ${C.borderLight}`}}>
+                    {["Year","Revenue","Growth","PAT","FCFF","PV FCFF"].map(h=>(
+                      <th key={h} style={{color:C.gold,fontSize:9,letterSpacing:1,padding:"6px 8px",textAlign:h==="Year"?"left":"right",fontWeight:700}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(sc.projLabels||[]).map((yr,i)=>{
+                    const prevRev=i===0?(dcf.revenueFY?.at(-1)||1):sc.projRevenue[i-1];
+                    const g=((sc.projRevenue[i]-prevRev)/prevRev*100).toFixed(1);
+                    const disc=Math.pow(1+dcf.wacc/100,i+1);
+                    const pv=Math.round((sc.projFCFF[i]||0)/disc);
+                    return (
+                      <tr key={yr} style={{borderBottom:`1px solid ${C.border}`,background:i%2===0?C.surface+"60":"transparent"}}>
+                        <td style={{padding:"7px 8px",color:C.white,fontWeight:600}}>{yr}</td>
+                        <td style={{textAlign:"right",padding:"7px 8px",fontFamily:"monospace"}}>₹{(sc.projRevenue[i]||0).toLocaleString()}</td>
+                        <td style={{textAlign:"right",padding:"7px 8px",color:parseFloat(g)>10?C.green:C.amber}}>+{g}%</td>
+                        <td style={{textAlign:"right",padding:"7px 8px",fontFamily:"monospace"}}>₹{(sc.projPAT[i]||0).toLocaleString()}</td>
+                        <td style={{textAlign:"right",padding:"7px 8px",fontFamily:"monospace",color:scColor}}>₹{(sc.projFCFF[i]||0).toLocaleString()}</td>
+                        <td style={{textAlign:"right",padding:"7px 8px",fontFamily:"monospace",color:C.textDim}}>₹{pv.toLocaleString()}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </SectionCard>
+
+          {/* Value bridge */}
+          {dcf.valueBridge && (
+            <SectionCard title="Value Bridge (Base Case)">
+              {[
+                ["PV of explicit FCFFs",`₹${(dcf.valueBridge.pvExplicitFCFF||0).toLocaleString()} Cr`,C.text],
+                ["PV of Terminal Value",`₹${(dcf.valueBridge.pvTerminalValue||0).toLocaleString()} Cr`,C.text],
+                ["Enterprise Value",`₹${(dcf.valueBridge.enterpriseValue||0).toLocaleString()} Cr`,C.cyan],
+                ["Net Cash / (Debt)",`₹${(dcf.valueBridge.netCash||0).toLocaleString()} Cr`,dcf.valueBridge.netCash>=0?C.green:C.red],
+                ["Equity Value",`₹${(dcf.valueBridge.equityValue||0).toLocaleString()} Cr`,C.gold],
+                ["Shares Outstanding",`${dcf.valueBridge.sharesCr} Cr`,C.muted],
+                ["Intrinsic Value / share",`₹${(dcf.base?.intrinsicValue||0).toLocaleString()}`,C.gold],
+              ].map(([l,v,col])=>(
+                <MetricRow key={l} label={l} value={v} good={col===C.gold||col===C.green}/>
+              ))}
+            </SectionCard>
+          )}
+
+          {/* 3-scenario cards */}
+          <SectionCard title="Scenario Summary">
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+              {["bull","base","bear"].map(s=>{
+                const sc2=dcf[s]; const col=s==="bull"?C.green:s==="base"?C.gold:C.red;
+                return (
+                  <div key={s} style={{background:C.surface,border:`1px solid ${col}44`,borderRadius:9,padding:12,textAlign:"center",cursor:"pointer"}} onClick={()=>setScenario(s)}>
+                    <div style={{color:col,fontWeight:700,fontSize:11,marginBottom:4,textTransform:"capitalize"}}>{s}</div>
+                    <div style={{color:C.white,fontWeight:700,fontSize:20,fontFamily:"monospace"}}>₹{(sc2?.intrinsicValue||0).toLocaleString()}</div>
+                    <div style={{color:sc2?.upside>0?C.green:C.red,fontWeight:700,fontSize:12,marginTop:4}}>
+                      {sc2?.upside>0?"▲":"▼"} {Math.abs(sc2?.upside||0)}%
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {dcf.keyOrderNote && (
+              <div style={{marginTop:12,background:C.goldDim,border:`1px solid ${C.goldMid}`,borderRadius:7,padding:"10px 12px",fontSize:11,color:C.text}}>
+                <span style={{color:C.gold,fontWeight:700}}>Key catalyst: </span>{dcf.keyOrderNote}
+              </div>
+            )}
+          </SectionCard>
+        </div>
+      )}
+
+      {dcfTab==="segment" && (
+        <div>
+          {(dcf.segments||[]).map((s,i)=>(
+            <div key={i} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:11,padding:"13px 14px",marginBottom:10,borderTop:`2px solid ${[C.gold,C.cyan,C.purple,C.amber,C.green][i%5]}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                <div style={{color:C.white,fontWeight:700,fontSize:13}}>{s.name}</div>
+                <div style={{display:"flex",gap:8}}>
+                  <span style={{background:C.goldDim,color:C.gold,border:`1px solid ${C.goldMid}`,borderRadius:4,padding:"2px 7px",fontSize:9,fontWeight:700}}>{s.cagr} CAGR</span>
+                  <span style={{color:C.muted,fontSize:10}}>EBIT {s.ebitMargin}</span>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:16,marginBottom:8}}>
+                <div><div style={{color:C.muted,fontSize:9}}>FY25</div><div style={{color:C.textDim,fontFamily:"monospace"}}>₹{(s.fy25Rev||0).toLocaleString()} Cr</div></div>
+                <div style={{color:C.muted,alignSelf:"flex-end",paddingBottom:2}}>→</div>
+                <div><div style={{color:C.muted,fontSize:9}}>FY28E</div><div style={{color:C.gold,fontFamily:"monospace",fontWeight:700}}>₹{(s.fy28eRev||0).toLocaleString()} Cr</div></div>
+              </div>
+              <div style={{color:C.textDim,fontSize:11,lineHeight:1.6,marginBottom:6}}>{s.desc}</div>
+              <div style={{fontSize:10}}>
+                <div style={{color:C.green}}>▲ {s.bull}</div>
+                <div style={{color:C.red}}>▼ {s.risk}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {dcfTab==="peers" && (
+        <SectionCard title="Peer Relative Valuation">
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+              <thead>
+                <tr style={{borderBottom:`1px solid ${C.borderLight}`}}>
+                  {["Company","P/E","EV/EBITDA","MCap/Sales","Rev CAGR","EBIT%","Verdict"].map(h=>(
+                    <th key={h} style={{color:C.gold,fontSize:9,letterSpacing:1,padding:"7px 8px",textAlign:h==="Company"||h==="Verdict"?"left":"right",fontWeight:700}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {(dcf.peerComps||[]).map((p,i)=>(
+                  <tr key={p.name} style={{borderBottom:`1px solid ${C.border}`,background:i===0?C.goldDim:i%2===0?C.surface+"40":"transparent"}}>
+                    <td style={{padding:"8px",color:i===0?C.gold:C.white,fontWeight:i===0?700:400}}>{p.name}{i===0?" ⬡":""}</td>
+                    <td style={{textAlign:"right",padding:"8px",color:p.pe>70?C.red:p.pe<40?C.green:C.amber,fontFamily:"monospace"}}>{p.pe}x</td>
+                    <td style={{textAlign:"right",padding:"8px",color:p.evEbitda>55?C.red:C.amber,fontFamily:"monospace"}}>{p.evEbitda}x</td>
+                    <td style={{textAlign:"right",padding:"8px",color:p.mcapSales>5?C.red:C.green,fontFamily:"monospace"}}>{p.mcapSales}x</td>
+                    <td style={{textAlign:"right",padding:"8px",color:p.revenueCAGR>15?C.green:C.amber}}>{p.revenueCAGR}%</td>
+                    <td style={{textAlign:"right",padding:"8px",color:p.ebitMargin>15?C.green:C.text}}>{p.ebitMargin}%</td>
+                    <td style={{padding:"8px",color:C.textDim,fontSize:10}}>{p.verdict}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </SectionCard>
+      )}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TAB 3 — PEER RANKING VIEW
+// ════════════════════════════════════════════════════════════════════════════
+function PeersView({ data }) {
+  const [selected, setSelected] = useState(null);
+  const [peerTab, setPeerTab] = useState("scorecard");
+
+  if (!data) return null;
+  const { peers } = data;
+
+  // Compute fit scores
+  const scored = (peers||[]).map(p => {
+    const promoterScore = p.promoterHolding > 50 ? (p.promoterChange >= 0 ? 15 : p.promoterChange >= -2 ? 12 : 8) : (p.promoterHolding > 30 ? 7 : 3);
+    const cashFlowScore = !p.cfoPositive ? 0 : (p.cfoVsOthers?.toLowerCase().includes("higher") ? (p.debtToReserve < 50 ? 20 : 14) : 12);
+    const profitScore = p.patMargin <= 5 ? 0 : p.patMargin >= 15 ? 20 : p.patMargin >= 10 ? 13 : 7;
+    const growthScore = Math.min((p.revenueGrowthYOY?.[1]||0) > 15 && (p.patGrowthYOY?.[1]||0) > 15 ? 15 : (p.revenueGrowthYOY?.[1]||0) > 10 ? 10 : 5, 15);
+    const rsiOk = p.rsi >= 30 && p.rsi <= 70;
+    const technicalScore = p.trend === "Bullish" && p.above50dma && p.above200dma && rsiOk ? 20 : p.trend === "Bullish" ? 14 : p.trend === "Sideways" ? 8 : 3;
+    const commentaryScore = typeof p.commentaryScore === "number" ? p.commentaryScore : 6;
+    const fitScore = Math.min(promoterScore + cashFlowScore + profitScore + growthScore + technicalScore + commentaryScore, 100);
+    const fitRating = p.patMargin <= 5 ? "Avoid" : fitScore >= 75 ? "Strong Buy" : fitScore >= 55 ? "Buy" : fitScore >= 35 ? "Hold" : "Avoid";
+    return { ...p, promoterScore, cashFlowScore, profitScore, growthScore, technicalScore, commentaryScore, fitScore, fitRating };
+  }).sort((a, b) => b.fitScore - a.fitScore).map((p, i) => ({ ...p, rank: i + 1 }));
+
+  const medals = ["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣"];
+  const colors = [C.green, C.cyan, C.gold, C.purple, C.amber, C.red];
+  const sel = selected ?? scored[0];
+
+  const buildRadar = p => [
+    {axis:"Promoter", score:(p.promoterScore/15)*100},
+    {axis:"Cash Flow", score:(p.cashFlowScore/20)*100},
+    {axis:"Profit", score:(p.profitScore/20)*100},
+    {axis:"Growth", score:(p.growthScore/15)*100},
+    {axis:"Technical", score:(p.technicalScore/20)*100},
+    {axis:"Commentary", score:(p.commentaryScore/10)*100},
+  ];
+
+  return (
+    <div style={{padding:"0 14px 20px"}}>
+      {/* Rank strip */}
+      <div style={{overflowX:"auto",paddingBottom:4,marginBottom:14}}>
+        <div style={{display:"flex",gap:8,minWidth:"max-content",padding:"4px 0"}}>
+          {scored.map((p,i)=>{
+            const col = colors[i]||C.muted;
+            const isSel = sel?.name===p.name;
+            return (
+              <button key={p.name} onClick={()=>setSelected(p)}
+                style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,padding:"10px 12px",
+                  background:isSel?col+"20":C.card,border:`1px solid ${isSel?col:C.border}`,
+                  borderRadius:10,cursor:"pointer",minWidth:90}}>
+                <div style={{fontSize:14}}>{medals[i]||"•"}</div>
+                <div style={{color:C.white,fontWeight:700,fontSize:10}}>{p.name}</div>
+                <div style={{color:col,fontWeight:700,fontSize:18,fontFamily:"monospace"}}>{p.fitScore}</div>
+                <div style={{background:ratingColor(p.fitRating)+"25",color:ratingColor(p.fitRating),border:`1px solid ${ratingColor(p.fitRating)}44`,borderRadius:3,padding:"1px 6px",fontSize:9,fontWeight:700}}>{p.fitRating}</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Sub-tabs */}
+      <div style={{display:"flex",borderBottom:`1px solid ${C.border}`,marginBottom:14}}>
+        {[["scorecard","Scorecard"],["radar","Radar"],["compare","Compare"]].map(([k,l])=>(
+          <button key={k} onClick={()=>setPeerTab(k)}
+            style={{background:"none",border:"none",borderBottom:peerTab===k?`2px solid ${C.gold}`:"2px solid transparent",
+              color:peerTab===k?C.gold:C.muted,fontWeight:600,fontSize:11,padding:"7px 14px",cursor:"pointer"}}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {peerTab==="scorecard" && sel && (()=>{
+        const col = colors[sel.rank-1]||C.muted;
+        const ScoreBar = ({label,score,max,color})=>(
+          <div style={{flex:1,textAlign:"center"}}>
+            <div style={{color:C.muted,fontSize:9,letterSpacing:1,marginBottom:3}}>{label}</div>
+            <div style={{color:color,fontWeight:700,fontSize:15,fontFamily:"monospace"}}>{score}<span style={{color:C.muted,fontSize:8}}>/{max}</span></div>
+            <div style={{background:C.border,borderRadius:3,height:3,marginTop:3}}>
+              <div style={{width:`${(score/max)*100}%`,background:color,borderRadius:3,height:3}}/>
+            </div>
+          </div>
+        );
+        return (
+          <div>
+            <div style={{background:C.card,border:`1px solid ${col}55`,borderRadius:12,padding:"14px 16px",marginBottom:12,borderTop:`3px solid ${col}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:10}}>
+                <div>
+                  <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:4}}>
+                    <span style={{fontSize:20}}>{medals[sel.rank-1]}</span>
+                    <div>
+                      <div style={{color:C.white,fontWeight:700,fontSize:15}}>{sel.fullName||sel.name}</div>
+                      <div style={{color:C.textDim,fontSize:10}}>{sel.ticker} · {sel.sector}</div>
+                    </div>
+                  </div>
+                  <div style={{color:C.textDim,fontSize:11}}>CMP <span style={{color:C.white,fontWeight:700,fontFamily:"monospace"}}>₹{sel.cmp?.toLocaleString()}</span> · {sel.mcap}</div>
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{color:col,fontWeight:700,fontSize:36,fontFamily:"monospace",lineHeight:1}}>{sel.fitScore}</div>
+                  <div style={{color:C.muted,fontSize:10}}>out of 100</div>
+                  <div style={{marginTop:4,background:ratingColor(sel.fitRating)+"22",color:ratingColor(sel.fitRating),border:`1px solid ${ratingColor(sel.fitRating)}44`,borderRadius:5,padding:"2px 10px",fontSize:11,fontWeight:700}}>{sel.fitRating}</div>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:8,marginTop:14,paddingTop:12,borderTop:`1px solid ${C.border}`}}>
+                <ScoreBar label="PROMOTER" score={sel.promoterScore} max={15} color={col}/>
+                <ScoreBar label="CASH FLOW" score={sel.cashFlowScore} max={20} color={col}/>
+                <ScoreBar label="PROFIT" score={sel.profitScore} max={20} color={col}/>
+                <ScoreBar label="GROWTH" score={sel.growthScore} max={15} color={col}/>
+                <ScoreBar label="TECHNICAL" score={sel.technicalScore} max={20} color={C.cyan}/>
+                <ScoreBar label="COMMENT" score={sel.commentaryScore} max={10} color={C.amber}/>
+              </div>
+            </div>
+
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+              <SectionCard title="⬡ Fundamentals">
+                {[
+                  ["Promoter",`${sel.promoterHolding}%`,sel.promoterHolding>50,sel.promoterHolding<30],
+                  ["Promo Δ",`${sel.promoterChange>=0?"+":""}${sel.promoterChange}%`,sel.promoterChange>=0,sel.promoterChange<-2],
+                  ["FII Δ",`${sel.fiiChange>=0?"+":""}${sel.fiiChange}%`,sel.fiiChange>0,sel.fiiChange<-1],
+                  ["CFO+",sel.cfoPositive?"✓":"✗",sel.cfoPositive,!sel.cfoPositive],
+                  ["Debt/Res",`${sel.debtToReserve}%`,sel.debtToReserve<50,sel.debtToReserve>=50],
+                  ["PAT%",`${sel.patMargin}%`,sel.patMargin>=10,sel.patMargin<=5],
+                  ["MCap/S",`${sel.mcapToSales}x`,sel.mcapToSales<=3,sel.mcapToSales>5],
+                  ["PE",`${sel.peRatio}x`,sel.peRatio<40,sel.peRatio>80],
+                ].map(([l,v,g,f])=><MetricRow key={l} label={l} value={v} good={g} flag={f}/>)}
+              </SectionCard>
+
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                <SectionCard title="⬡ Technical">
+                  {[
+                    ["Trend",sel.trend,sel.trend==="Bullish",sel.trend==="Bearish"],
+                    ["RSI",sel.rsi,sel.rsi>=40&&sel.rsi<=65,sel.rsi>70||sel.rsi<30],
+                    ["MACD",sel.macd?.split(" ")[0]||"—",sel.macd?.includes("Bullish"),sel.macd?.includes("Bearish")],
+                    ["50 DMA",sel.above50dma?"✓ Above":"✗ Below",sel.above50dma,!sel.above50dma],
+                    ["200 DMA",sel.above200dma?"✓ Above":"✗ Below",sel.above200dma,!sel.above200dma],
+                    ["52W High",`${sel.from52wHigh}%`,sel.from52wHigh>-15,sel.from52wHigh<-30],
+                  ].map(([l,v,g,f])=><MetricRow key={l} label={l} value={v} good={g} flag={f}/>)}
+                </SectionCard>
+                <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:11,padding:"12px 13px",flex:1}}>
+                  <div style={{color:C.amber,fontSize:10,letterSpacing:2,fontWeight:700,marginBottom:7}}>COMMENTARY</div>
+                  <div style={{color:C.textDim,fontSize:11,lineHeight:1.6}}>{sel.commentary}</div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <div style={{background:C.redDim,border:`1px solid ${C.red}44`,borderRadius:10,padding:"11px 13px"}}>
+                <div style={{color:C.red,fontSize:10,letterSpacing:2,fontWeight:700,marginBottom:7}}>RED FLAGS</div>
+                {(sel.redFlags||[]).map((f,i)=><div key={i} style={{color:"#fca5a5",fontSize:10,marginBottom:3}}>⚠ {f}</div>)}
+              </div>
+              <div style={{background:C.greenDim,border:`1px solid ${C.green}44`,borderRadius:10,padding:"11px 13px"}}>
+                <div style={{color:C.green,fontSize:10,letterSpacing:2,fontWeight:700,marginBottom:7}}>POSITIVES</div>
+                {(sel.positives||[]).map((p,i)=><div key={i} style={{color:"#86efac",fontSize:10,marginBottom:3}}>✓ {p}</div>)}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {peerTab==="radar" && (
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          {scored.map((p,i)=>{
+            const col=colors[i]||C.muted;
+            return (
+              <div key={p.name} style={{background:C.card,border:`1px solid ${col}44`,borderRadius:11,padding:"12px 14px",cursor:"pointer"}} onClick={()=>setSelected(p)}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+                  <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                    <span style={{fontSize:13}}>{medals[i]}</span>
+                    <span style={{color:C.white,fontWeight:700,fontSize:12}}>{p.name}</span>
+                  </div>
+                  <span style={{color:col,fontWeight:700,fontSize:18,fontFamily:"monospace"}}>{p.fitScore}</span>
+                </div>
+                <ResponsiveContainer width="100%" height={150}>
+                  <RadarChart data={buildRadar(p)}>
+                    <PolarGrid stroke={C.border}/>
+                    <PolarAngleAxis dataKey="axis" tick={{fill:C.textDim,fontSize:8}}/>
+                    <Radar dataKey="score" stroke={col} fill={col} fillOpacity={0.2}/>
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {peerTab==="compare" && (
+        <div style={{overflowX:"auto"}}>
+          <SectionCard title="Full Comparison Table">
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:10}}>
+              <thead>
+                <tr style={{borderBottom:`1px solid ${C.borderLight}`}}>
+                  {["#","Company","Promo%","PAT%","M/S","D/R","CFO","PAT Δ","RSI","Trend","Score","Rating"].map(h=>(
+                    <th key={h} style={{color:C.gold,fontSize:9,padding:"6px 7px",textAlign:h==="Company"||h==="Trend"||h==="Rating"?"left":"center",fontWeight:700,whiteSpace:"nowrap"}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {scored.map((p,i)=>(
+                  <tr key={p.name} onClick={()=>{setSelected(p);setPeerTab("scorecard");}}
+                    style={{borderBottom:`1px solid ${C.border}`,cursor:"pointer",background:sel?.name===p.name?(colors[i]||C.gold)+"12":"transparent"}}>
+                    <td style={{textAlign:"center",padding:"7px",fontSize:13}}>{medals[i]}</td>
+                    <td style={{padding:"7px",color:colors[i]||C.muted,fontWeight:700}}>{p.name}</td>
+                    <td style={{textAlign:"center",padding:"7px",color:p.promoterHolding>50?C.green:C.red,fontFamily:"monospace"}}>{p.promoterHolding}%</td>
+                    <td style={{textAlign:"center",padding:"7px",color:p.patMargin>=10?C.green:p.patMargin<=5?C.red:C.amber,fontFamily:"monospace"}}>{p.patMargin}%</td>
+                    <td style={{textAlign:"center",padding:"7px",color:p.mcapToSales>5?C.red:C.green,fontFamily:"monospace"}}>{p.mcapToSales}x</td>
+                    <td style={{textAlign:"center",padding:"7px",color:p.debtToReserve>=50?C.red:C.green,fontFamily:"monospace"}}>{p.debtToReserve}%</td>
+                    <td style={{textAlign:"center",padding:"7px",color:p.cfoPositive?C.green:C.red}}>{p.cfoPositive?"✓":"✗"}</td>
+                    <td style={{textAlign:"center",padding:"7px",color:(p.patGrowthYOY?.[1]||0)>0?C.green:C.red,fontFamily:"monospace"}}>{(p.patGrowthYOY?.[1]||0)>0?"+":""}{p.patGrowthYOY?.[1]||0}%</td>
+                    <td style={{textAlign:"center",padding:"7px",color:p.rsi>70?C.red:C.green,fontFamily:"monospace"}}>{p.rsi}</td>
+                    <td style={{padding:"7px",color:p.trend==="Bullish"?C.green:p.trend==="Bearish"?C.red:C.amber,fontSize:9}}>{p.trend}</td>
+                    <td style={{textAlign:"center",padding:"7px",color:colors[i]||C.muted,fontWeight:700,fontSize:15,fontFamily:"monospace"}}>{p.fitScore}</td>
+                    <td style={{padding:"7px"}}>
+                      <span style={{background:ratingColor(p.fitRating)+"22",color:ratingColor(p.fitRating),border:`1px solid ${ratingColor(p.fitRating)}44`,borderRadius:3,padding:"1px 6px",fontSize:9,fontWeight:700,whiteSpace:"nowrap"}}>{p.fitRating}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </SectionCard>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// HISTORY VIEW
+// ════════════════════════════════════════════════════════════════════════════
+function HistoryView({ saved, onLoad, onDelete }) {
+  if (!saved.length) return (
+    <EmptyState icon="🗂" title="No saved analyses yet" sub="Analyses auto-save after each search"/>
+  );
+  return (
+    <div style={{padding:"14px"}}>
+      {saved.map(s=>(
+        <div key={s.key} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px",marginBottom:10,display:"flex",alignItems:"center",gap:12}}>
+          <div style={{flex:1,cursor:"pointer"}} onClick={()=>onLoad(s.key)}>
+            <div style={{fontWeight:700,fontSize:14,color:C.white}}>{s.company}</div>
+            <div style={{display:"flex",gap:8,marginTop:4,alignItems:"center",flexWrap:"wrap"}}>
+              <Badge label={s.ticker} color={C.highlight}/>
+              <Badge label={s.fitRating} color={ratingColor(s.fitRating)}/>
+              <span style={{color:C.muted,fontSize:11}}>{s.date}</span>
+            </div>
+          </div>
+          <div style={{textAlign:"center"}}>
+            <div style={{color:ratingColor(s.fitRating),fontWeight:800,fontSize:22,fontFamily:"monospace"}}>{s.fitScore}</div>
+            <div style={{color:C.muted,fontSize:10}}>score</div>
+          </div>
+          <button onClick={()=>onDelete(s.key)} style={{background:"none",border:"none",color:C.red,fontSize:16,cursor:"pointer",padding:"4px 6px"}}>🗑</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// MAIN APP
+// ════════════════════════════════════════════════════════════════════════════
+function App() {
+  const [page, setPage]       = useState("analyse");
+  const [scrip, setScrip]     = useState("");
+  const [loading, setLoading] = useState(false);
+  const [step, setStep]       = useState("");
+  const [data, setData]       = useState(null);
+  const [error, setError]     = useState("");
+  const [saved, setSaved]     = useState([]);
+  const [storageOk, setStorageOk] = useState(false);
+
+  // Load saved index
+  useEffect(()=>{
+    (async()=>{
+      try { const r=await window.storage.get("isa6:index"); if(r) setSaved(JSON.parse(r.value)); } catch(_){}
+      setStorageOk(true);
+    })();
+  },[]);
+
+  const saveAnalysis = useCallback(async d => {
+    try {
+      const key=`isa6:${d.meta.ticker}:${Date.now()}`;
+      await window.storage.set(key, JSON.stringify(d));
+      const entry={key,ticker:d.meta.ticker,company:d.meta.company,fitScore:d.analyser.fitScore,fitRating:d.analyser.fitRating,date:new Date().toLocaleDateString("en-IN")};
+      const newList=[entry,...saved].slice(0,30);
+      await window.storage.set("isa6:index",JSON.stringify(newList));
+      setSaved(newList);
+    } catch(e){ console.error(e); }
+  },[saved]);
+
+  const loadAnalysis = async key => {
+    try { const r=await window.storage.get(key); if(r){setData(JSON.parse(r.value));setPage("analyse");} } catch(e){ console.error(e); }
+  };
+
+  const deleteAnalysis = async key => {
+    try {
+      await window.storage.delete(key);
+      const newList=saved.filter(s=>s.key!==key);
+      await window.storage.set("isa6:index",JSON.stringify(newList));
+      setSaved(newList);
+    } catch(e){ console.error(e); }
+  };
+
+  const analyse = async () => {
+    const q=scrip.trim(); if(!q) return;
+    setLoading(true); setData(null); setError(""); setPage("analyse");
+    let si=0; setStep(STEPS[0]);
+    const iv=setInterval(()=>{ si=(si+1)%STEPS.length; setStep(STEPS[si]); },2400);
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          model:"claude-haiku-4-5-20251001",
+          max_tokens:4000,
+          tools:[{type:"web_search_20250305",name:"web_search"}],
+          system: MASTER_PROMPT,
+          messages:[{role:"user",content:`Analyse this Indian stock thoroughly: "${q}". Search screener.in, tickertape.in, moneycontrol.com, NSE filings for latest data. Include 4-5 real NSE-listed sector peers with their actual current data. Return only the JSON object.`}]
+        })
+      });
+      const result=await res.json();
+      if(result.error) throw new Error(result.error.message||"API error");
+      const text=(result.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
+      const clean=text.replace(/```json|```/g,"").trim();
+      const parsed=JSON.parse(clean);
+      setData(parsed);
+      await saveAnalysis(parsed);
+    } catch(e){
+      setError(`Analysis failed: ${e.message}. Check scrip name and try again.`);
+      console.error(e);
+    } finally { clearInterval(iv); setLoading(false); setStep(""); }
+  };
+
+  const NAV = [
+    {id:"analyse",icon:"📊",label:"Analyse"},
+    {id:"dcf",icon:"⬡",label:"DCF"},
+    {id:"peers",icon:"🏆",label:"Peers"},
+    {id:"history",icon:"🗂",label:"History"},
+  ];
+
+  const hasData = !!data;
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",height:"100vh",background:C.bg,overflow:"hidden"}}>
+
+      {/* Search header */}
+      <div style={{background:"linear-gradient(135deg,#0d1929,#060910)",borderBottom:`1px solid ${C.border}`,padding:"14px 14px 12px",flexShrink:0}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
+          <span style={{fontSize:16}}>📊</span>
+          <span style={{color:C.accent,fontWeight:800,fontSize:15}}>IndiaStock</span>
+          <span style={{color:C.muted,fontSize:15,fontWeight:300}}>Analyser</span>
+          <span style={{background:"#22d3ee22",color:C.cyan,fontSize:9,fontWeight:700,borderRadius:10,padding:"1px 7px",fontFamily:"monospace"}}>v6 · Haiku</span>
+          {storageOk && saved.length>0 && <span style={{background:C.accentDim,color:C.accent,fontSize:9,fontWeight:700,borderRadius:10,padding:"1px 7px",fontFamily:"monospace"}}>{saved.length} saved</span>}
+        </div>
+        <div style={{color:C.muted,fontSize:9,marginBottom:10}}>NSE/BSE · AI + Live Web Search · All 3 tabs update on search</div>
+        <div style={{display:"flex",gap:8}}>
+          <input value={scrip} onChange={e=>setScrip(e.target.value)}
+            onKeyDown={e=>e.key==="Enter"&&analyse()}
+            placeholder="Enter scrip name or ticker…"
+            style={{flex:1,background:C.surface,border:`1px solid ${C.border}`,borderRadius:7,padding:"10px 12px",color:C.text,fontSize:13}}/>
+          <button onClick={analyse} disabled={loading}
+            style={{background:loading?C.border:C.accent,color:loading?C.muted:"#000",border:"none",borderRadius:7,padding:"10px 18px",fontWeight:700,fontSize:13,cursor:loading?"not-allowed":"pointer",minWidth:52}}>
+            {loading?"…":"Go"}
+          </button>
+        </div>
+        <div style={{marginTop:8,display:"flex",gap:5,flexWrap:"wrap"}}>
+          {["Infosys","RELIANCE","HDFC Bank","Tata Motors","Zomato","BEL","ITC"].map(s=>(
+            <button key={s} onClick={()=>setScrip(s)}
+              style={{background:C.accentDim,border:`1px solid ${C.accent}44`,borderRadius:20,padding:"2px 9px",color:C.accent,fontSize:10,cursor:"pointer"}}>{s}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Tab bar */}
+      <div style={{display:"flex",borderBottom:`1px solid ${C.border}`,background:C.surface,flexShrink:0}}>
+        {NAV.map(n=>(
+          <button key={n.id} onClick={()=>setPage(n.id)}
+            style={{flex:1,padding:"10px 0",background:"none",border:"none",
+              borderBottom:page===n.id?`2px solid ${C.accent}`:"2px solid transparent",
+              color:page===n.id?C.accent:C.muted,fontWeight:700,fontSize:11,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
+            <span style={{fontSize:14}}>{n.icon}</span>
+            <span style={{fontSize:9}}>{n.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div style={{flex:1,overflowY:"auto",overflowX:"hidden"}}>
+        {loading && <Loader step={step}/>}
+        {!loading && error && (
+          <div style={{background:"#ef444415",border:`1px solid ${C.red}44`,borderRadius:9,padding:13,margin:14,color:C.red,fontSize:12}}>{error}</div>
+        )}
+        {!loading && !error && (
+          <>
+            {page==="analyse" && (hasData ? <AnalyserView data={data}/> : <EmptyState icon="🇮🇳" title="Enter any NSE / BSE scrip to begin" sub="Haiku searches live data · All 3 tabs populate on one search"/>)}
+            {page==="dcf"     && (hasData ? <DCFView data={data}/> : <EmptyState icon="⬡" title="Search a scrip first" sub="DCF model will auto-populate"/>)}
+            {page==="peers"   && (hasData ? <PeersView data={data}/> : <EmptyState icon="🏆" title="Search a scrip first" sub="Peer ranking will auto-populate"/>)}
+            {page==="history" && <HistoryView saved={saved} onLoad={loadAnalysis} onDelete={deleteAnalysis}/>}
+          </>
+        )}
+      </div>
+
+      {/* PWA install banner */}
+      <div id="install-banner">
+        <span style={{fontSize:22}}>📲</span>
+        <div style={{flex:1}}>
+          <div style={{color:C.gold,fontWeight:700,fontSize:12,fontFamily:"sans-serif"}}>Install ISA v6</div>
+          <div style={{color:C.textDim,fontSize:10,fontFamily:"sans-serif"}}>Add to home screen · Haiku-powered</div>
+        </div>
+        <button onClick={()=>{if(window.deferredPrompt){window.deferredPrompt.prompt();window.deferredPrompt=null;}document.getElementById("install-banner").classList.remove("show");}}
+          style={{background:C.gold,color:"#060910",border:"none",borderRadius:6,padding:"6px 12px",fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"sans-serif"}}>Install</button>
+        <button onClick={()=>document.getElementById("install-banner").classList.remove("show")}
+          style={{background:"none",border:"none",color:C.muted,fontSize:18,cursor:"pointer",padding:"0 4px"}}>✕</button>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
