@@ -405,7 +405,13 @@ window.onload = function() {
   // Restore DB from localStorage if available
   try {
     const saved = localStorage.getItem(LS_DB);
-    if (saved) DB = JSON.parse(saved);
+    if (saved) {
+      DB = JSON.parse(saved);
+      // Repair historyMonths from actual trendHistory data (fixes stale meta)
+      const allM = new Set(); DB.sectors.forEach(s=>(s.trendHistory||[]).forEach(h=>allM.add(h.month)));
+      const parseM = m => { const [mon,yr]=m.split('-'); const mn={Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12}; return parseInt(yr)*100+(mn[mon]||0); };
+      DB.meta.historyMonths = [...allM].sort((a,b)=>parseM(a)-parseM(b));
+    }
   } catch(e) {}
 
   // Check for saved API key
@@ -612,7 +618,19 @@ function renderDet(secName){
 
 function renderTimeline(){
   const el=document.getElementById('tlWrap');if(!el)return;
-  const months=DB.meta.historyMonths||[];
+  // Derive months from actual trendHistory data across all sectors (source of truth)
+  // This handles cases where meta.historyMonths is stale (e.g. loaded from old localStorage)
+  const monthSet = new Set();
+  DB.sectors.forEach(s=>(s.trendHistory||[]).forEach(h=>monthSet.add(h.month)));
+  // Also include meta.historyMonths so new months added during refresh are shown
+  (DB.meta.historyMonths||[]).forEach(m=>monthSet.add(m));
+  // Sort chronologically: parse Mon-YY format
+  const parseMonthKey = m => {
+    const [mon,yr] = m.split('-');
+    const months = {Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
+    return parseInt(yr)*100 + (months[mon]||0);
+  };
+  const months = [...monthSet].sort((a,b) => parseMonthKey(a) - parseMonthKey(b));
   const thCols=months.map(m=>`<th style="text-align:center">${m}</th>`).join('')+'<th style="text-align:center">MoM</th>';
   const rows=DB.sectors.map(sec=>{
     const hist=sec.trendHistory||[];const hMap={};hist.forEach(h=>hMap[h.month]=h);
@@ -768,8 +786,11 @@ function buildDB(month){
     if(sec.trendHistory.length>6)sec.trendHistory=sec.trendHistory.slice(-6);
     if(res.stockSignals)sec.scrips=sec.scrips.map(s=>{const u=res.stockSignals[s.ticker];return u?{...s,signal:u.signal,note:u.note||s.note}:s;});
   }
-  if(!db.meta.historyMonths)db.meta.historyMonths=[];
-  if(!db.meta.historyMonths.includes(month))db.meta.historyMonths.push(month);
+  // Rebuild historyMonths from all sector trendHistory (source of truth)
+  const allMonths = new Set();
+  db.sectors.forEach(s=>(s.trendHistory||[]).forEach(h=>allMonths.add(h.month)));
+  const parseM = m => { const [mon,yr]=m.split('-'); const mn={Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12}; return parseInt(yr)*100+(mn[mon]||0); };
+  db.meta.historyMonths = [...allMonths].sort((a,b)=>parseM(a)-parseM(b));
   db.meta.lastUpdated=month;return db;
 }
 
