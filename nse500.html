@@ -645,7 +645,6 @@ function renderTimeline(){
   const rows=DB.sectors.map(sec=>{
     const hist=sec.trendHistory||[];const hMap={};hist.forEach(h=>hMap[h.month]=h);
     const cells=months.map(m=>{const h=hMap[m];if(!h) return `<td style="text-align:center;color:var(--muted)">–</td>`;
-      if(h.error) return `<td style="text-align:center"><span class="tb tb-${h.trend}" style="opacity:0.5;border-style:dashed" title="API error — trend carried forward">${TE[h.trend]} ${h.trend}</span></td>`;
       return `<td style="text-align:center"><span class="tb tb-${h.trend}">${TE[h.trend]} ${h.trend}</span></td>`;}).join('');
     const last=hist.length?hist[hist.length-1]:null;
     const mom=last&&last.mom&&last.mom!=='–'?`<b style="font-family:var(--fm);color:${MC[last.momColor]}">${last.mom}</b>`:'<span style="color:var(--muted)">→</span>';
