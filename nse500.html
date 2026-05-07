@@ -465,27 +465,37 @@ function launchApp() {
 
 // ── Anthropic API — called directly from browser ───────────────────────────
 async function callAnthropic(system, user, maxTokens) {
-  const resp = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-beta': 'web-search-2025-03-05',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: maxTokens || 2000,
-      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-      system, messages: [{ role: 'user', content: user }]
-    })
-  });
-  if (!resp.ok) {
-    const e = await resp.json();
-    throw new Error(e.error?.message || 'API error ' + resp.status);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 55000); // 55s timeout per sector
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'web-search-2025-03-05',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: maxTokens || 2000,
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+        system, messages: [{ role: 'user', content: user }]
+      })
+    });
+    clearTimeout(timeout);
+    if (!resp.ok) {
+      const e = await resp.json().catch(()=>({}));
+      throw new Error(e.error?.message || 'API error ' + resp.status);
+    }
+    const data = await resp.json();
+    return (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+  } catch(e) {
+    clearTimeout(timeout);
+    if(e.name === 'AbortError') throw new Error('Timeout — try again');
+    throw e;
   }
-  const data = await resp.json();
-  return (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
 }
 
 function extractJSON(text) {
@@ -634,7 +644,9 @@ function renderTimeline(){
   const thCols=months.map(m=>`<th style="text-align:center">${m}</th>`).join('')+'<th style="text-align:center">MoM</th>';
   const rows=DB.sectors.map(sec=>{
     const hist=sec.trendHistory||[];const hMap={};hist.forEach(h=>hMap[h.month]=h);
-    const cells=months.map(m=>{const h=hMap[m];return h?`<td style="text-align:center"><span class="tb tb-${h.trend}">${TE[h.trend]} ${h.trend}</span></td>`:`<td style="text-align:center;color:var(--muted)">–</td>`;}).join('');
+    const cells=months.map(m=>{const h=hMap[m];if(!h) return `<td style="text-align:center;color:var(--muted)">–</td>`;
+      if(h.error) return `<td style="text-align:center"><span class="tb tb-${h.trend}" style="opacity:0.5;border-style:dashed" title="API error — trend carried forward">${TE[h.trend]} ${h.trend}</span></td>`;
+      return `<td style="text-align:center"><span class="tb tb-${h.trend}">${TE[h.trend]} ${h.trend}</span></td>`;}).join('');
     const last=hist.length?hist[hist.length-1]:null;
     const mom=last&&last.mom&&last.mom!=='–'?`<b style="font-family:var(--fm);color:${MC[last.momColor]}">${last.mom}</b>`:'<span style="color:var(--muted)">→</span>';
     return `<tr onclick="showSec('${esc(sec.sector)}');showPage('viewer',document.querySelectorAll('.nav-tab')[0])">
@@ -753,7 +765,7 @@ async function startRefresh(){
       else{rfStats.same++;log('  → unchanged','mu')}
       st[sec.sector]='done';
     }catch(e){
-      rfStats.err++;log('  ✕ '+e.message,'er');
+      rfStats.err++;log('  ✕ '+sec.sector+': '+e.message,'er');
       st[sec.sector]='error';rfResults[sec.sector]={trend:sec.trend,error:e.message};
     }
     updSS();renderQueue(st);await sleep(1200);
@@ -777,14 +789,23 @@ function stopRefresh(){rfStop=true;document.getElementById('stopBtn').style.disp
 function buildDB(month){
   const db=JSON.parse(JSON.stringify(DB));
   for(const sec of db.sectors){
-    const res=rfResults[sec.sector];if(!res||res.error)continue;
-    const p=TR[sec.trend]||0,c=TR[res.trend]||0;
-    const mom=c>p?'↑':c<p?'↓':'→';const mc=mom==='↑'?'up':mom==='↓'?'down':'neutral';
-    sec.trend=res.trend;if(res.trendRationale)sec.trendRationale=res.trendRationale;
-    if(!sec.trendHistory)sec.trendHistory=[];
-    sec.trendHistory.push({month,trend:res.trend,mom,momColor:mc});
+    const res=rfResults[sec.sector];
+    // Even on error, record current trend so the month column appears in timeline
+    if(!res){
+      if(!sec.trendHistory)sec.trendHistory=[];
+      sec.trendHistory.push({month,trend:sec.trend,mom:'→',momColor:'neutral',error:true});
+    } else if(res.error){
+      if(!sec.trendHistory)sec.trendHistory=[];
+      sec.trendHistory.push({month,trend:sec.trend,mom:'→',momColor:'neutral',error:true});
+    } else {
+      const p=TR[sec.trend]||0,c=TR[res.trend]||0;
+      const mom=c>p?'↑':c<p?'↓':'→';const mc=mom==='↑'?'up':mom==='↓'?'down':'neutral';
+      sec.trend=res.trend;if(res.trendRationale)sec.trendRationale=res.trendRationale;
+      if(!sec.trendHistory)sec.trendHistory=[];
+      sec.trendHistory.push({month,trend:res.trend,mom,momColor:mc});
+      if(res.stockSignals)sec.scrips=sec.scrips.map(s=>{const u=res.stockSignals[s.ticker];return u?{...s,signal:u.signal,note:u.note||s.note}:s;});
+    }
     if(sec.trendHistory.length>6)sec.trendHistory=sec.trendHistory.slice(-6);
-    if(res.stockSignals)sec.scrips=sec.scrips.map(s=>{const u=res.stockSignals[s.ticker];return u?{...s,signal:u.signal,note:u.note||s.note}:s;});
   }
   // Rebuild historyMonths from all sector trendHistory (source of truth)
   const allMonths = new Set();
