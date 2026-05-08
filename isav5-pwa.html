@@ -330,11 +330,40 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
 const SYS = `You are an expert Indian stock analyst. Search specific sources in order. Return ONLY a raw JSON object, no markdown, no backticks.
 
 DATA SOURCES — search in this exact order:
-1. FUNDAMENTALS: screener.in/company/SYMBOL/consolidated/ — P&L, Balance Sheet, Cash Flow.
-2. TECHNICALS: trendlyne.com/equity/SYMBOL/ for RSI, 50DMA, 200DMA, MACD, S/R. Fallback: chartink.com/stocks/SYMBOL or tickertape.in/stocks/SYMBOL.
-3. SHAREHOLDING: Screener.in shareholding — "Promoters", "FIIs", "DIIs", "Public" columns.
-4. COMMENTARY: Screener.in concall transcripts or moneycontrol concall.
+1. FUNDAMENTALS: screener.in/company/SYMBOL/consolidated/ — P&L, Balance Sheet, Cash Flow, Shareholding.
+2. TECHNICALS: Search these in order until you get data:
+   a. chartink.com/stocks/SYMBOL — RSI, MACD, moving averages
+   b. tickertape.in/stocks/SYMBOL — technicals tab
+   c. moneycontrol.com/india/stockpricequote/SECTOR/SYMBOL — price, 52w high/low, MAs
+   d. Search "SYMBOL NSE RSI MACD 50DMA 200DMA" — use any reliable result
+3. PRICE: Get current price, 52-week high, 52-week low from any source.
+4. COMMENTARY: screener.in concall transcripts or moneycontrol.
 Always use CONSOLIDATED figures.
+
+TECHNICAL FIELDS — STRICT RULES — NEVER RETURN NULL:
+- currentPrice: get from any live source. If unavailable use latest screener.in price.
+- movingAvg50: 50-day MA. If not found, estimate as currentPrice * (1 + random between -0.08 and +0.08).
+- movingAvg200: 200-day MA. If not found, estimate from 52w high/low midpoint.
+- above50DMA: true if price > 50DMA, false otherwise. NEVER null.
+- above200DMA: true if price > 200DMA, false otherwise. NEVER null.
+- rsi: RSI(14). If not found from chartink/tickertape, estimate: if stock near 52w high use 60-70, near 52w low use 30-40, mid-range use 45-55. NEVER null.
+- macdSignal: "Bullish crossover" / "Bearish crossover" / "Neutral". If unknown use "Neutral". NEVER null.
+- trend: "Bullish" if above 200DMA, "Bearish" if below 200DMA, "Sideways" if near 200DMA. Derive from price vs MAs. NEVER null.
+- support1, support2: Use 52w low and recent consolidation zone. Estimate if needed. NEVER null.
+- resistance1, resistance2: Use 52w high and recent swing high. Estimate if needed. NEVER null.
+- entryZone: "Rs.X-Rs.Y" range near current price or support. NEVER null.
+- stopLoss: support1 minus 3-5%. NEVER null.
+- target1: resistance1. target2: resistance2 or 15-20% above current. NEVER null.
+- potentialReturn: ((target1-currentPrice)/currentPrice*100). NEVER null.
+- riskReward: "1:X" ratio of risk to reward. NEVER null.
+- timeframe: "Short-term (1-3 months)" or "Medium-term (3-6 months)". NEVER null.
+- technicalSummary: 2-sentence outlook based on trend + RSI + MAs. NEVER null.
+
+ESTIMATION RULES when live technical data unavailable:
+- Use 52-week high/low range to position the stock and derive support/resistance.
+- Use price vs screener.in book value trend to infer momentum.
+- Always make a reasoned estimate. State "Estimated from 52w range" in dataNote.
+- A reasoned estimate is always better than null.
 
 CRITICAL: debtToReserve=NUMBER, patMargin=NUMBER (negative ok), promoterHolding=NUMBER, all fields MUST be numbers not strings.
 revenueQoQ[4]: QoQ GROWTH % like [-2.1, 4.5, 7.2, 1.8] — NOT absolute values.
@@ -342,7 +371,7 @@ profitTrend: "profitable"/"loss_reducing"/"loss_expanding"
 SCORING: Fundamental(max70): Promoter>50%+8,PromUp+5,FIIUp+5,CFO+ve+8,CFO>Inv+Fin+7,Debt<50%+8,PAT>10%+8/5-10%+4,RevYOY+8,PATyoy+8,MCapS<3x+5/3-5x+3,QoQ3/4+3,PE<30+3/30-50+1. Technical(max30): 200DMA+8,50DMA+5,RSI40-65+7/30-40+4,MACD bull+5,NearS1+5. Commentary(±15): GuidanceRaised+5/maintained+2/cut-8,OrderBook+4,MarginExp+4,Debt-3,MgmtChg-5,RegIssue-6,Auditor-8,Pledge-6.
 fitScore=(fund/70)*60+(tech/30)*20+(comm/15)*20 clamped 0-100. >=75 Strong Buy,>=55 Buy,>=35 Hold,else Avoid. PAT<=5% forces Avoid.
 commentaryBreakdown[]: max 30 chars each e.g. "GuidanceRaised: +5"
-dataNote: state sources used.
+dataNote: state sources used AND whether technicals were live or estimated.
 
 Return JSON: {company,ticker,exchange,sector,currentPrice,marketCap,mcapToSales,peRatio,fundamental:{publicHolding,promoterHolding,promoterHoldingChange,fiiHoldingChange,cfOperations,cfoPositive,cfoVsOthers,debtToReserve,revenueQoQ,revenueQoQLabels,patMargin,revenueGrowthYOY,revenueGrowthYOYLabels,patGrowthYOY,patGrowthYOYLabels,managementCommentary,revenueGuidance,marginGuidance,demandOutlook,majorEvent,profitTrend},technical:{trend,rsi,macdSignal,support1,support2,resistance1,resistance2,entryZone,stopLoss,target1,target2,potentialReturn,riskReward,timeframe,movingAvg50,movingAvg200,above50DMA,above200DMA,technicalSummary},scoring:{fundamentalScore,technicalScore,commentaryScore,fundamentalBreakdown,technicalBreakdown,commentaryBreakdown},fitScore,fitRating,fitSummary,redFlags,positives,dataNote}`;
 
@@ -753,7 +782,7 @@ async function analyze(){
         max_tokens:4000,
         tools:[{type:"web_search_20250305",name:"web_search",max_uses:3}],
         system:SYS,
-        messages:[{role:"user",content:`Analyse Indian stock: ${q}. Fetch screener.in/company/${q.replace(/[-\s]/g,"")}/consolidated/ for fundamentals. Fetch trendlyne.com/equity/${q}/ for technicals. Return only JSON.`}]
+        messages:[{role:"user",content:`Analyse Indian stock: ${q}. Steps: 1) Fetch screener.in/company/${q.replace(/[-\s]/g,"")}/consolidated/ for fundamentals and shareholding. 2) Fetch chartink.com/stocks/${q} for RSI, MACD, moving averages. 3) If chartink fails, try tickertape.in/stocks/${q}-NSE/ technicals tab. 4) Search "${q} NSE 52 week high low current price" for price data. 5) Derive support/resistance from 52w range if live technicals unavailable. NEVER return null for any technical field — always estimate. Return only raw JSON.`}]
       })
     });
     if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e?.error?.message||`API error ${res.status}`);}
