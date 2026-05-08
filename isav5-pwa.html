@@ -271,7 +271,7 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
           <div id="gdStatusMsg" style="font-size:11px;margin-bottom:10px;color:#64748b">Not connected</div>
           <button onclick="loadGISandLogin()" style="background:#4285f4;color:#fff;border:none;border-radius:8px;padding:11px;font-weight:700;font-size:13px;width:100%;cursor:pointer;margin-bottom:8px">🔗 Login with Google</button>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
-            <button onclick="backupToGDrive(true)" style="background:#22c55e18;color:#22c55e;border:1px solid #22c55e44;border-radius:8px;padding:10px;font-weight:700;font-size:12px;cursor:pointer">☁ Backup Now</button>
+            <button onclick="backupToGDrive(true)" style="background:#22c55e18;color:#22c55e;border:1px solid #22c55e44;border-radius:8px;padding:10px;font-weight:700;font-size:12px;cursor:pointer">☁ Sync Now</button>
             <button onclick="restoreFromGDrive()" style="background:#38bdf818;color:#38bdf8;border:1px solid #38bdf844;border-radius:8px;padding:10px;font-weight:700;font-size:12px;cursor:pointer">⬇ Restore</button>
           </div>
         </div>
@@ -478,6 +478,27 @@ function addToHist(d){
     if(typeof renderPeers==="function") renderPeers(d);
   },100);
 }
+// Sync status toast (non-blocking, auto-dismiss)
+function showSyncToast(msg, color){
+  let el = document.getElementById("syncToast");
+  if(!el){
+    el = document.createElement("div");
+    el.id = "syncToast";
+    el.style.cssText = "position:fixed;bottom:70px;right:14px;padding:7px 12px;border-radius:7px;font-size:11px;font-weight:700;z-index:9999;transition:all .3s;opacity:0;pointer-events:none;font-family:monospace";
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.background = (color||"#00d4aa")+"22";
+  el.style.border = "1px solid " + (color||"#00d4aa") + "55";
+  el.style.color = color||"#00d4aa";
+  el.style.opacity = "1";
+  clearTimeout(el._t);
+  el._t = setTimeout(()=>{ el.style.opacity="0"; }, 3000);
+}
+
+// Periodic sync — pull from Drive every 5 min while app is open
+setInterval(()=>{ if(gdAccessToken) pullFromDrive().then(ok=>{ if(ok){ renderHistory(); renderWaitlist(); updateHistCount(); updateWaitlistBadge(); } }); }, 5*60*1000);
+
 const updateHistCount=()=>{const el=document.getElementById("histCount");if(el)el.textContent=loadHist().length;};
 
 // ── Waitlist: shared localStorage key isa_waitlist ───────────────────────────
@@ -505,6 +526,7 @@ function addToWaitlist(ticker, company){
   saveWaitlist(wl);
   updateWaitlistBadge();
   showToast("⏳ " + ticker + " added to queue", "#00d4aa");
+  setTimeout(()=>pushToDrive(), 500); // sync waitlist to Drive
 }
 
 function removeFromWaitlist(ticker){
@@ -512,6 +534,7 @@ function removeFromWaitlist(ticker){
   saveWaitlist(wl);
   updateWaitlistBadge();
   renderWaitlist();
+  setTimeout(()=>pushToDrive(), 500); // sync to Drive
 }
 
 function clearWaitlist(){
@@ -1574,7 +1597,7 @@ function dismissReminder(){ localStorage.setItem("isa_gd_last_remind",Date.now()
 // ── Google Drive Backup ───────────────────────────────────
 const ISA_CLIENT_ID="762017486457-pr5c61sv7mrvdq3mbudt1uvkkk0l07um.apps.googleusercontent.com";
 const ISA_SCOPES="https://www.googleapis.com/auth/drive.appdata";
-const ISA_FILE_NAME="IndiaStock_Analyser_Backup.json";
+const ISA_FILE_NAME="ISA_Sync_v1.json"; // unified sync file for all devices
 let gdTokenClient=null,gdAccessToken=null,gdFileId=null;
 
 function loadGISandLogin(){
@@ -1605,9 +1628,14 @@ function handleGDToken(resp){
   gdAccessToken=resp.access_token;
   localStorage.setItem("isa_gd_signed_in","1");
   updateGDStatus();
-  backupToGDrive(true);
+  // Pull first to get remote changes, then push merged local data
+  showSyncToast("Syncing with Drive…","#60a5fa");
+  pullFromDrive().then(pulled=>{
+    if(pulled){ renderHistory(); renderWaitlist(); updateHistCount(); updateWaitlistBadge(); }
+    setTimeout(()=>pushToDrive(), 1000);
+    showSyncToast("✓ Drive sync complete","#22c55e");
+  });
   setTimeout(()=>{ if(gdTokenClient) gdTokenClient.requestAccessToken({prompt:""});},3400*1000);
-
 }
 
 function loginGoogleDrive(){
@@ -1622,20 +1650,96 @@ function logoutGoogleDrive(){
   updateGDStatus();
 }
 
-async function backupToGDrive(showMsg){
-  if(!gdAccessToken) return;
-  const hist=loadHist(); if(!hist.length) return;
-  const payload=JSON.stringify({version:"ISA_v3",backupAt:new Date().toISOString(),count:hist.length,history:hist},null,2);
-  try{
-    if(!gdFileId){
-      const res=await fetch("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name%3D%27"+ISA_FILE_NAME+"%27&fields=files(id)&pageSize=5",{headers:{"Authorization":"Bearer "+gdAccessToken}});
-      const d=await res.json(); if(d.files?.length) gdFileId=d.files[0].id;
-    }
-    if(gdFileId){
-      await fetch("https://www.googleapis.com/upload/drive/v3/files/"+gdFileId+"?uploadType=media",{method:"PATCH",headers:{"Authorization":"Bearer "+gdAccessToken,"Content-Type":"application/json"},body:payload});
+// ── Drive Sync Helpers ──────────────────────────────────────────────────────
+function buildSyncPayload(){
+  // Build unified sync object from all three stores
+  const hist  = loadHist();
+  const wl    = loadWaitlist();
+  const nse   = (() => { try { return JSON.parse(localStorage.getItem("nse500_db")||"null"); } catch(_){ return null; } })();
+  const devId = localStorage.getItem("isa_device_id") || (() => {
+    const id = "dev_" + Date.now().toString(36);
+    localStorage.setItem("isa_device_id", id); return id;
+  })();
+  return {
+    version: "ISA_sync_v1",
+    syncAt: new Date().toISOString(),
+    deviceId: devId,
+    history: hist,
+    waitlist: wl,
+    nse500db: nse,
+    historyCount: hist.length,
+    waitlistCount: wl.length
+  };
+}
+
+function mergeSyncData(remote){
+  // ── Merge history: union by ticker, keep most recently savedAt ──
+  const localHist  = loadHist();
+  const remoteHist = remote.history || [];
+  const merged = [...localHist];
+  remoteHist.forEach(re => {
+    const li = merged.findIndex(x => x.ticker === re.ticker);
+    if(li === -1){
+      merged.push(re); // new ticker from remote
     } else {
-      const b="=====isa=====";
-      const mp=`--${b}
+      // Keep whichever is newer
+      const localDate  = new Date(merged[li].fullData?.savedAt || merged[li].savedAt || 0).getTime();
+      const remoteDate = new Date(re.fullData?.savedAt || re.savedAt || 0).getTime();
+      if(remoteDate > localDate) merged[li] = re;
+    }
+  });
+  merged.sort((a,b) => new Date(b.fullData?.savedAt||b.savedAt||0) - new Date(a.fullData?.savedAt||a.savedAt||0));
+  saveHist(merged.slice(0,100));
+  updateHistCount();
+
+  // ── Merge waitlist: union by ticker, deduplicate ──
+  const localWL  = loadWaitlist();
+  const remoteWL = remote.waitlist || [];
+  const mergedWL = [...localWL];
+  remoteWL.forEach(rw => {
+    if(!mergedWL.find(x => x.ticker === rw.ticker)) mergedWL.push(rw);
+  });
+  // Remove any that are now in history (auto-clean)
+  const histTickers = new Set(merged.map(h => h.ticker.toUpperCase()));
+  const cleanWL = mergedWL.filter(w => !histTickers.has(w.ticker.toUpperCase()));
+  saveWaitlist(cleanWL);
+  updateWaitlistBadge();
+
+  // ── Merge NSE500 DB: take whichever has more history months ──
+  if(remote.nse500db){
+    const localNSE  = (() => { try { return JSON.parse(localStorage.getItem("nse500_db")||"null"); } catch(_){ return null; } })();
+    const remoteMonths = (remote.nse500db.meta?.historyMonths||[]).length;
+    const localMonths  = (localNSE?.meta?.historyMonths||[]).length;
+    if(remoteMonths > localMonths){
+      try { localStorage.setItem("nse500_db", JSON.stringify(remote.nse500db)); } catch(_){}
+    }
+  }
+}
+
+async function getDriveFileId(){
+  if(gdFileId) return gdFileId;
+  const res = await fetch(
+    "https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name%3D%27"+ISA_FILE_NAME+"%27&fields=files(id)&pageSize=5",
+    {headers:{"Authorization":"Bearer "+gdAccessToken}}
+  );
+  const d = await res.json();
+  if(d.files?.length){ gdFileId=d.files[0].id; return gdFileId; }
+  return null;
+}
+
+async function pushToDrive(){
+  if(!gdAccessToken) return false;
+  const payload = JSON.stringify(buildSyncPayload(), null, 2);
+  try{
+    const fid = await getDriveFileId();
+    if(fid){
+      await fetch(
+        "https://www.googleapis.com/upload/drive/v3/files/"+fid+"?uploadType=media",
+        {method:"PATCH", headers:{"Authorization":"Bearer "+gdAccessToken,"Content-Type":"application/json"}, body:payload}
+      );
+    } else {
+      const b = "=====isa=====";
+      const mp = `--${b}
 Content-Type: application/json; charset=UTF-8
 
 ${JSON.stringify({name:ISA_FILE_NAME,parents:["appDataFolder"]})}
@@ -1644,29 +1748,58 @@ Content-Type: application/json
 
 ${payload}
 --${b}--`;
-      const r=await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",{method:"POST",headers:{"Authorization":"Bearer "+gdAccessToken,"Content-Type":`multipart/related; boundary="${b}"`},body:mp});
-      const j=await r.json(); gdFileId=j.id;
+      const r  = await fetch(
+        "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
+        {method:"POST", headers:{"Authorization":"Bearer "+gdAccessToken,"Content-Type":`multipart/related; boundary="${b}"`}, body:mp}
+      );
+      const j  = await r.json(); gdFileId=j.id;
     }
-    localStorage.setItem("isa_gd_last_backup",Date.now());
+    localStorage.setItem("isa_gd_last_backup", Date.now());
     updateGDStatus();
-    if(showMsg) alert("✓ Backed up to Google Drive");
-  }catch(e){ if(e.message.includes("401")){gdAccessToken=null;localStorage.removeItem("isa_gd_signed_in");updateGDStatus();} console.log("Backup failed:",e.message); }
+    return true;
+  }catch(e){
+    if(e.message.includes("401")){ gdAccessToken=null; localStorage.removeItem("isa_gd_signed_in"); updateGDStatus(); }
+    console.log("Drive push failed:", e.message);
+    return false;
+  }
+}
+
+async function pullFromDrive(){
+  if(!gdAccessToken) return false;
+  try{
+    const fid = await getDriveFileId();
+    if(!fid) return false;
+    const remote = await fetch(
+      "https://www.googleapis.com/drive/v3/files/"+fid+"?alt=media",
+      {headers:{"Authorization":"Bearer "+gdAccessToken}}
+    ).then(r=>r.json());
+    if(!remote || !remote.version) return false;
+    mergeSyncData(remote);
+    localStorage.setItem("isa_gd_last_backup", Date.now());
+    updateGDStatus();
+    return true;
+  }catch(e){
+    console.log("Drive pull failed:", e.message);
+    return false;
+  }
+}
+
+// Public API — replaces old backupToGDrive / restoreFromGDrive
+async function backupToGDrive(showMsg){
+  const ok = await pushToDrive();
+  if(showMsg) showSyncToast(ok ? "✓ Synced to Google Drive" : "✗ Sync failed", ok?"#22c55e":"#ef4444");
 }
 
 async function restoreFromGDrive(){
-  if(!gdAccessToken){alert("Sign in to Google Drive first.");return;}
-  try{
-    const res=await fetch("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name%3D%27"+ISA_FILE_NAME+"%27&fields=files(id)&pageSize=5",{headers:{"Authorization":"Bearer "+gdAccessToken}});
-    const d=await res.json();
-    if(!d.files?.length){alert("No backup found.");return;}
-    gdFileId=d.files[0].id;
-    const data=await fetch("https://www.googleapis.com/drive/v3/files/"+gdFileId+"?alt=media",{headers:{"Authorization":"Bearer "+gdAccessToken}}).then(r=>r.json());
-    const incoming=data.history||[];
-    if(!incoming.length){alert("Backup is empty.");return;}
-    const merged=[...incoming,...loadHist().filter(e=>!incoming.find(m=>m.ticker===e.ticker))].slice(0,100);
-    saveHist(merged);updateHistCount();renderHistory();
-    alert("✓ Restored "+incoming.length+" entries");
-  }catch(e){alert("Restore failed: "+e.message);}
+  if(!gdAccessToken){ alert("Sign in to Google Drive first."); return; }
+  showSyncToast("Pulling from Drive…", "#60a5fa");
+  const ok = await pullFromDrive();
+  if(ok){
+    renderHistory(); renderWaitlist(); updateHistCount(); updateWaitlistBadge();
+    showSyncToast("✓ Synced from Drive", "#22c55e");
+  } else {
+    showSyncToast("No sync file found on Drive", "#f59e0b");
+  }
 }
 
 function updateGDStatus(){
@@ -1674,7 +1807,7 @@ function updateGDStatus(){
   const last=parseInt(localStorage.getItem("isa_gd_last_backup")||"0");
   if(gdAccessToken){
     el.style.color="#22c55e";
-    el.innerHTML="✓ Connected · Last: "+(last?new Date(last).toLocaleString("en-IN"):"Never")+` <button onclick="logoutGoogleDrive()" style="background:none;border:none;color:#64748b;font-size:10px;cursor:pointer;text-decoration:underline">Sign out</button>`;
+    el.innerHTML="✓ Connected · Last sync: "+(last?new Date(last).toLocaleString("en-IN"):"Never")+` <button onclick="logoutGoogleDrive()" style="background:none;border:none;color:#64748b;font-size:10px;cursor:pointer;text-decoration:underline">Sign out</button>`;
   } else {
     el.style.color="#64748b";
     el.textContent=localStorage.getItem("isa_gd_signed_in")?"Reconnecting…":"Not connected";

@@ -373,15 +373,27 @@ function esc(s){return(s||'').replace(/'/g,"\'")}
 
 // ── Boot ───────────────────────────────────────────────────────────────────
 window.onload = function() {
-  // Restore DB from localStorage if available
+  // Restore DB from localStorage — prefer whichever has more history months
+  const parseM = m => { try{ const [mon,yr]=m.split('-'); const mn={Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12}; return parseInt(yr)*100+(mn[mon]||0); }catch(_){return 0;} };
+  const repairDB = db => {
+    const allM = new Set(); db.sectors.forEach(s=>(s.trendHistory||[]).forEach(h=>allM.add(h.month)));
+    db.meta.historyMonths = [...allM].sort((a,b)=>parseM(a)-parseM(b));
+    return db;
+  };
   try {
-    const saved = localStorage.getItem(LS_DB);
-    if (saved) {
-      DB = JSON.parse(saved);
-      // Repair historyMonths from actual trendHistory data (fixes stale meta)
-      const allM = new Set(); DB.sectors.forEach(s=>(s.trendHistory||[]).forEach(h=>allM.add(h.month)));
-      const parseM = m => { const [mon,yr]=m.split('-'); const mn={Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12}; return parseInt(yr)*100+(mn[mon]||0); };
-      DB.meta.historyMonths = [...allM].sort((a,b)=>parseM(a)-parseM(b));
+    const saved1 = localStorage.getItem(LS_DB);
+    const saved2 = localStorage.getItem("nse500_db");
+    const db1 = saved1 ? JSON.parse(saved1) : null;
+    const db2 = saved2 ? JSON.parse(saved2) : null;
+    const months1 = (db1?.meta?.historyMonths||[]).length;
+    const months2 = (db2?.meta?.historyMonths||[]).length;
+    // Use whichever has more history (Drive sync may have updated nse500_db)
+    if(db1 && months1 >= months2) DB = repairDB(db1);
+    else if(db2) DB = repairDB(db2);
+    else if(db1) DB = repairDB(db1);
+    if(DB !== INIT_DB){
+      // Sync both keys to be consistent
+      try{ localStorage.setItem(LS_DB, JSON.stringify(DB)); localStorage.setItem("nse500_db", JSON.stringify(DB)); }catch(_){}
     }
   } catch(e) {}
 
@@ -706,7 +718,13 @@ async function startRefresh(){
   updatedDB=buildDB(month);
   DB=updatedDB;
   // Save updated DB to localStorage
-  try{ localStorage.setItem(LS_DB, JSON.stringify(DB)); log('DB saved to localStorage','ok'); }catch(e){ log('localStorage save failed: '+e.message,'wa'); }
+  try{
+    localStorage.setItem(LS_DB, JSON.stringify(DB));
+    // Also write to isa_waitlist-compatible key so ISA v5 Drive sync picks it up
+    // ISA reads nse500_db from localStorage during mergeSyncData
+    localStorage.setItem("nse500_db", JSON.stringify(DB));
+    log('DB saved to localStorage + ready for Drive sync','ok');
+  }catch(e){ log('localStorage save failed: '+e.message,'wa'); }
   af();renderTimeline();
   setProg(DB.sectors.length,DB.sectors.length,'Done · ↑'+rfStats.up+' ↓'+rfStats.dn);
   log('Complete — ↑'+rfStats.up+' ↓'+rfStats.dn+' ✕'+rfStats.err,'ok');
