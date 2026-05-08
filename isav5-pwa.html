@@ -146,6 +146,7 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
   <div id="tabs" style="display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;gap:2px;padding:0 4px">
     <button class="tb active" id="tab-analyse" onclick="switchTab('analyse')" style="white-space:nowrap;flex-shrink:0;padding:14px 10px">📊 Analyse</button>
     <button class="tb" id="tab-history" onclick="switchTab('history')" style="white-space:nowrap;flex-shrink:0;padding:14px 10px">🗂 History (<span id="histCount">0</span>)</button>
+    <button class="tb" id="tab-waitlist" onclick="switchTab('waitlist')" style="white-space:nowrap;flex-shrink:0;padding:14px 10px;position:relative">⏳ Queue <span id="waitlistBadge" style="display:none;position:absolute;top:6px;right:4px;background:#ef4444;color:#fff;border-radius:10px;font-size:9px;font-weight:700;padding:1px 5px;font-family:monospace">0</span></button>
     <button class="tb" id="tab-watchlist" onclick="switchTab('watchlist')" style="white-space:nowrap;flex-shrink:0;padding:14px 10px">⭐ Watchlist (<span id="watchCount">0</span>)</button>
     <button class="tb" id="tab-portfolio" onclick="switchTab('portfolio')" style="white-space:nowrap;flex-shrink:0;padding:14px 10px">💼 Portfolio</button>
     <button class="tb" id="tab-trends" onclick="switchTab('trends')" style="white-space:nowrap;flex-shrink:0;padding:14px 10px">📈 Trends</button>
@@ -172,6 +173,23 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
       <div style="color:#64748b;font-size:11px;margin-bottom:11px">Stocks to watch. Tap ☆ in History to add.</div>
       <div id="watchlistList"></div>
     </div>
+  <!-- WAITLIST VIEW -->
+  <div id="view-waitlist" style="display:none;padding:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+      <div style="font-weight:700;font-size:15px;color:#e2e8f0">📋 Analysis Queue</div>
+      <div style="display:flex;gap:7px">
+        <span style="font-size:11px;color:#64748b;align-self:center" id="waitlistMeta">0 scrips queued</span>
+        <button onclick="clearWaitlist()" style="background:#ef444415;color:#ef4444;border:1px solid #ef444433;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer">✕ Clear All</button>
+      </div>
+    </div>
+    <div id="waitlistEmpty" style="text-align:center;padding:50px 20px;color:#64748b;display:none">
+      <div style="font-size:36px;margin-bottom:10px">⏳</div>
+      <div style="font-size:13px">No scrips in queue</div>
+      <div style="font-size:11px;margin-top:4px">Tap 📊 ISA on any stock in NSE 500</div>
+    </div>
+    <div id="waitlistItems"></div>
+  </div>
+
     <div id="view-portfolio" style="display:none;padding:13px">
       <div style="display:flex;gap:7px;margin-bottom:11px">
         <button onclick="loadPortfolio()" class="abtn ag" style="flex:1;padding:10px">🔄 Load Portfolio</button>
@@ -374,28 +392,10 @@ window.addEventListener("load",()=>{
   const code=params.get("code");
   if(code){window.history.replaceState({},"",window.location.pathname);exchangeUpstoxToken(code);}
 
-  // ── NSE 500 seamless push: auto-analyse if ?scrip=TICKER in URL ────────────
-  const nse500Scrip = params.get("scrip");
-  if(nse500Scrip && nse500Scrip.trim()){
-    const cleanScrip = nse500Scrip.trim();
-    document.getElementById("scripInput").value = cleanScrip;
-    window.history.replaceState({},"",window.location.pathname);
-    // Store scrip for post-OAuth delayed analysis
-    window._nse500PendingScrip = cleanScrip;
-    // If user is NOT signed into Google Drive, OAuth won't pop up — fire immediately
-    // If they ARE signed in, OAuth fires at 4000ms — wait 6000ms to be safe after it settles
-    const oauthWillFire = !!localStorage.getItem("isa_gd_signed_in");
-    const delay = oauthWillFire ? 6500 : 800;
-    setTimeout(()=>{
-      if(window._nse500PendingScrip){
-        document.getElementById("scripInput").value = window._nse500PendingScrip;
-        window._nse500PendingScrip = null;
-        analyze();
-      }
-    }, delay);
-  }
+  // NSE 500 integration handled via isa_waitlist localStorage key
 
   updateWatchCount();
+  updateWaitlistBadge();
   document.getElementById("apiKeyInput").addEventListener("keydown",e=>{if(e.key==="Enter")saveKey();});
   document.getElementById("scripInput").addEventListener("keydown",e=>{if(e.key==="Enter")analyze();});
   if("serviceWorker"in navigator){
@@ -406,13 +406,14 @@ window.addEventListener("load",()=>{
 
 // ── Tab switching ─────────────────────────────────────────────────────────────
 function switchTab(t){
-  ["analyse","history","watchlist","portfolio","trends","gtt","settings"].forEach(x=>{
+  ["analyse","history","waitlist","watchlist","portfolio","trends","gtt","settings"].forEach(x=>{
     const v=document.getElementById("view-"+x);
     const b=document.getElementById("tab-"+x);
     if(v)v.style.display=x===t?"block":"none";
     if(b)b.classList.toggle("active",x===t);
   });
   if(t==="history")renderHistory();
+  if(t==="waitlist")renderWaitlist();
   if(t==="watchlist")renderWatchlist();
   if(t==="portfolio")initPortfolioTab();
   if(t==="trends")renderTrends();
@@ -466,6 +467,10 @@ function addToHist(d){
     savedAt:new Date().toLocaleString("en-IN"),ratingHistory,fullData:d};
   saveHist([e,...l.filter(x=>x.ticker!==ticker)].slice(0,100));
   updateHistCount();
+  // Auto-remove from waitlist now that analysis is saved to history
+  const wl2 = loadWaitlist().filter(x => x.ticker.toUpperCase() !== ticker.toUpperCase());
+  saveWaitlist(wl2);
+  updateWaitlistBadge();
   setTimeout(()=>backupToGDrive(false),2000);
   // Populate DCF and Peers tabs
   setTimeout(()=>{
@@ -474,6 +479,102 @@ function addToHist(d){
   },100);
 }
 const updateHistCount=()=>{const el=document.getElementById("histCount");if(el)el.textContent=loadHist().length;};
+
+// ── Waitlist: shared localStorage key isa_waitlist ───────────────────────────
+const WL_KEY = "isa_waitlist";
+const loadWaitlist = () => { try { return JSON.parse(localStorage.getItem(WL_KEY)||"[]"); } catch(_){ return []; } };
+const saveWaitlist = l => { try { localStorage.setItem(WL_KEY, JSON.stringify(l)); } catch(_){} };
+
+function updateWaitlistBadge(){
+  const wl = loadWaitlist();
+  const badge = document.getElementById("waitlistBadge");
+  if(!badge) return;
+  if(wl.length > 0){
+    badge.textContent = wl.length;
+    badge.style.display = "inline-block";
+  } else {
+    badge.style.display = "none";
+  }
+}
+
+function addToWaitlist(ticker, company){
+  ticker = ticker.toUpperCase().trim();
+  const wl = loadWaitlist();
+  if(wl.find(x => x.ticker === ticker)){ showToast(ticker + " already in queue", "#f59e0b"); return; }
+  wl.push({ ticker, company: company||ticker, addedAt: new Date().toLocaleString("en-IN") });
+  saveWaitlist(wl);
+  updateWaitlistBadge();
+  showToast("⏳ " + ticker + " added to queue", "#00d4aa");
+}
+
+function removeFromWaitlist(ticker){
+  const wl = loadWaitlist().filter(x => x.ticker !== ticker.toUpperCase());
+  saveWaitlist(wl);
+  updateWaitlistBadge();
+  renderWaitlist();
+}
+
+function clearWaitlist(){
+  saveWaitlist([]);
+  updateWaitlistBadge();
+  renderWaitlist();
+}
+
+function analyseFromWaitlist(ticker){
+  // Set input and switch to analyse tab
+  document.getElementById("scripInput").value = ticker;
+  switchTab("analyse");
+  analyze();
+}
+
+function renderWaitlist(){
+  const wl = loadWaitlist();
+  const hist = loadHist();
+  const histTickers = new Set(hist.map(h => (h.ticker||"").toUpperCase()));
+  
+  const meta = document.getElementById("waitlistMeta");
+  const empty = document.getElementById("waitlistEmpty");
+  const items = document.getElementById("waitlistItems");
+  if(!items) return;
+  
+  if(meta) meta.textContent = wl.length + " scrip" + (wl.length!==1?"s":"") + " queued";
+  
+  if(wl.length === 0){
+    if(empty) empty.style.display = "block";
+    items.innerHTML = "";
+    return;
+  }
+  if(empty) empty.style.display = "none";
+  
+  items.innerHTML = wl.map(item => {
+    const inHist = histTickers.has(item.ticker.toUpperCase());
+    const histEntry = inHist ? hist.find(h => h.ticker.toUpperCase() === item.ticker.toUpperCase()) : null;
+    const histBadge = inHist ? 
+      `<span style="background:#22c55e18;color:#22c55e;border:1px solid #22c55e33;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700;font-family:monospace">✓ Score:${histEntry?.fitScore||"?"}</span>` :
+      `<span style="background:#64748b18;color:#64748b;border:1px solid #64748b33;border-radius:4px;padding:2px 7px;font-size:10px;font-family:monospace">Not analysed</span>`;
+    return `<div style="background:#111827;border:1px solid #1e2d45;border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:13px;color:#38bdf8;font-family:monospace">${item.ticker}</div>
+        <div style="font-size:11px;color:#64748b;margin-top:1px">${item.company}</div>
+        <div style="margin-top:5px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          ${histBadge}
+          <span style="font-size:10px;color:#475569">${item.addedAt}</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        ${inHist ? `<button onclick="loadHistByTicker('${item.ticker}')" style="background:#22c55e18;color:#22c55e;border:1px solid #22c55e33;border-radius:6px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer">📋 View</button>` : ""}
+        <button onclick="analyseFromWaitlist('${item.ticker}')" style="background:#00d4aa;color:#000;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer">📊 Analyse</button>
+        <button onclick="removeFromWaitlist('${item.ticker}')" style="background:#ef444415;color:#ef4444;border:1px solid #ef444433;border-radius:6px;padding:6px 8px;font-size:11px;cursor:pointer">✕</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function loadHistByTicker(ticker){
+  const hist = loadHist();
+  const idx = hist.findIndex(h => h.ticker.toUpperCase() === ticker.toUpperCase());
+  if(idx >= 0) loadHist2(idx);
+}
 
 
 // ── Data sanitizer — fixes non-string fields from old/bad API responses ──────
@@ -1506,13 +1607,7 @@ function handleGDToken(resp){
   updateGDStatus();
   backupToGDrive(true);
   setTimeout(()=>{ if(gdTokenClient) gdTokenClient.requestAccessToken({prompt:""});},3400*1000);
-  // NSE500 push: fire pending analysis now that OAuth is fully settled
-  if(window._nse500PendingScrip){
-    const s=window._nse500PendingScrip;
-    window._nse500PendingScrip=null;
-    document.getElementById("scripInput").value=s;
-    setTimeout(()=>analyze(),400);
-  }
+
 }
 
 function loginGoogleDrive(){

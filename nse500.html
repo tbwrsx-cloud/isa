@@ -429,7 +429,7 @@ function launchApp() {
   document.getElementById('mainNav').style.display = 'flex';
   document.getElementById('app').style.cssText = 'display:flex;flex-direction:column;flex:1;overflow:hidden';
   document.getElementById('keyStatus').className = 'key-status ok';
-  af(); renderTimeline(); renderQueue();
+  af(); renderTimeline(); renderQueue(); setTimeout(refreshISAStates, 200);
   log('NSE 500 ready · ' + DB.sectors.length + ' sectors', 'ac');
   log('API key loaded from localStorage', 'mu');
 }
@@ -506,7 +506,7 @@ function fsc(sc){
   });
 }
 
-function af(){renderSB();renderSumbar();if(curSec)renderDet(curSec);else renderOv()}
+function af(){renderSB();renderSumbar();if(curSec)renderDet(curSec);else renderOv();setTimeout(refreshISAStates,50);}
 
 function renderSumbar(){
   const secs=fsecs();let SB=0,AC=0,WA=0,AV=0,tot=0;
@@ -572,7 +572,10 @@ function renderDet(secName){
           <div class="sc-note">${s.note||''}</div>
           <div class="sc-bot">
             <span class="sc-sig ${sk(s.signal)}">${SL[sk(s.signal)]}</span>
-            <button class="abtn" onclick="goISA('${s.ticker}')">📊 ISA</button>
+            <button class="abtn" 
+              data-isa-ticker="${s.ticker}"
+              data-isa-company="${s.company}"
+              onclick="goISA('${s.ticker}','${s.company}')">📊 ISA</button>
           </div>
         </div>`).join('')}
       </div>
@@ -764,11 +767,75 @@ function log(msg,type){const el=document.getElementById('logArea');const ts=new 
 function clearLog(){document.getElementById('logArea').innerHTML=''}
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000)}
 
-function goISA(t){
-  window.open('isav5-pwa.html?scrip=' + encodeURIComponent(t), '_blank');
-  showToast('Opening ISA v6 for ' + t + '…');
+// ── ISA Waitlist bridge ───────────────────────────────────────────────────────
+const WL_KEY = "isa_waitlist";
+const ISA_HIST_KEY = "isa_h";
+
+function getISAState(ticker){
+  // Returns: "analysed" | "queued" | "none"
+  ticker = ticker.toUpperCase();
+  try {
+    const hist = JSON.parse(localStorage.getItem(ISA_HIST_KEY)||"[]");
+    if(hist.find(h => (h.ticker||"").toUpperCase() === ticker)) return "analysed";
+  } catch(_){}
+  try {
+    const wl = JSON.parse(localStorage.getItem(WL_KEY)||"[]");
+    if(wl.find(x => x.ticker.toUpperCase() === ticker)) return "queued";
+  } catch(_){}
+  return "none";
+}
+
+function goISA(ticker, company){
+  ticker = ticker.toUpperCase().trim();
+  const state = getISAState(ticker);
+  if(state === "queued"){ showToast(ticker + " already in ISA queue ⏳", "#f59e0b"); return; }
+  if(state === "analysed"){ showToast(ticker + " already analysed in ISA ✓", "#22c55e"); return; }
+  // Add to waitlist
+  try {
+    const wl = JSON.parse(localStorage.getItem(WL_KEY)||"[]");
+    wl.push({ ticker, company: company||ticker, addedAt: new Date().toLocaleString("en-IN") });
+    localStorage.setItem(WL_KEY, JSON.stringify(wl));
+  } catch(e){ showToast("Could not add to queue: " + e.message, "#ef4444"); return; }
+  showToast("⏳ " + ticker + " added to ISA queue", "#00d4aa");
+  // Refresh card states
+  refreshISAStates();
+}
+
+function refreshISAStates(){
+  // Update all visible stock card ISA buttons
+  document.querySelectorAll("[data-isa-ticker]").forEach(el => {
+    const ticker = el.getAttribute("data-isa-ticker");
+    const company = el.getAttribute("data-isa-company")||ticker;
+    const state = getISAState(ticker);
+    if(state === "analysed"){
+      el.innerHTML = "✓ Analysed";
+      el.style.background = "#22c55e18";
+      el.style.color = "#22c55e";
+      el.style.borderColor = "#22c55e33";
+      el.onclick = () => showToast(ticker + " already in ISA history ✓", "#22c55e");
+    } else if(state === "queued"){
+      el.innerHTML = "⏳ Queued";
+      el.style.background = "#f59e0b18";
+      el.style.color = "#f59e0b";
+      el.style.borderColor = "#f59e0b33";
+      el.onclick = () => showToast(ticker + " already in ISA queue", "#f59e0b");
+    } else {
+      el.innerHTML = "📊 ISA";
+      el.style.background = "var(--ad)";
+      el.style.color = "var(--accent)";
+      el.style.borderColor = "#00e5b830";
+      el.onclick = () => goISA(ticker, company);
+    }
+  });
 }
 function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
+
+// Refresh ISA states when localStorage changes (ISA running in other tab)
+window.addEventListener("storage", e => {
+  if(e.key === "isa_waitlist" || e.key === "isa_h"){
+    refreshISAStates();
+  }
+});
 </script>
 </body>
 </html>
