@@ -373,6 +373,18 @@ window.addEventListener("load",()=>{
   const params=new URLSearchParams(window.location.search);
   const code=params.get("code");
   if(code){window.history.replaceState({},"",window.location.pathname);exchangeUpstoxToken(code);}
+
+  // ── NSE 500 seamless push: auto-analyse if ?scrip=TICKER in URL ────────────
+  const nse500Scrip = params.get("scrip");
+  if(nse500Scrip && nse500Scrip.trim()){
+    const cleanScrip = nse500Scrip.trim();
+    document.getElementById("scripInput").value = cleanScrip;
+    // Clean URL so back-button works cleanly
+    window.history.replaceState({},"",window.location.pathname);
+    // Small delay to ensure page is fully ready before firing
+    setTimeout(()=>{ analyze(); }, 500);
+  }
+
   updateWatchCount();
   document.getElementById("apiKeyInput").addEventListener("keydown",e=>{if(e.key==="Enter")saveKey();});
   document.getElementById("scripInput").addEventListener("keydown",e=>{if(e.key==="Enter")analyze();});
