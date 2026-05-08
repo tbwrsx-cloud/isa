@@ -174,17 +174,7 @@ nav{height:50px;background:linear-gradient(180deg,#080f20,var(--bg));border-bott
 .tl-wrap td{padding:6px 9px;border-bottom:1px solid var(--border)}
 .tl-wrap tr:hover td,.tl-wrap tr:active td{background:var(--card);cursor:pointer}
 
-/* ── ISA ── */
-.isa-wrap{padding:12px;overflow-y:auto;flex:1}
-.isa-search-row{display:flex;gap:6px;margin-bottom:10px}
-.isa-input{flex:1;background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:9px 10px;color:var(--text);font-size:12px;outline:none;font-family:var(--fm)}
-.isa-input:focus{border-color:var(--accent)}
-.isa-input::placeholder{color:var(--muted)}
-.isa-go{background:linear-gradient(135deg,var(--accent2),var(--accent));color:#000;border:none;border-radius:8px;padding:9px 14px;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--fd)}
-.isa-go:disabled{background:var(--border);color:var(--muted);cursor:not-allowed}
-.quick-chips{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px}
-.chip{background:var(--ad);border:1px solid #00e5b830;border-radius:20px;padding:3px 9px;color:var(--accent);font-size:9px;cursor:pointer;font-family:var(--fm)}
-.chip:active{background:var(--accent);color:#000}
+
 
 /* ── Refresh ── */
 .rf-wrap{display:flex;flex:1;overflow:hidden}
@@ -269,7 +259,6 @@ nav{height:50px;background:linear-gradient(180deg,#080f20,var(--bg));border-bott
   <div class="nav-logo">🇮🇳 NSE 500</div>
   <button class="nav-tab on" onclick="showPage('viewer',this)">◈ Sectors</button>
   <button class="nav-tab" onclick="showPage('timeline',this)">📅 Trends</button>
-  <button class="nav-tab" onclick="showPage('isa',this)">📊 ISA</button>
   <button class="nav-tab" onclick="showPage('refresh',this)">⟳ Refresh</button>
   <div class="nav-right">
     <div class="key-status" id="keyStatus"></div>
@@ -315,26 +304,7 @@ nav{height:50px;background:linear-gradient(180deg,#080f20,var(--bg));border-bott
     <div class="tl-wrap" id="tlWrap"></div>
   </div>
 
-  <!-- ISA -->
-  <div class="page" id="page-isa">
-    <div class="isa-wrap">
-      <div class="isa-search-row">
-        <input class="isa-input" id="isaInput" placeholder="NSE/BSE scrip or ticker…" onkeydown="if(event.key==='Enter')runISA()">
-        <button class="isa-go" id="isaBtn" onclick="runISA()">Analyse</button>
-      </div>
-      <div class="quick-chips">
-        <span class="chip" onclick="setISA('Infosys')">Infosys</span>
-        <span class="chip" onclick="setISA('RELIANCE')">Reliance</span>
-        <span class="chip" onclick="setISA('HDFCBANK')">HDFC Bank</span>
-        <span class="chip" onclick="setISA('Zomato')">Zomato</span>
-        <span class="chip" onclick="setISA('HAL')">HAL</span>
-        <span class="chip" onclick="setISA('WAAREEENER')">Waaree</span>
-        <span class="chip" onclick="setISA('DIXON')">Dixon</span>
-        <span class="chip" onclick="setISA('ITC')">ITC</span>
-      </div>
-      <div id="isaResult"></div>
-    </div>
-  </div>
+
 
   <!-- REFRESH -->
   <div class="page" id="page-refresh">
@@ -660,50 +630,9 @@ function renderTimeline(){
 }
 
 // ── ISA ────────────────────────────────────────────────────────────────────
-const ISA_PROMPT = `You are an expert Indian stock market analyst. Analyse the given NSE/BSE stock and return ONLY a valid JSON object with this structure:
-{"company":"Full name","ticker":"NSE ticker","exchange":"NSE or BSE","sector":"Sector","currentPrice":number,"marketCap":"Rs.X Cr","mcapToSales":number,"peRatio":number,"fundamental":{"publicHolding":number,"promoterHolding":number,"promoterHoldingChange":number,"fiiHoldingChange":number,"cfOperations":number,"cfInvesting":number,"cfFinancing":number,"cfoPositive":boolean,"cfoVsOthers":"string","debtToReserve":number,"revenueQoQ":[n,n,n,n],"revenueQoQLabels":["Q1FY25","Q2FY25","Q3FY25","Q4FY25"],"patMargin":number,"revenueGrowthYOY":[n,n],"revenueGrowthYOYLabels":["FY23","FY24"],"patGrowthYOY":[n,n],"patGrowthYOYLabels":["FY23","FY24"],"managementCommentary":"2-3 sentences"},"technical":{"trend":"Bullish/Bearish/Sideways","rsi":number,"macdSignal":"string","support1":number,"support2":number,"resistance1":number,"resistance2":number,"entryZone":"string","stopLoss":number,"target1":number,"target2":number,"potentialReturn":number,"riskReward":"string","timeframe":"string","movingAvg50":number,"movingAvg200":number,"above50DMA":boolean,"above200DMA":boolean,"technicalSummary":"string"},"fitScore":number,"fitRating":"Strong Buy/Buy/Hold/Avoid","fitSummary":"string","redFlags":["list"],"positives":["list"],"dataNote":"string"}
-Rules: fitScore 0-100. PAT margin ≤5% → Avoid. Return ONLY JSON.`;
 
-function setISA(t){document.getElementById('isaInput').value=t}
-function goISA(t){setISA(t);showPage('isa',document.querySelectorAll('.nav-tab')[2]);runISA()}
 
-async function runISA(){
-  const scrip=document.getElementById('isaInput').value.trim();if(!scrip)return;
-  const btn=document.getElementById('isaBtn');btn.disabled=true;btn.textContent='Analysing…';
-  document.getElementById('isaResult').innerHTML='<div class="empty"><div style="font-size:28px;animation:spin 2s linear infinite;display:inline-block">⚙️</div><div style="color:var(--accent);font-family:var(--fm);font-size:10px;margin-top:6px">Fetching data…</div></div>';
-  try{
-    const text=await callAnthropic(ISA_PROMPT,`Analyse this Indian stock: ${scrip}. Search for latest data. Return ONLY JSON.`,3000);
-    const data=extractJSON(text);
-    if(!data) throw new Error('Could not parse response');
-    const rc=data.fitRating?.includes('Strong')?'var(--sb)':data.fitRating?.includes('Buy')?'var(--acc)':data.fitRating?.includes('Hold')?'var(--wa)':'var(--av)';
-    document.getElementById('isaResult').innerHTML=`
-      <div style="background:var(--card);border:1px solid var(--border2);border-radius:9px;padding:12px;margin-bottom:8px">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-          <div>
-            <div style="font-weight:800;font-size:15px;margin-bottom:4px">${data.company}</div>
-            <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:5px">
-              <span class="tb" style="background:#60a5fa20;color:var(--blue);border-color:#60a5fa40">${data.ticker}</span>
-              <span class="tb" style="background:#4a608020;color:var(--muted);border-color:#4a608040">${data.exchange}</span>
-              <span class="tb" style="background:#fbbf2420;color:var(--wa);border-color:#fbbf2440">${data.sector}</span>
-            </div>
-            <div style="font-size:10px;color:var(--muted)">CMP <b style="color:var(--text);font-family:var(--fm);font-size:15px">₹${data.currentPrice}</b></div>
-            <div style="font-size:9px;color:var(--muted);font-family:var(--fm)">MCap:${data.marketCap} · PE:${data.peRatio}x · P/S:${data.mcapToSales}x</div>
-          </div>
-          <div style="text-align:center">
-            <div style="font-size:28px;font-weight:800;font-family:var(--fm);color:${rc}">${data.fitScore}<span style="font-size:11px;color:var(--muted)">/100</span></div>
-            <span class="tb" style="background:${rc}20;color:${rc};border-color:${rc}40;font-size:9px">${data.fitRating}</span>
-          </div>
-        </div>
-        <div style="font-size:10px;color:var(--muted);line-height:1.6;border-top:1px solid var(--border);padding-top:7px;font-family:var(--fm)">${data.fitSummary}</div>
-      </div>
-      ${data.redFlags?.length?`<div style="background:#f8717110;border:1px solid #f8717130;border-radius:7px;padding:9px;margin-bottom:7px"><div style="color:var(--av);font-size:8px;font-weight:700;letter-spacing:2px;margin-bottom:4px;font-family:var(--fm)">⚠ RED FLAGS</div>${data.redFlags.map(f=>`<div style="font-size:10px;color:#fca5a5;font-family:var(--fm)">• ${f}</div>`).join('')}</div>`:''}
-      ${data.positives?.length?`<div style="background:#4ade8010;border:1px solid #4ade8030;border-radius:7px;padding:9px;margin-bottom:7px"><div style="color:var(--sb);font-size:8px;font-weight:700;letter-spacing:2px;margin-bottom:4px;font-family:var(--fm)">✓ POSITIVES</div>${data.positives.map(p=>`<div style="font-size:10px;color:#86efac;font-family:var(--fm)">• ${p}</div>`).join('')}</div>`:''}
-      <div style="font-size:8px;color:var(--muted);text-align:center;padding:6px;font-family:var(--fm)">AI-generated · not financial advice</div>`;
-  }catch(e){
-    document.getElementById('isaResult').innerHTML=`<div class="empty" style="color:var(--av)">${e.message}</div>`;
-  }
-  btn.disabled=false;btn.textContent='Analyse';
-}
+
 
 // ── Monthly refresh ────────────────────────────────────────────────────────
 const SECTOR_SYS = (month) => `You are an expert Indian equity market analyst. Monthly refresh for ${month}.
@@ -834,6 +763,11 @@ function downloadDB(){
 function log(msg,type){const el=document.getElementById('logArea');const ts=new Date().toTimeString().slice(0,8);const d=document.createElement('div');d.className='ll';d.innerHTML=`<span class="lt">${ts}</span><span class="lm ${type||''}">${msg}</span>`;el.appendChild(d);el.scrollTop=el.scrollHeight}
 function clearLog(){document.getElementById('logArea').innerHTML=''}
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000)}
+
+function goISA(t){
+  window.open('isav6-pwa.html?scrip=' + encodeURIComponent(t), '_blank');
+  showToast('Opening ISA v6 for ' + t + '…');
+}
 function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
 </script>
 </body>
