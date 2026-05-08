@@ -379,10 +379,20 @@ window.addEventListener("load",()=>{
   if(nse500Scrip && nse500Scrip.trim()){
     const cleanScrip = nse500Scrip.trim();
     document.getElementById("scripInput").value = cleanScrip;
-    // Clean URL so back-button works cleanly
     window.history.replaceState({},"",window.location.pathname);
-    // Small delay to ensure page is fully ready before firing
-    setTimeout(()=>{ analyze(); }, 500);
+    // Store scrip for post-OAuth delayed analysis
+    window._nse500PendingScrip = cleanScrip;
+    // If user is NOT signed into Google Drive, OAuth won't pop up — fire immediately
+    // If they ARE signed in, OAuth fires at 4000ms — wait 6000ms to be safe after it settles
+    const oauthWillFire = !!localStorage.getItem("isa_gd_signed_in");
+    const delay = oauthWillFire ? 6500 : 800;
+    setTimeout(()=>{
+      if(window._nse500PendingScrip){
+        document.getElementById("scripInput").value = window._nse500PendingScrip;
+        window._nse500PendingScrip = null;
+        analyze();
+      }
+    }, delay);
   }
 
   updateWatchCount();
@@ -1495,7 +1505,14 @@ function handleGDToken(resp){
   localStorage.setItem("isa_gd_signed_in","1");
   updateGDStatus();
   backupToGDrive(true);
-  setTimeout(()=>{ if(gdTokenClient) gdTokenClient.requestAccessToken({prompt:""}); },3400*1000);
+  setTimeout(()=>{ if(gdTokenClient) gdTokenClient.requestAccessToken({prompt:""});},3400*1000);
+  // NSE500 push: fire pending analysis now that OAuth is fully settled
+  if(window._nse500PendingScrip){
+    const s=window._nse500PendingScrip;
+    window._nse500PendingScrip=null;
+    document.getElementById("scripInput").value=s;
+    setTimeout(()=>analyze(),400);
+  }
 }
 
 function loginGoogleDrive(){
