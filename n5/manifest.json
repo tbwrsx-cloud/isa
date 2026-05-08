@@ -1,0 +1,25 @@
+{
+  "name": "NSE 500 · Sector Intelligence",
+  "short_name": "NSE 500",
+  "description": "Indian stock market sector tracker with AI-powered monthly refresh",
+  "start_url": "/isa/nse500.html",
+  "scope": "/isa/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#00D4FF",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
