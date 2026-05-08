@@ -765,7 +765,7 @@ function clearLog(){document.getElementById('logArea').innerHTML=''}
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000)}
 
 function goISA(t){
-  window.open('isav6-pwa.html?scrip=' + encodeURIComponent(t), '_blank');
+  window.open('isav5-pwa.html?scrip=' + encodeURIComponent(t), '_blank');
   showToast('Opening ISA v6 for ' + t + '…');
 }
 function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
