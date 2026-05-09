@@ -272,6 +272,7 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
           <button onclick="loadGISandLogin()" style="background:#4285f4;color:#fff;border:none;border-radius:8px;padding:11px;font-weight:700;font-size:13px;width:100%;cursor:pointer;margin-bottom:8px">🔗 Login with Google</button>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
             <button onclick="backupToGDrive(true)" style="background:#22c55e18;color:#22c55e;border:1px solid #22c55e44;border-radius:8px;padding:10px;font-weight:700;font-size:12px;cursor:pointer">☁ Sync Now</button>
+            <button onclick="forceReclassify()" style="background:#a78bfa18;color:#a78bfa;border:1px solid #a78bfa33;border-radius:8px;padding:10px;font-weight:700;font-size:12px;cursor:pointer;margin-bottom:7px;display:block;width:100%">🔄 Re-score All History</button>
             <button onclick="restoreFromGDrive()" style="background:#38bdf818;color:#38bdf8;border:1px solid #38bdf844;border-radius:8px;padding:10px;font-weight:700;font-size:12px;cursor:pointer">⬇ Restore</button>
           </div>
         </div>
@@ -376,10 +377,73 @@ dataNote: state sources used AND whether technicals were live or estimated.
 Return JSON: {company,ticker,exchange,sector,currentPrice,marketCap,mcapToSales,peRatio,fundamental:{publicHolding,promoterHolding,promoterHoldingChange,fiiHoldingChange,cfOperations,cfoPositive,cfoVsOthers,debtToReserve,revenueQoQ,revenueQoQLabels,patMargin,revenueGrowthYOY,revenueGrowthYOYLabels,patGrowthYOY,patGrowthYOYLabels,managementCommentary,revenueGuidance,marginGuidance,demandOutlook,majorEvent,profitTrend},technical:{trend,rsi,macdSignal,support1,support2,resistance1,resistance2,entryZone,stopLoss,target1,target2,potentialReturn,riskReward,timeframe,movingAvg50,movingAvg200,above50DMA,above200DMA,technicalSummary},scoring:{fundamentalScore,technicalScore,commentaryScore,fundamentalBreakdown,technicalBreakdown,commentaryBreakdown},fitScore,fitRating,fitSummary,redFlags,positives,dataNote}`;
 
 // ── System prompt 2: DCF + Peers (separate call after core succeeds) ──────────
-const SYS_DCF = `You are an expert Indian stock analyst and valuation specialist. Given a stock ticker and its basic financials, return ONLY a raw JSON object (no markdown, no backticks) with DCF valuation and peer comparison.
+const SYS_DCF = `You are an expert Indian equity analyst building a DCF valuation model and peer comparison for NSE/BSE listed stocks.
 
-Return JSON: {dcf:{wacc,beta,riskFreeRate,erp,orderBacklogCr,keyOrderNote,bull:{projRevenue,projPAT,projFCFF,projLabels,ebitMarginTarget,terminalGrowth,intrinsicValue,upside},base:{projRevenue,projPAT,projFCFF,projLabels,ebitMarginTarget,terminalGrowth,intrinsicValue,upside},bear:{projRevenue,projPAT,projFCFF,projLabels,ebitMarginTarget,terminalGrowth,intrinsicValue,upside},segments:[{name,fy25Rev,fy28eRev,ebitMargin,cagr,desc}],valueBridge:{pvExplicitFCFF,pvTerminalValue,enterpriseValue,netCash,equityValue,sharesCr}},peers:[{name,fullName,ticker,sector,cmp,mcap,promoterHolding,promoterChange,fiiChange,cfoPositive,debtToReserve,patMargin,mcapToSales,peRatio,revenueGrowthYOY,patGrowthYOY,trend,rsi,above50dma,above200dma,from52wHigh,commentary,redFlags,positives,fitRating}]}
-All projections cover 5 years (FY26-FY30). peers[0] = searched scrip. Include 4 real NSE sector peers. All numbers not strings.`;
+TASK 1 — DCF VALUATION MODEL:
+Build a 5-year DCF with Bull/Base/Bear scenarios.
+
+WACC CALCULATION:
+- Risk-free rate: Use current 10-yr Indian G-Sec yield (search for latest)
+- Beta: Estimate from sector (Defensive=0.6-0.8, FMCG=0.7-0.9, IT=0.9-1.1, Auto=1.0-1.2, Capital Goods=1.1-1.3, Defence=1.0-1.2, Infra=1.1-1.4, Power=0.8-1.0, Pharma=0.8-1.0)
+- ERP (Equity Risk Premium): Use 5.5-6.5% for India
+- WACC = Risk-free + Beta × ERP. Small cap add 1-2% size premium.
+
+FCF PROJECTION RULES:
+- Use actual FY25 revenue as base
+- Bull: Revenue CAGR = historical CAGR + 5%, EBIT margin expands 200-300bps over 5yr
+- Base: Revenue CAGR = historical CAGR, EBIT margin stable
+- Bear: Revenue CAGR = historical CAGR - 5%, EBIT margin compresses 100-200bps
+- Capex = 8-12% of revenue for asset-heavy, 3-6% for asset-light
+- FCFF = EBIT×(1-tax) + D&A - Capex - ΔWorkingCapital
+- Terminal growth = 4-5% for established, 5-6% for growth companies
+
+TERMINAL VALUE:
+- TV = FCF_year5 × (1 + terminal_growth) / (WACC - terminal_growth)
+- Enterprise Value = PV of FCF years 1-5 + PV of TV
+- Equity Value = EV + Net Cash (or minus Net Debt)
+- Intrinsic Value per share = Equity Value / shares outstanding
+- Upside = (Intrinsic Value - CMP) / CMP × 100
+
+TASK 2 — PEER COMPARISON (4-5 peers):
+Search for 4-5 NSE-listed peers in the same sector.
+For each peer search screener.in and tickertape.in for:
+- Current market price, market cap
+- Promoter holding and change
+- FII holding change
+- CFO positive or negative
+- Debt to reserve ratio
+- PAT margin
+- MCap to Sales ratio
+- PE ratio
+- Revenue growth YOY (last 2 years as array)
+- PAT growth YOY (last 2 years as array)
+- Technical trend (Bullish/Bearish/Sideways)
+- RSI value
+- Above 50DMA (true/false)
+- Above 200DMA (true/false)
+- Distance from 52-week high as percentage
+- 1-line commentary on recent performance
+- Red flags if any
+- Key positives
+- fitRating: apply scoring and give Strong Buy/Buy/Hold/Avoid
+
+RETURN FORMAT — ONLY raw JSON, no markdown, no backticks:
+{
+  "dcf": {
+    "wacc": number,
+    "beta": number,
+    "riskFreeRate": number,
+    "erp": number,
+    "orderBacklogCr": number,
+    "keyOrderNote": "string",
+    "bull": {"projRevenue":[yr1,yr2,yr3,yr4,yr5],"projPAT":[...],"projFCFF":[...],"projLabels":["FY26","FY27","FY28","FY29","FY30"],"ebitMarginTarget":number,"terminalGrowth":number,"intrinsicValue":number,"upside":number},
+    "base": {"projRevenue":[...],"projPAT":[...],"projFCFF":[...],"projLabels":[...],"ebitMarginTarget":number,"terminalGrowth":number,"intrinsicValue":number,"upside":number},
+    "bear": {"projRevenue":[...],"projPAT":[...],"projFCFF":[...],"projLabels":[...],"ebitMarginTarget":number,"terminalGrowth":number,"intrinsicValue":number,"upside":number},
+    "segments":[{"name":"string","fy25Rev":number,"fy28eRev":number,"ebitMargin":number,"cagr":number,"desc":"string"}],
+    "valueBridge":{"pvExplicitFCFF":number,"pvTerminalValue":number,"enterpriseValue":number,"netCash":number,"equityValue":number,"sharesCr":number}
+  },
+  "peers":[{"name":"string","fullName":"string","ticker":"string","sector":"string","cmp":number,"mcap":"string","promoterHolding":number,"promoterChange":number,"fiiChange":number,"cfoPositive":boolean,"debtToReserve":number,"patMargin":number,"mcapToSales":number,"peRatio":number,"revenueGrowthYOY":[number,number],"patGrowthYOY":[number,number],"trend":"string","rsi":number,"above50dma":boolean,"above200dma":boolean,"from52wHigh":number,"commentary":"string","redFlags":["string"],"positives":["string"],"fitRating":"string"}]
+}`
 
 const STEPS=["Fetching shareholding…","Analysing cash flows…","Computing P&L trends…","Running technical analysis…","Scoring fit to invest…"];
 let currentData=null,stepIv=null;
@@ -425,6 +489,8 @@ window.addEventListener("load",()=>{
 
   updateWatchCount();
   updateWaitlistBadge();
+  // Run dual framework reclassification once (flag prevents repeat)
+  setTimeout(reclassifyHistory, 1500);
   document.getElementById("apiKeyInput").addEventListener("keydown",e=>{if(e.key==="Enter")saveKey();});
   document.getElementById("scripInput").addEventListener("keydown",e=>{if(e.key==="Enter")analyze();});
   if("serviceWorker"in navigator){
@@ -695,6 +761,253 @@ function sanitizeData(d){
 }
 
 // ── Robust JSON extractor ─────────────────────────────────────────────────────
+
+// ══════════════════════════════════════════════════════════════════
+// DUAL SCORING FRAMEWORK
+// ══════════════════════════════════════════════════════════════════
+
+const GROWTH_SECTORS = new Set([
+  "electric vehicles","ev","renewable energy","clean energy","solar",
+  "wind energy","fintech","saas","d2c","direct to consumer",
+  "space technology","drone","new age tech","internet","edtech",
+  "healthtech","agritech","gaming","crypto","blockchain",
+  "quick commerce","q-commerce","digital","online","platform"
+]);
+
+const RECLASSIFY_FLAG = "isa_dual_framework_done_v1";
+
+// ── Auto-detect which framework to use ────────────────────────────
+function detectFramework(d){
+  const f  = d.fundamental || {};
+  const sec = (d.sector || "").toLowerCase();
+
+  // Check 1: sector is emerging/growth
+  const sectorGrowth = [...GROWTH_SECTORS].some(s => sec.includes(s));
+
+  // Check 2: listing year < 7 years ago (2018 or newer)
+  const listYear = parseInt(d.listingYear || d.fundamental?.listingYear || 0);
+  const youngListing = listYear >= 2018 && listYear <= 2026;
+
+  // Check 3: PAT margin negative
+  const patNeg = (f.patMargin || 0) < 0;
+
+  // Check 4: revenue CAGR > 35% (hypergrowth)
+  const revGrowth = f.revenueGrowthYOY || [];
+  const highGrowth = revGrowth.length >= 2 && revGrowth.every(v => v > 35);
+
+  // Check 5: PAT negative for both tracked years
+  const patGrowth = f.patGrowthYOY || [];
+  const sustainedLoss = patNeg && patGrowth.length >= 2;
+
+  // Check 6: explicitly tagged
+  const tagged = d.framework === "growth";
+
+  const isGrowth = tagged || sectorGrowth || (youngListing && patNeg) || highGrowth || sustainedLoss;
+
+  return isGrowth ? "growth" : "established";
+}
+
+// ── Established company scoring (max 100) ─────────────────────────
+function scoreEstablished(d){
+  const f = d.fundamental || {}, t = d.technical || {};
+  let fs=0, fb=[], ts=0, tb=[];
+
+  // Fundamental (max 70)
+  if((f.promoterHolding||0)>50)                    {fs+=8;fb.push("Promoter>50%: +8");}
+  if((f.promoterHoldingChange||0)>0)               {fs+=5;fb.push("PromIncreasing: +5");}
+  if((f.fiiHoldingChange||0)>0)                    {fs+=5;fb.push("FIIIncreasing: +5");}
+  if(f.cfoPositive||(f.cfOperations||0)>0)         {fs+=8;fb.push("CFO+ve: +8");}
+  if(String(f.cfoVsOthers||"").toLowerCase().includes("higher")){fs+=7;fb.push("CFO>Inv+Fin: +7");}
+  const dtr=parseFloat(f.debtToReserve)||0;
+  if(dtr>=0&&dtr<50)                               {fs+=8;fb.push("Debt/Res<50%: +8");}
+  else if(dtr>=50&&dtr<100)                        {fs+=2;fb.push("Debt/Res50-100%: +2");}
+  if((f.patMargin||0)>10)                          {fs+=8;fb.push("PATmargin>10%: +8");}
+  else if((f.patMargin||0)>5)                      {fs+=4;fb.push("PATmargin5-10%: +4");}
+  const revG=f.revenueGrowthYOY||[];
+  if(revG.length>=2&&revG.every(v=>v>0))           {fs+=8;fb.push("RevYOY+ve: +8");}
+  const patG=f.patGrowthYOY||[];
+  if(patG.length>=2&&patG.every(v=>v>0))           {fs+=8;fb.push("PATyoy+ve: +8");}
+  const ps=f.mcapToSales||d.mcapToSales||0;
+  if(ps>0&&ps<3)                                   {fs+=5;fb.push("MCap/S<3x: +5");}
+  else if(ps>=3&&ps<5)                             {fs+=3;fb.push("MCap/S3-5x: +3");}
+  if((f.revenueQoQ||[]).filter(v=>v>0).length>=3) {fs+=3;fb.push("QoQ+ve 3/4: +3");}
+  const pe=f.peRatio||d.peRatio||0;
+  if(pe>0&&pe<30)                                  {fs+=3;fb.push("PE<30: +3");}
+  else if(pe>=30&&pe<50)                           {fs+=1;fb.push("PE30-50: +1");}
+
+  // Technical (max 30)
+  if(t.above200DMA)                                {ts+=8;tb.push("Above200DMA: +8");}
+  if(t.above50DMA)                                 {ts+=5;tb.push("Above50DMA: +5");}
+  const rsi=t.rsi||0;
+  if(rsi>=40&&rsi<=65)                             {ts+=7;tb.push("RSI40-65: +7");}
+  else if((rsi>=30&&rsi<40)||(rsi>65&&rsi<=70))   {ts+=4;tb.push("RSI30-40/65-70: +4");}
+  if(String(t.macdSignal||"").toLowerCase().includes("bullish")){ts+=5;tb.push("MACDbullish: +5");}
+  if((t.support1||0)>0&&(d.currentPrice||0)>0){
+    const pct=(d.currentPrice-t.support1)/t.support1*100;
+    if(pct>=0&&pct<=3)                             {ts+=5;tb.push("NearS1: +5");}
+  }
+
+  // Commentary
+  const sc=d.scoring||{};
+  const cs=Math.min(Math.max(sc.commentaryScore||0,-15),15);
+  const cb=sc.commentaryBreakdown||[];
+
+  // Weighted
+  const fWt=Math.round((fs/70)*60);
+  const tWt=Math.round((ts/30)*20);
+  const cWt=Math.round((cs/15)*20);
+  const total=Math.min(Math.max(fWt+tWt+cWt,0),100);
+
+  // Rating — PAT ≤5% forces Avoid for established companies
+  let rating="Avoid";
+  const pm=f.patMargin||0;
+  if(pm>0&&pm<=5)       rating="Avoid";
+  else if(total>=75)    rating="Strong Buy";
+  else if(total>=55)    rating="Buy";
+  else if(total>=35)    rating="Hold";
+
+  return {fs,ts,cs,fb,tb,cb,fWt,tWt,cWt,total,rating};
+}
+
+// ── Growth / Emerging company scoring (max 100) ───────────────────
+function scoreGrowth(d){
+  const f = d.fundamental || {}, t = d.technical || {};
+  let fs=0, fb=[], ts=0, tb=[];
+
+  // Fundamental (max 60) — growth-oriented metrics
+  // Revenue growth is the primary metric
+  const revG = f.revenueGrowthYOY || [];
+  const avgRevG = revG.length ? revG.reduce((a,b)=>a+b,0)/revG.length : 0;
+  if(avgRevG>50)        {fs+=25;fb.push("RevGrowth>50%: +25");}
+  else if(avgRevG>30)   {fs+=20;fb.push("RevGrowth>30%: +20");}
+  else if(avgRevG>15)   {fs+=12;fb.push("RevGrowth>15%: +12");}
+  else if(avgRevG>0)    {fs+=6; fb.push("RevGrowth+ve: +6");}
+
+  // Gross margin / PAT margin trajectory (improving matters more than level)
+  const pm = f.patMargin || 0;
+  const patG = f.patGrowthYOY || [];
+  if(pm>0)              {fs+=8;fb.push("PAT+ve: +8");}
+  else if(patG.length>=2&&patG[patG.length-1]>patG[0]){fs+=5;fb.push("LossReducing: +5");}
+
+  // CFO — cash burn management
+  if(f.cfoPositive||(f.cfOperations||0)>0){fs+=8;fb.push("CFO+ve: +8");}
+  else if((f.cfOperations||0)>-500)       {fs+=3;fb.push("CashBurnManaged: +3");}
+
+  // Promoter / founder conviction
+  if((f.promoterHolding||0)>40)           {fs+=7;fb.push("Founder>40%: +7");}
+  else if((f.promoterHolding||0)>20)      {fs+=4;fb.push("Founder>20%: +4");}
+
+  // FII interest signals institutional conviction
+  if((f.fiiHoldingChange||0)>0)           {fs+=5;fb.push("FIIBuilding: +5");}
+
+  // Debt context — high debt ok if capex-driven, bad if structural
+  const dtr=parseFloat(f.debtToReserve)||0;
+  if(dtr<50)                              {fs+=7;fb.push("Debt/Res<50%: +7");}
+  else if(dtr>=50&&dtr<150)              {fs+=2;fb.push("CapexDebt: +2");}
+
+  // Technical (max 20) — slightly lower weight for growth cos
+  if(t.above200DMA)                       {ts+=8;tb.push("Above200DMA: +8");}
+  if(t.above50DMA)                        {ts+=4;tb.push("Above50DMA: +4");}
+  const rsi=t.rsi||0;
+  if(rsi>=40&&rsi<=70)                    {ts+=5;tb.push("RSI healthy: +5");}
+  if(String(t.macdSignal||"").toLowerCase().includes("bullish")){ts+=3;tb.push("MACDbullish: +3");}
+
+  // Commentary (max 20) — guidance critical for growth cos
+  const sc=d.scoring||{};
+  const cs=Math.min(Math.max(sc.commentaryScore||0,-15),15);
+  const cb=sc.commentaryBreakdown||[];
+
+  // Weighted — fundamentals 60%, technicals 20%, commentary 20%
+  const fWt=Math.round((fs/60)*60);
+  const tWt=Math.round((ts/20)*20);
+  const cWt=Math.round((cs/15)*20);
+  const total=Math.min(Math.max(fWt+tWt+cWt,0),100);
+
+  // Rating — different labels for growth
+  let rating="Avoid";
+  if(total>=75)         rating="High Conviction";
+  else if(total>=55)    rating="Accumulate";
+  else if(total>=35)    rating="Watch";
+
+  return {fs,ts,cs,fb,tb,cb,fWt,tWt,cWt,total,rating};
+}
+
+// ── Master recalcScore — detects framework and routes ─────────────
+function recalcScore(d, forceFramework){
+  const framework = forceFramework || detectFramework(d);
+  d.framework = framework;
+
+  const result = framework === "growth" ? scoreGrowth(d) : scoreEstablished(d);
+  const {fs,ts,cs,fb,tb,cb,fWt,tWt,cWt,total,rating} = result;
+
+  d.scoring = {
+    framework,
+    fundamentalScore:fs, technicalScore:ts, commentaryScore:cs,
+    fundamentalWeighted:fWt, technicalWeighted:tWt, commentaryWeighted:cWt,
+    fundamentalBreakdown:fb, technicalBreakdown:tb, commentaryBreakdown:cb
+  };
+  d.fitScore  = total;
+  d.fitRating = rating;
+  return d;
+}
+
+// ── Reclassify all history entries (runs once on first load) ───────
+function reclassifyHistory(){
+  const already = localStorage.getItem(RECLASSIFY_FLAG);
+  if(already) return; // already done — never runs again
+  
+  const hist = loadHist();
+  if(!hist.length){ localStorage.setItem(RECLASSIFY_FLAG,"1"); return; }
+
+  let changed = 0;
+  const updated = hist.map(entry => {
+    try{
+      const prev = entry.fitScore;
+      const reclassed = recalcScore(JSON.parse(JSON.stringify(entry)));
+      if(reclassed.fitScore !== prev) changed++;
+      return reclassed;
+    }catch(_){ return entry; }
+  });
+
+  saveHist(updated);
+  updateHistCount();
+  localStorage.setItem(RECLASSIFY_FLAG,"1");
+  console.log(\`ISA dual framework: reclassified \${hist.length} entries, \${changed} scores changed\`);
+  
+  // Push updated history to Drive
+  setTimeout(()=>pushToDrive(), 2000);
+}
+
+// ── Manual re-trigger from settings ───────────────────────────────
+// ── Manual framework override (instant re-score, no API call) ────────────────
+function overrideFramework(ticker, data){
+  if(!data) return;
+  const current = data.framework || detectFramework(data);
+  const newFW = current === "growth" ? "established" : "growth";
+  const reclassed = recalcScore(JSON.parse(JSON.stringify(data)), newFW);
+  currentData = reclassed;
+  // Update in history
+  const hist = loadHist();
+  const idx = hist.findIndex(h => (h.ticker||"").toUpperCase() === (ticker||"").toUpperCase());
+  if(idx >= 0){ hist[idx] = reclassed; saveHist(hist); updateHistCount(); }
+  // Re-render result
+  showResult(reclassed);
+  drawGauge(reclassed.fitScore);
+  renderCommentaryChips(reclassed);
+  showSyncToast(
+    (newFW==="growth"?"🚀 Growth":"📊 Established") + " framework applied · Score: " + reclassed.fitScore,
+    newFW==="growth"?"#a78bfa":"#38bdf8"
+  );
+  setTimeout(()=>pushToDrive(),500);
+}
+
+function forceReclassify(){
+  localStorage.removeItem(RECLASSIFY_FLAG);
+  reclassifyHistory();
+  renderHistory();
+  showSyncToast("✓ All history re-scored with dual framework","#22c55e");
+}
+
 function extractJSON(text){
   // Strip markdown fences and leading/trailing whitespace
   let s = text.replace(/```json|```/gi,"").trim();
@@ -727,60 +1040,7 @@ function extractJSON(text){
 
 // ── Analyze ───────────────────────────────────────────────────────────────────
 
-// ── Local score calculator (overrides Claude's score) ─────
-function recalcScore(d){
-  const f=d.fundamental||{}, t=d.technical||{};
-  let fs=0,fb=[],ts=0,tb=[];
-  // Fundamental (max 70)
-  if((f.promoterHolding||0)>50){fs+=8;fb.push("Promoter>50%: +8");}
-  if((f.promoterHoldingChange||0)>0){fs+=5;fb.push("PromIncreasing: +5");}
-  if((f.fiiHoldingChange||0)>0){fs+=5;fb.push("FIIIncreasing: +5");}
-  if(f.cfoPositive||(f.cfOperations||0)>0){fs+=8;fb.push("CFO+ve: +8");}
-  if(String(f.cfoVsOthers||"").toLowerCase().includes("higher")){fs+=7;fb.push("CFO>Inv+Fin: +7");}
-  const dtr=parseFloat(f.debtToReserve)||0;if(dtr>=0&&dtr<50){fs+=8;fb.push("Debt/Res<50%: +8");}
-  if((f.patMargin||0)>10){fs+=8;fb.push("PATmargin>10%: +8");}
-  else if((f.patMargin||0)>5){fs+=4;fb.push("PATmargin5-10%: +4");}
-  if((f.revenueGrowthYOY||[]).length>=2&&f.revenueGrowthYOY.every(v=>v>0)){fs+=8;fb.push("RevYOY+ve: +8");}
-  if((f.patGrowthYOY||[]).length>=2&&f.patGrowthYOY.every(v=>v>0)){fs+=8;fb.push("PATyoy+ve: +8");}
-  const ps=f.mcapToSales||d.mcapToSales||0;
-  if(ps>0&&ps<3){fs+=5;fb.push("MCap/S<3x: +5");}
-  else if(ps>=3&&ps<5){fs+=3;fb.push("MCap/S3-5x: +3");}
-  if((f.revenueQoQ||[]).filter(v=>v>0).length>=3){fs+=3;fb.push("QoQ+ve 3/4: +3");}
-  const pe=f.peRatio||d.peRatio||0;
-  if(pe>0&&pe<30){fs+=3;fb.push("PE<30: +3");}
-  else if(pe>=30&&pe<50){fs+=1;fb.push("PE30-50: +1");}
-  // Technical (max 30)
-  if(t.above200DMA){ts+=8;tb.push("Above200DMA: +8");}
-  if(t.above50DMA){ts+=5;tb.push("Above50DMA: +5");}
-  const rsi=t.rsi||0;
-  if(rsi>=40&&rsi<=65){ts+=7;tb.push("RSI40-65: +7");}
-  else if((rsi>=30&&rsi<40)||(rsi>65&&rsi<=70)){ts+=4;tb.push("RSI30-40/65-70: +4");}
-  if(String(t.macdSignal||"").toLowerCase().includes("bullish")){ts+=5;tb.push("MACDbullish: +5");}
-  if((t.support1||0)>0&&(d.currentPrice||0)>0){
-    const pct=(d.currentPrice-t.support1)/t.support1*100;
-    if(pct>=0&&pct<=3){ts+=5;tb.push("NearS1: +5");}
-  }
-  // Commentary — use Claude's value but clamp
-  const sc=d.scoring||{};
-  const cs=Math.min(Math.max(sc.commentaryScore||0,-15),15);
-  const cb=sc.commentaryBreakdown||[];
-  // Weighted final score
-  const fWt=Math.round((fs/70)*60);
-  const tWt=Math.round((ts/30)*20);
-  const cWt=Math.round((cs/15)*20);
-  const total=Math.min(Math.max(fWt+tWt+cWt,0),100);
-  let rating="Avoid";
-  if((f.patMargin||0)>0&&(f.patMargin||0)<=5) rating="Avoid";
-  else if(total>=75) rating="Strong Buy";
-  else if(total>=55) rating="Buy";
-  else if(total>=35) rating="Hold";
-  d.scoring={fundamentalScore:fs,technicalScore:ts,commentaryScore:cs,
-    fundamentalWeighted:fWt,technicalWeighted:tWt,commentaryWeighted:cWt,
-    fundamentalBreakdown:fb,technicalBreakdown:tb,commentaryBreakdown:cb};
-  d.fitScore=total;
-  d.fitRating=rating;
-  return d;
-}
+// recalcScore replaced by dual framework above
 
 async function analyze(){
   const q=document.getElementById("scripInput").value.trim();
@@ -806,6 +1066,22 @@ async function analyze(){
     });
     if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e?.error?.message||`API error ${res.status}`);}
     const result=await res.json();
+    // ── Cache hit logging ─────────────────────────────────────────────
+    const usage = result.usage || {};
+    const cacheRead  = usage.cache_read_input_tokens  || 0;
+    const cacheWrite = usage.cache_creation_input_tokens || 0;
+    const inputTok   = usage.input_tokens || 0;
+    const outputTok  = usage.output_tokens || 0;
+    const cacheStr   = cacheRead > 0
+      ? `✓ Cache HIT — saved ${cacheRead} tokens (${Math.round(cacheRead/inputTok*100)}% cheaper)`
+      : cacheWrite > 0
+        ? `Cache WRITE — ${cacheWrite} tokens cached for next call`
+        : `No cache — ${inputTok} input tokens`;
+    console.log(`[ISA Cache] ${cacheStr} | output: ${outputTok} tokens`);
+    // Show in progress text briefly
+    const pt=document.getElementById("progressTxt");
+    if(pt) pt.textContent = cacheRead>0 ? "⚡ Cache hit — faster & cheaper!" : "Analysing…";
+    // ──────────────────────────────────────────────────────────────────
     const text=(result.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
     let parsed=sanitizeData(extractJSON(text));
     const scored=recalcScore(parsed);
@@ -1123,8 +1399,10 @@ function getPeerHistBadge(ticker){
   if(!entry) return '';
   const cleanRating = normalizeFitRating(entry.fitRating, entry.fitScore);
   const col = rc(cleanRating);
+  const fw = entry.framework || detectFramework(entry);
+  const fwBadge = fw==="growth"?"🚀":"📊";
   return `<span class="peer-hist-badge" style="background:${col}18;border-color:${col}44;color:${col}" onclick="event.stopPropagation();loadPeerFromHist('${ticker}')" title="Load saved analysis">
-    ✓ ${entry.fitScore} · ${cleanRating}
+    ${fwBadge} ${entry.fitScore} · ${cleanRating}
   </span>`;
 }
 
@@ -1191,13 +1469,23 @@ function buildResult(d){
   <div style="margin-top:8px">
     <button onclick="refreshAnalysis()" style="background:#7c3aed18;color:#a78bfa;border:1px solid #7c3aed44;border-radius:8px;padding:9px;font-weight:700;font-size:12px;width:100%;cursor:pointer">🔄 Refresh Analysis</button>
   </div>
+  <div style="margin-top:8px;display:flex;align-items:center;justify-content:space-between;background:#0d1525;border:1px solid #1e2d45;border-radius:8px;padding:8px 11px">
+    <div>
+      <span style="font-size:14px">${d.framework==="growth"?"🚀":"📊"}</span>
+      <span style="font-size:11px;font-weight:700;color:${d.framework==="growth"?"#a78bfa":"#38bdf8"};margin-left:4px">${d.framework==="growth"?"GROWTH FRAMEWORK":"ESTABLISHED FRAMEWORK"}</span>
+      <div style="font-size:9px;color:#64748b;margin-top:2px">${d.framework==="growth"?"Revenue · Cash runway · Founder":"PAT margin · FCF · Debt · PE"}</div>
+    </div>
+    <button onclick="overrideFramework('${d.ticker||""}',currentData)" style="background:${d.framework==="growth"?"#38bdf818":"#a78bfa18"};color:${d.framework==="growth"?"#38bdf8":"#a78bfa"};border:1px solid ${d.framework==="growth"?"#38bdf833":"#a78bfa33"};border-radius:6px;padding:4px 10px;font-size:10px;font-weight:700;cursor:pointer">
+      Switch to ${d.framework==="growth"?"📊 Established":"🚀 Growth"}
+    </button>
+  </div>
 </div>`;
 
   // ── SCORE BREAKDOWN ───────────────────────────────────────────────────────
   const scoreBody=`
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px">
-    <div class="pb" style="border:1px solid #38bdf833"><div class="pl">FUNDAMENTAL</div><div class="pv" style="color:#38bdf8">${sc.fundamentalScore||0}<span style="font-size:9px;color:#64748b">/70</span></div><div style="color:#64748b;font-size:9px">→ ${sc.fundamentalWeighted||0}pts (60%)</div></div>
-    <div class="pb" style="border:1px solid #a78bfa33"><div class="pl">TECHNICAL</div><div class="pv" style="color:#a78bfa">${sc.technicalScore||0}<span style="font-size:9px;color:#64748b">/30</span></div><div style="color:#64748b;font-size:9px">→ ${sc.technicalWeighted||0}pts (20%)</div></div>
+    <div class="pb" style="border:1px solid #38bdf833"><div class="pl">FUNDAMENTAL</div><div class="pv" style="color:#38bdf8">${sc.fundamentalScore||0}<span style="font-size:9px;color:#64748b">/${d.framework==="growth"?"60":"70"}</span></div><div style="color:#64748b;font-size:9px">→ ${sc.fundamentalWeighted||0}pts (60%)</div></div>
+    <div class="pb" style="border:1px solid #a78bfa33"><div class="pl">TECHNICAL</div><div class="pv" style="color:#a78bfa">${sc.technicalScore||0}<span style="font-size:9px;color:#64748b">/${d.framework==="growth"?"20":"30"}</span></div><div style="color:#64748b;font-size:9px">→ ${sc.technicalWeighted||0}pts (20%)</div></div>
     <div class="pb" style="border:1px solid ${(sc.commentaryScore||0)>=0?"#22c55e33":"#ef444433"}"><div class="pl">COMMENTARY</div><div class="pv" style="color:${(sc.commentaryScore||0)>=0?"#22c55e":"#ef4444"}">${(sc.commentaryScore||0)>0?"+":""}${sc.commentaryScore||0}<span style="font-size:9px;color:#64748b">/±15</span></div><div style="color:#64748b;font-size:9px">→ ${sc.commentaryWeighted||0}pts (20%)</div></div>
   </div>
   <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:4px">${(sc.fundamentalBreakdown||[]).map(b=>`<span style="background:#38bdf811;color:#38bdf8;border:1px solid #38bdf822;border-radius:10px;padding:2px 7px;font-size:10px">${b}</span>`).join("")}</div>
@@ -1338,7 +1626,7 @@ function renderHistory(){
           <span style="font-weight:700;font-size:14px">${h.company}</span>
           ${inPort?'<span style="font-size:11px">💼</span>':""}
         </div>
-        <div style="margin-bottom:3px">${bdg(h.ticker,"#38bdf8")}${bdg(h.fitRating,c)}</div>
+        <div style="margin-bottom:3px">${bdg(h.ticker,"#38bdf8")}${bdg(h.fitRating,c)}<span style="font-size:11px;margin-left:2px" title="${(h.framework||detectFramework(h))==="growth"?"Growth Framework":"Established Framework"}">${(h.framework||detectFramework(h))==="growth"?"🚀":"📊"}</span></div>
         <div style="color:#64748b;font-size:10px">Rs.${h.currentPrice} · PE:${h.peRatio}x · ${h.savedAt}</div>
       </div>
       <div style="text-align:center;min-width:42px">
@@ -1567,7 +1855,7 @@ function renderHistory(){
           <span style="font-weight:700;font-size:14px">${h.company}</span>
           ${inPort?'<span style="font-size:11px">💼</span>':""}
         </div>
-        <div style="margin-bottom:3px">${bdg(h.ticker,"#38bdf8")}${bdg(h.fitRating,c)}</div>
+        <div style="margin-bottom:3px">${bdg(h.ticker,"#38bdf8")}${bdg(h.fitRating,c)}<span style="font-size:11px;margin-left:2px" title="${(h.framework||detectFramework(h))==="growth"?"Growth Framework":"Established Framework"}">${(h.framework||detectFramework(h))==="growth"?"🚀":"📊"}</span></div>
         <div style="color:#64748b;font-size:10px">Rs.${h.currentPrice} · PE:${h.peRatio}x · ${h.savedAt}</div>
       </div>
       <div style="text-align:center;min-width:42px">
@@ -1679,7 +1967,7 @@ function handleGDToken(resp){
   // Pull first to get remote changes, then push merged local data
   showSyncToast("Syncing with Drive…","#60a5fa");
   pullFromDrive().then(pulled=>{
-    if(pulled){ renderHistory(); renderWaitlist(); updateHistCount(); updateWaitlistBadge(); }
+    if(pulled){ renderHistory(); renderWaitlist(); renderWatchlist(); updateHistCount(); updateWaitlistBadge(); updateWatchCount(); }
     setTimeout(()=>pushToDrive(), 1000);
     showSyncToast("✓ Drive sync complete","#22c55e");
   });
@@ -1703,6 +1991,7 @@ function buildSyncPayload(){
   // Build unified sync object from all three stores
   const hist  = loadHist();
   const wl    = loadWaitlist();
+  const watch = loadWatchlist();
   const nse   = (() => { try { return JSON.parse(localStorage.getItem("nse500_db")||"null"); } catch(_){ return null; } })();
   const devId = localStorage.getItem("isa_device_id") || (() => {
     const id = "dev_" + Date.now().toString(36);
@@ -1712,11 +2001,13 @@ function buildSyncPayload(){
     version: "ISA_sync_v1",
     syncAt: new Date().toISOString(),
     deviceId: devId,
-    history: hist,
+    history:  hist,
     waitlist: wl,
+    watchlist: watch,
     nse500db: nse,
-    historyCount: hist.length,
-    waitlistCount: wl.length
+    historyCount:  hist.length,
+    waitlistCount: wl.length,
+    watchlistCount: watch.length
   };
 }
 
@@ -1752,6 +2043,16 @@ function mergeSyncData(remote){
   const cleanWL = mergedWL.filter(w => !histTickers.has(w.ticker.toUpperCase()));
   saveWaitlist(cleanWL);
   updateWaitlistBadge();
+
+  // ── Merge watchlist: union by ticker, deduplicate ──
+  const localWatch  = loadWatchlist();
+  const remoteWatch = remote.watchlist || [];
+  const mergedWatch = [...localWatch];
+  remoteWatch.forEach(rw => {
+    if(!mergedWatch.find(x => x.ticker === rw.ticker)) mergedWatch.push(rw);
+  });
+  saveWatchlist(mergedWatch);
+  updateWatchCount();
 
   // ── Merge NSE500 DB: take whichever has more history months ──
   if(remote.nse500db){
@@ -1894,11 +2195,13 @@ function toggleWatchlist(histIdx){
   if(exists>=0) wl.splice(exists,1);
   else wl.push({ticker:h.ticker,company:h.company,fitScore:h.fitScore,fitRating:h.fitRating,currentPrice:h.currentPrice,peRatio:h.peRatio,savedAt:h.savedAt,fullData:h.fullData});
   saveWatchlist(wl);updateWatchCount();renderHistory();
+  setTimeout(()=>pushToDrive(), 500); // sync watchlist to Drive
 }
 
 function removeFromWatchlist(ticker){
   saveWatchlist(loadWatchlist().filter(w=>w.ticker!==ticker));
   updateWatchCount();renderWatchlist();renderHistory();
+  setTimeout(()=>pushToDrive(), 500); // sync watchlist to Drive
 }
 
 function renderWatchlist(){
@@ -1916,7 +2219,7 @@ function renderWatchlist(){
             <span style="font-weight:700;font-size:14px">${h.company}</span>
             ${inPort(h.ticker)?'<span style="font-size:11px">💼</span>':""}
           </div>
-          <div style="margin-bottom:3px">${bdg(h.ticker,"#38bdf8")}${bdg(h.fitRating,c)}</div>
+          <div style="margin-bottom:3px">${bdg(h.ticker,"#38bdf8")}${bdg(h.fitRating,c)}<span style="font-size:11px;margin-left:2px" title="${(h.framework||detectFramework(h))==="growth"?"Growth Framework":"Established Framework"}">${(h.framework||detectFramework(h))==="growth"?"🚀":"📊"}</span></div>
           <div style="color:#64748b;font-size:10px">Rs.${h.currentPrice} · Score:${h.fitScore}/100</div>
         </div>
         <div style="text-align:center;min-width:42px">
