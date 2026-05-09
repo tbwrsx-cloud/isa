@@ -696,14 +696,33 @@ function sanitizeData(d){
 
 // ── Robust JSON extractor ─────────────────────────────────────────────────────
 function extractJSON(text){
-  let s=text.replace(/```json|```/gi,"").trim();
-  try{return JSON.parse(s);}catch(_){}
-  const start=s.indexOf("{");
-  const end=s.lastIndexOf("}");
-  if(start!==-1&&end!==-1&&end>start){try{return JSON.parse(s.slice(start,end+1));}catch(_){}}
-  const matches=s.match(/\{[\s\S]*\}/g);
-  if(matches){for(let i=matches.length-1;i>=0;i--){try{return JSON.parse(matches[i]);}catch(_){}}}
-  throw new Error("Could not parse response. Please try again.");
+  // Strip markdown fences and leading/trailing whitespace
+  let s = text.replace(/```json|```/gi,"").trim();
+  // Try direct parse first
+  try{ return JSON.parse(s); }catch(_){}
+  // Find outermost { } pair
+  const start = s.indexOf("{");
+  const end   = s.lastIndexOf("}");
+  if(start !== -1 && end !== -1 && end > start){
+    try{ return JSON.parse(s.slice(start, end+1)); }catch(_){}
+  }
+  // Find all JSON-like objects, try largest first
+  const matches = s.match(/\{[\s\S]*?\}/g);
+  if(matches){
+    // Sort by length descending — largest blob most likely to be the full response
+    matches.sort((a,b)=>b.length-a.length);
+    for(const m of matches){ try{ return JSON.parse(m); }catch(_){} }
+  }
+  // Last resort: try to fix common AI JSON errors (trailing commas, unquoted keys)
+  try{
+    const fixed = s
+      .slice(start, end+1)
+      .replace(/,\s*([}\]])/g,"$1")       // remove trailing commas
+      .replace(/([{,]\s*)(\w+)\s*:/g,'$1"$2":')  // quote unquoted keys
+      .replace(/:\s*'([^']*)'/g,':"$1"'); // single→double quotes
+    return JSON.parse(fixed);
+  }catch(_){}
+  throw new Error("Parse error — AI returned non-JSON. Try again or use a simpler ticker.");
 }
 
 // ── Analyze ───────────────────────────────────────────────────────────────────
@@ -776,13 +795,13 @@ async function analyze(){
     document.getElementById("progressTxt").textContent="Fetching fundamentals & technicals…";
     const res=await fetch("https://api.anthropic.com/v1/messages",{
       method:"POST",
-      headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-beta":"prompt-caching-2024-07-31","anthropic-dangerous-direct-browser-access":"true"},
       body:JSON.stringify({
         model:"claude-haiku-4-5-20251001",
         max_tokens:4000,
-        tools:[{type:"web_search_20250305",name:"web_search",max_uses:3}],
-        system:SYS,
-        messages:[{role:"user",content:`Analyse Indian stock: ${q}. Steps: 1) Fetch screener.in/company/${q.replace(/[-\s]/g,"")}/consolidated/ for fundamentals and shareholding. 2) Fetch chartink.com/stocks/${q} for RSI, MACD, moving averages. 3) If chartink fails, try tickertape.in/stocks/${q}-NSE/ technicals tab. 4) Search "${q} NSE 52 week high low current price" for price data. 5) Derive support/resistance from 52w range if live technicals unavailable. NEVER return null for any technical field — always estimate. Return only raw JSON.`}]
+        tools:[{type:"web_search_20250305",name:"web_search",max_uses:6}],
+        system:[{type:"text",text:SYS,cache_control:{type:"ephemeral"}}],
+        messages:[{role:"user",content:`Analyse Indian stock: ${q}. Do these steps in order: 1) Search screener.in/company/${q.replace(/[-\s]/g,"")}/consolidated/ for fundamentals, shareholding, cash flows. 2) Search tickertape.in/stocks/${q}-NSE/ technicals for RSI MACD moving averages. 3) Search "${q} NSE share price 52 week high low today" for current price and range. 4) Use 52w high/low to derive support resistance if technicals not found. NEVER return null — always estimate. Return only raw JSON.`}]
       })
     });
     if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e?.error?.message||`API error ${res.status}`);}
@@ -806,12 +825,12 @@ async function analyze(){
     try{
       const res2=await fetch("https://api.anthropic.com/v1/messages",{
         method:"POST",
-        headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+        headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-beta":"prompt-caching-2024-07-31","anthropic-dangerous-direct-browser-access":"true"},
         body:JSON.stringify({
           model:"claude-haiku-4-5-20251001",
           max_tokens:4000,
-          tools:[{type:"web_search_20250305",name:"web_search",max_uses:2}],
-          system:SYS_DCF,
+          tools:[{type:"web_search_20250305",name:"web_search",max_uses:4}],
+          system:[{type:"text",text:SYS_DCF,cache_control:{type:"ephemeral"}}],
           messages:[{role:"user",content:`Stock: ${scored.ticker||q}, Company: ${scored.company||q}, Sector: ${scored.sector||"unknown"}, CMP: ${scored.currentPrice||0}, MCap: ${scored.marketCap||"unknown"}, FY25 Revenue growth: ${(scored.fundamental?.revenueGrowthYOY||[]).join(",")}, PAT margin: ${scored.fundamental?.patMargin||0}%. Build DCF (WACC, 5yr projections Bull/Base/Bear) and rank 4-5 NSE sector peers. Return only JSON.`}]
         })
       });
@@ -841,10 +860,10 @@ async function analyze(){
           try{
             const r3=await fetch("https://api.anthropic.com/v1/messages",{
               method:"POST",
-              headers:{"Content-Type":"application/json","x-api-key":getKey(),"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+              headers:{"Content-Type":"application/json","x-api-key":getKey(),"anthropic-version":"2023-06-01","anthropic-beta":"prompt-caching-2024-07-31","anthropic-dangerous-direct-browser-access":"true"},
               body:JSON.stringify({
                 model:"claude-haiku-4-5-20251001",max_tokens:4000,
-                tools:[{type:"web_search_20250305",name:"web_search",max_uses:2}],
+                tools:[{type:"web_search_20250305",name:"web_search",max_uses:4}],
                 system:SYS_DCF,
                 messages:[{role:"user",content:`Stock: ${currentData?.ticker||""}, Sector: ${currentData?.sector||""}, CMP: ${currentData?.currentPrice||0}, PAT margin: ${currentData?.fundamental?.patMargin||0}%. Build DCF and rank 4-5 NSE sector peers. Return only JSON.`}]
               })
