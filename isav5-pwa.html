@@ -776,7 +776,7 @@ const GROWTH_SECTORS = new Set([
   "quick commerce","q-commerce","digital","online","platform"
 ]);
 
-const RECLASSIFY_FLAG = "isa_dual_framework_done_v1";
+const RECLASSIFY_FLAG = "isa_dual_framework_done_v2"; // v2 = commentary preserved
 
 // ── Auto-detect which framework to use ────────────────────────────
 function detectFramework(d){
@@ -965,7 +965,38 @@ function reclassifyHistory(){
   const updated = hist.map(entry => {
     try{
       const prev = entry.fitScore;
-      const reclassed = recalcScore(JSON.parse(JSON.stringify(entry)));
+      const clone = JSON.parse(JSON.stringify(entry));
+      // Preserve commentaryScore from existing AI analysis before re-scoring
+      // (reclassify only changes framework detection, not AI-derived commentary)
+      if(clone.scoring && clone.scoring.commentaryScore !== undefined){
+        clone._preservedCommentaryScore = clone.scoring.commentaryScore;
+        clone._preservedCommentaryBreakdown = clone.scoring.commentaryBreakdown || [];
+      }
+      const reclassed = recalcScore(clone);
+      // Restore preserved commentaryScore if it existed
+      if(clone._preservedCommentaryScore !== undefined){
+        reclassed.scoring.commentaryScore = clone._preservedCommentaryScore;
+        reclassed.scoring.commentaryBreakdown = clone._preservedCommentaryBreakdown;
+        // Recalculate final score with correct commentary
+        const cs = Math.min(Math.max(clone._preservedCommentaryScore, -15), 15);
+        const cWt = Math.round((cs/15)*20);
+        const fWt = reclassed.scoring.fundamentalWeighted || 0;
+        const tWt = reclassed.scoring.technicalWeighted  || 0;
+        reclassed.fitScore = Math.min(Math.max(fWt+tWt+cWt, 0), 100);
+        reclassed.scoring.commentaryWeighted = cWt;
+        // Re-apply rating
+        const fw = reclassed.framework;
+        const sc = reclassed.fitScore;
+        if(fw === "growth"){
+          reclassed.fitRating = sc>=75?"High Conviction":sc>=55?"Accumulate":sc>=35?"Watch":"Avoid";
+        } else {
+          const pm = (reclassed.fundamental||{}).patMargin||0;
+          reclassed.fitRating = (pm>0&&pm<=5)?"Avoid":sc>=75?"Strong Buy":sc>=55?"Buy":sc>=35?"Hold":"Avoid";
+        }
+      }
+      // Preserve savedAt — critical for history display
+      if(entry.savedAt) reclassed.savedAt = entry.savedAt;
+      if(entry.fullData) reclassed.fullData = {...entry.fullData, ...reclassed.fullData};
       if(reclassed.fitScore !== prev) changed++;
       return reclassed;
     }catch(_){ return entry; }
@@ -986,7 +1017,33 @@ function overrideFramework(ticker, data){
   if(!data) return;
   const current = data.framework || detectFramework(data);
   const newFW = current === "growth" ? "established" : "growth";
-  const reclassed = recalcScore(JSON.parse(JSON.stringify(data)), newFW);
+  const clone = JSON.parse(JSON.stringify(data));
+  // Preserve commentaryScore before override re-scores
+  const preservedCS = clone.scoring?.commentaryScore;
+  const preservedCB = clone.scoring?.commentaryBreakdown || [];
+  const reclassed = recalcScore(clone, newFW);
+  // Restore commentary score
+  if(preservedCS !== undefined){
+    reclassed.scoring.commentaryScore = preservedCS;
+    reclassed.scoring.commentaryBreakdown = preservedCB;
+    const cs = Math.min(Math.max(preservedCS,-15),15);
+    const cWt = Math.round((cs/15)*20);
+    const fWt = reclassed.scoring.fundamentalWeighted||0;
+    const tWt = reclassed.scoring.technicalWeighted||0;
+    reclassed.fitScore = Math.min(Math.max(fWt+tWt+cWt,0),100);
+    reclassed.scoring.commentaryWeighted = cWt;
+    const fw2 = reclassed.framework;
+    const sc2 = reclassed.fitScore;
+    if(fw2==="growth"){
+      reclassed.fitRating = sc2>=75?"High Conviction":sc2>=55?"Accumulate":sc2>=35?"Watch":"Avoid";
+    } else {
+      const pm2 = (reclassed.fundamental||{}).patMargin||0;
+      reclassed.fitRating = (pm2>0&&pm2<=5)?"Avoid":sc2>=75?"Strong Buy":sc2>=55?"Buy":sc2>=35?"Hold":"Avoid";
+    }
+  }
+  // Preserve savedAt
+  if(data.savedAt) reclassed.savedAt = data.savedAt;
+  if(data.fullData) reclassed.fullData = {...data.fullData};
   currentData = reclassed;
   // Update in history
   const hist = loadHist();
@@ -1629,7 +1686,7 @@ function renderHistory(){
           ${inPort?'<span style="font-size:11px">💼</span>':""}
         </div>
         <div style="margin-bottom:3px">${bdg(h.ticker,"#38bdf8")}${bdg(h.fitRating,c)}<span style="font-size:11px;margin-left:2px" title="${(h.framework||detectFramework(h))==="growth"?"Growth Framework":"Established Framework"}">${(h.framework||detectFramework(h))==="growth"?"🚀":"📊"}</span></div>
-        <div style="color:#64748b;font-size:10px">Rs.${h.currentPrice} · PE:${h.peRatio}x · ${h.savedAt}</div>
+        <div style="color:#64748b;font-size:10px">Rs.${h.currentPrice} · PE:${h.peRatio}x · ${h.savedAt||h.fullData?.savedAt||""}</div>
       </div>
       <div style="text-align:center;min-width:42px">
         <div style="font-size:24px;font-weight:800;font-family:monospace;color:${c};line-height:1">${h.fitScore}</div>
@@ -1858,7 +1915,7 @@ function renderHistory(){
           ${inPort?'<span style="font-size:11px">💼</span>':""}
         </div>
         <div style="margin-bottom:3px">${bdg(h.ticker,"#38bdf8")}${bdg(h.fitRating,c)}<span style="font-size:11px;margin-left:2px" title="${(h.framework||detectFramework(h))==="growth"?"Growth Framework":"Established Framework"}">${(h.framework||detectFramework(h))==="growth"?"🚀":"📊"}</span></div>
-        <div style="color:#64748b;font-size:10px">Rs.${h.currentPrice} · PE:${h.peRatio}x · ${h.savedAt}</div>
+        <div style="color:#64748b;font-size:10px">Rs.${h.currentPrice} · PE:${h.peRatio}x · ${h.savedAt||h.fullData?.savedAt||""}</div>
       </div>
       <div style="text-align:center;min-width:42px">
         <div style="font-size:24px;font-weight:800;font-family:monospace;color:${c};line-height:1">${h.fitScore}</div>
