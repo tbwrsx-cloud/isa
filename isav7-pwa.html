@@ -518,8 +518,6 @@ window.addEventListener("load",()=>{
   document.getElementById("scripInput").addEventListener("keydown",e=>{if(e.key==="Enter")analyze();});
   if('serviceWorker' in navigator){
     navigator.serviceWorker.register('/isa/sw.js').catch(()=>{});
-  }`;
-    navigator.serviceWorker.register(URL.createObjectURL(new Blob([sw],{type:"application/javascript"}))).catch(()=>{});
   }
 });
 
