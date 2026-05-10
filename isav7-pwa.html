@@ -7,9 +7,9 @@
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-<meta name="apple-mobile-web-app-title" content="ISA v7"/>
+<meta name="apple-mobile-web-app-title" content="ISA v7.1"/>
 <link rel="manifest" href="isav7-manifest.json">
-<title>ISA v7 · IndiaStock Analyser</title>
+<title>ISA v7.1 · IndiaStock Analyser</title>
 
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -263,6 +263,22 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
           <div id="algoSavedMsg" style="font-size:11px;text-align:center;min-height:14px;margin-bottom:6px"></div>
           <button onclick="switchTab('portfolio')" style="background:#7c3aed18;color:#a78bfa;border:1px solid #7c3aed44;border-radius:8px;padding:10px;font-weight:700;font-size:12px;width:100%;cursor:pointer">💼 Go to Portfolio →</button>
         </div>
+        <!-- Token Budget Setting -->
+        <div style="margin-top:14px;border-top:1px solid #1e2d45;padding-top:13px">
+          <div style="color:#94a3b8;font-size:11px;margin-bottom:6px;font-weight:700">⚡ ANALYSIS TOKEN BUDGET</div>
+          <div style="color:#64748b;font-size:11px;margin-bottom:11px;line-height:1.6">Tokens per analysis call. Normal covers ~90% of scrips; failed ones retry via queue. Premium reduces first-pass failures.</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:9px">
+            <button id="tokenNormal" onclick="saveTokenBudget(6000)"
+              style="background:#00d4aa18;color:#00d4aa;border:2px solid #00d4aa44;border-radius:8px;padding:11px 6px;font-weight:700;font-size:12px;cursor:pointer;transition:all 0.2s">
+              Normal · 6k<br/><span style="font-size:10px;font-weight:400;color:#64748b">Default</span>
+            </button>
+            <button id="tokenPremium" onclick="saveTokenBudget(8000)"
+              style="background:#f59e0b18;color:#f59e0b;border:2px solid #f59e0b33;border-radius:8px;padding:11px 6px;font-weight:700;font-size:12px;cursor:pointer;transition:all 0.2s">
+              Premium · 8k<br/><span style="font-size:10px;font-weight:400;color:#64748b">Fewer retries</span>
+            </button>
+          </div>
+          <div id="tokenMsg" style="font-size:10px;text-align:center;color:#64748b;min-height:14px"></div>
+        </div>
         <!-- Queue Interval Setting -->
         <div style="margin-top:14px;border-top:1px solid #1e2d45;padding-top:13px">
           <div style="color:#94a3b8;font-size:11px;margin-bottom:8px;font-weight:700">⏱ QUEUE ANALYSIS INTERVAL</div>
@@ -304,7 +320,7 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
       <div class="card">
         <div class="st">ℹ About</div>
         <div style="color:#64748b;font-size:12px;line-height:1.7">
-          <b style="color:#94a3b8">IndiaStock Analyser v7</b><br/>
+          <b style="color:#94a3b8">IndiaStock Analyser v7.1</b><br/>
           AI-powered fundamental + technical analysis for NSE/BSE stocks using Anthropic Claude with live web search.<br/><br/>
           All data stored locally. Not financial advice.
         </div>
@@ -357,7 +373,7 @@ DATA SOURCES — search in this exact order:
    c. moneycontrol.com/india/stockpricequote/SECTOR/SYMBOL — price, 52w high/low, MAs
    d. Search "SYMBOL NSE RSI MACD 50DMA 200DMA" — use any reliable result
 3. PRICE: Get current price, 52-week high, 52-week low from any source.
-4. COMMENTARY: screener.in concall transcripts or moneycontrol.
+4. MANAGEMENT RESEARCH: screener.in concall transcripts, MoneyControl concall, investor presentation (IR page, BSE/NSE filing). Extract: management tone, growth drivers (Structural/Cyclical/Temporary), margin triggers, risks with severity, strategic direction.
 Always use CONSOLIDATED figures.
 
 TECHNICAL FIELDS — STRICT RULES — NEVER RETURN NULL:
@@ -392,12 +408,13 @@ For growth/pre-profit companies also extract:
   burnRateImproving: true if CFO outflow is reducing YoY (e.g. -200Cr last yr vs -100Cr this yr = improving). BOOLEAN.
 revenueQoQ[4]: QoQ GROWTH % like [-2.1, 4.5, 7.2, 1.8] — NOT absolute values.
 profitTrend: "profitable"/"loss_reducing"/"loss_expanding"
-SCORING: Fundamental(max70): Promoter>50%+8,PromUp+5,FIIUp+5,CFO+ve+8,CFO>Inv+Fin+7,Debt<50%+8,PAT>10%+8/5-10%+4,RevYOY+8,PATyoy+8,MCapS<3x+5/3-5x+3,QoQ3/4+3,PE<30+3/30-50+1. Technical(max30): 200DMA+8,50DMA+5,RSI40-65+7/30-40+4,MACD bull+5,NearS1+5. Commentary(±15): GuidanceRaised+5/maintained+2/cut-8,OrderBook+4,MarginExp+4,Debt-3,MgmtChg-5,RegIssue-6,Auditor-8,Pledge-6.
-fitScore=(fund/70)*60+(tech/30)*20+(comm/15)*20 clamped 0-100. >=75 Strong Buy,>=55 Buy,>=35 Hold,else Avoid. PAT<=5% forces Avoid.
+SCORING: Fundamental(max30): Promoter>50%+4,PromUp+3,FIIUp+3,CFO+ve+4,CFO>Inv+Fin+3,Debt<50%+4,PAT>10%+4/5-10%+2,RevYOY+3,PATyoy+3,MCapS<3x+3/3-5x+1,QoQ3/4+2,PE<30+2/30-50+1. Technical(max30): 200DMA+8,50DMA+6,RSI40-65+7/30-40+3,MACD bull+5,NearS1+4. ManagementResearch(max40,floor0): see MANAGEMENT RESEARCH SCORING above.
+fitScore=(fund/30)*30+(tech/30)*30+(mgmt/40)*40 clamped 0-100. >=75 Strong Buy,>=55 Buy,>=35 Hold,else Avoid. PAT<=5% forces Avoid. 2+ High risks caps at Hold.
+MANAGEMENT RESEARCH SCORING (max 40, floor 0): Commentary — GuidanceRaised+5,maintained+2,cut-8,OrderBook+4,MarginExp+4,DebtReduction+3,MgmtChange-5,RegIssue-6,Auditor-8,Pledge-6. Tone — Confident/Aggressive+4,Cautious+0,Defensive-3. BusinessQuality — 2+StructuralDrivers+6,1StructuralDriver+3,1FutureEarningsTrigger+3,MarginSustainable+3. RiskDeductions — NoHighRisk+4,1HighRisk-4,2+HighRisk-8,MacroRisk-3. Strategic — ClearStrategy+3,CapexDisciplined+3,AggressiveCapex-2. Clamp total to 0-40.
 commentaryBreakdown[]: max 30 chars each e.g. "GuidanceRaised: +5"
 dataNote: state sources used AND whether technicals were live or estimated.
 
-Return JSON: {company,ticker,exchange,sector,currentPrice,marketCap,mcapToSales,peRatio,fundamental:{publicHolding,promoterHolding,promoterHoldingChange,fiiHoldingChange,cfOperations,cfoPositive,cfoVsOthers,debtToReserve,revenueQoQ,revenueQoQLabels,patMargin,grossMargin,cashRunwayQtrs,burnRateImproving,revenueGrowthYOY,revenueGrowthYOYLabels,patGrowthYOY,patGrowthYOYLabels,managementCommentary,revenueGuidance,marginGuidance,demandOutlook,majorEvent,profitTrend},technical:{trend,rsi,macdSignal,support1,support2,resistance1,resistance2,entryZone,stopLoss,target1,target2,potentialReturn,riskReward,timeframe,movingAvg50,movingAvg200,above50DMA,above200DMA,technicalSummary},scoring:{fundamentalScore,technicalScore,commentaryScore,fundamentalBreakdown,technicalBreakdown,commentaryBreakdown},fitScore,fitRating,fitSummary,redFlags,positives,dataNote}`;
+Return JSON: {company,ticker,exchange,sector,currentPrice,marketCap,mcapToSales,peRatio,fundamental:{publicHolding,promoterHolding,promoterHoldingChange,fiiHoldingChange,cfOperations,cfoPositive,cfoVsOthers,debtToReserve,revenueQoQ,revenueQoQLabels,patMargin,grossMargin,cashRunwayQtrs,burnRateImproving,revenueGrowthYOY,revenueGrowthYOYLabels,patGrowthYOY,patGrowthYOYLabels,managementCommentary,revenueGuidance,marginGuidance,demandOutlook,majorEvent,profitTrend},technical:{trend,rsi,macdSignal,support1,support2,resistance1,resistance2,entryZone,stopLoss,target1,target2,potentialReturn,riskReward,timeframe,movingAvg50,movingAvg200,above50DMA,above200DMA,technicalSummary},research:{tone,toneJustification,changeVsPrevQuarters[],strategicDirection,capitalAllocationQuality,growthDrivers[{point,whyItMatters,earningsImpact,nature}],marginTriggers[{point,sustainability}],capexAndCashflow[],futureEarningsTriggers[],businessRisks[{risk,severity,nature,monitor}],managementCommentaryRisks[],industryMacroRisks[],monitoringChecklist[],mgmtResearchScore},scoring:{fundamentalScore,technicalScore,commentaryScore,mgmtResearchScore,fundamentalBreakdown,technicalBreakdown,commentaryBreakdown},fitScore,fitRating,fitSummary,redFlags,positives,dataNote}`;
 
 // ── System prompt 2: DCF + Peers (separate call after core succeeds) ──────────
 const SYS_DCF = `You are an expert Indian equity analyst building a DCF valuation model and peer comparison for NSE/BSE listed stocks.
@@ -473,6 +490,8 @@ let currentData=null,stepIv=null;
 
 // ── Key management ────────────────────────────────────────────────────────────
 const getKey=()=>localStorage.getItem("isa_k")||"";
+const getMaxTokens=()=>parseInt(localStorage.getItem("isa_tokens")||"6000");
+function saveTokenBudget(n){localStorage.setItem("isa_tokens",String(n));document.getElementById("tokenNormal").classList.toggle("active",n===6000);document.getElementById("tokenPremium").classList.toggle("active",n===8000);document.getElementById("tokenMsg").textContent=n===8000?"Premium (8k) saved — higher first-pass completion":"Normal (6k) saved — failed scrips retry via queue";}
 const setKey=k=>localStorage.setItem("isa_k",k.trim());
 function saveKey(){
   const k=document.getElementById("apiKeyInput").value.trim();
@@ -508,6 +527,8 @@ window.addEventListener("load",()=>{
   const code=params.get("code");
   if(code){window.history.replaceState({},"",window.location.pathname);exchangeUpstoxToken(code);}
 
+  // Token budget — set active button state on load
+  (function(){const t=getMaxTokens();const bn=document.getElementById("tokenNormal");const bp=document.getElementById("tokenPremium");if(bn&&bp){bn.style.borderColor=t===6000?"#00d4aa":"#00d4aa33";bn.style.background=t===6000?"#00d4aa33":"#00d4aa18";bp.style.borderColor=t===8000?"#f59e0b":"#f59e0b33";bp.style.background=t===8000?"#f59e0b33":"#f59e0b18";}})();
   // NSE 500 integration handled via isa_waitlist localStorage key
 
   updateWatchCount();
@@ -901,62 +922,65 @@ function scoreEstablished(d){
   const f = d.fundamental || {}, t = d.technical || {};
   let fs=0, fb=[], ts=0, tb=[];
 
-  // Fundamental (max 70)
-  if((f.promoterHolding||0)>50)                    {fs+=8;fb.push("Promoter>50%: +8");}
-  if((f.promoterHoldingChange||0)>0)               {fs+=5;fb.push("PromIncreasing: +5");}
-  if((f.fiiHoldingChange||0)>0)                    {fs+=5;fb.push("FIIIncreasing: +5");}
-  if(f.cfoPositive||(f.cfOperations||0)>0)         {fs+=8;fb.push("CFO+ve: +8");}
-  if(String(f.cfoVsOthers||"").toLowerCase().includes("higher")){fs+=7;fb.push("CFO>Inv+Fin: +7");}
+  // Fundamental (max 30) — v7.1 weights
+  if((f.promoterHolding||0)>50)                    {fs+=4;fb.push("Promoter>50%: +4");}
+  if((f.promoterHoldingChange||0)>0)               {fs+=3;fb.push("PromIncreasing: +3");}
+  if((f.fiiHoldingChange||0)>0)                    {fs+=3;fb.push("FIIIncreasing: +3");}
+  if(f.cfoPositive||(f.cfOperations||0)>0)         {fs+=4;fb.push("CFO+ve: +4");}
+  if(String(f.cfoVsOthers||"").toLowerCase().includes("higher")){fs+=3;fb.push("CFO>Inv+Fin: +3");}
   const dtr=parseFloat(f.debtToReserve)||0;
-  if(dtr>=0&&dtr<50)                               {fs+=8;fb.push("Debt/Res<50%: +8");}
-  else if(dtr>=50&&dtr<100)                        {fs+=2;fb.push("Debt/Res50-100%: +2");}
-  if((f.patMargin||0)>10)                          {fs+=8;fb.push("PATmargin>10%: +8");}
-  else if((f.patMargin||0)>5)                      {fs+=4;fb.push("PATmargin5-10%: +4");}
+  if(dtr>=0&&dtr<50)                               {fs+=4;fb.push("Debt/Res<50%: +4");}
+  else if(dtr>=50&&dtr<100)                        {fs+=1;fb.push("Debt/Res50-100%: +1");}
+  if((f.patMargin||0)>10)                          {fs+=4;fb.push("PATmargin>10%: +4");}
+  else if((f.patMargin||0)>5)                      {fs+=2;fb.push("PATmargin5-10%: +2");}
   const revG=f.revenueGrowthYOY||[];
-  if(revG.length>=2&&revG.every(v=>v>0))           {fs+=8;fb.push("RevYOY+ve: +8");}
+  if(revG.length>=2&&revG.every(v=>v>0))           {fs+=3;fb.push("RevYOY+ve: +3");}
   const patG=f.patGrowthYOY||[];
-  if(patG.length>=2&&patG.every(v=>v>0))           {fs+=8;fb.push("PATyoy+ve: +8");}
+  if(patG.length>=2&&patG.every(v=>v>0))           {fs+=3;fb.push("PATyoy+ve: +3");}
   const ps=f.mcapToSales||d.mcapToSales||0;
-  if(ps>0&&ps<3)                                   {fs+=5;fb.push("MCap/S<3x: +5");}
-  else if(ps>=3&&ps<5)                             {fs+=3;fb.push("MCap/S3-5x: +3");}
-  if((f.revenueQoQ||[]).filter(v=>v>0).length>=3) {fs+=3;fb.push("QoQ+ve 3/4: +3");}
+  if(ps>0&&ps<3)                                   {fs+=3;fb.push("MCap/S<3x: +3");}
+  else if(ps>=3&&ps<5)                             {fs+=1;fb.push("MCap/S3-5x: +1");}
+  if((f.revenueQoQ||[]).filter(v=>v>0).length>=3) {fs+=2;fb.push("QoQ+ve 3/4: +2");}
   const pe=f.peRatio||d.peRatio||0;
-  if(pe>0&&pe<30)                                  {fs+=3;fb.push("PE<30: +3");}
+  if(pe>0&&pe<30)                                  {fs+=2;fb.push("PE<30: +2");}
   else if(pe>=30&&pe<50)                           {fs+=1;fb.push("PE30-50: +1");}
 
-  // Technical (max 30)
+  // Technical (max 30) — unchanged weights
   if(t.above200DMA)                                {ts+=8;tb.push("Above200DMA: +8");}
-  if(t.above50DMA)                                 {ts+=5;tb.push("Above50DMA: +5");}
+  if(t.above50DMA)                                 {ts+=6;tb.push("Above50DMA: +6");}
   const rsi=t.rsi||0;
   if(rsi>=40&&rsi<=65)                             {ts+=7;tb.push("RSI40-65: +7");}
-  else if((rsi>=30&&rsi<40)||(rsi>65&&rsi<=70))   {ts+=4;tb.push("RSI30-40/65-70: +4");}
+  else if((rsi>=30&&rsi<40)||(rsi>65&&rsi<=70))   {ts+=3;tb.push("RSI30-40/65-70: +3");}
   if(String(t.macdSignal||"").toLowerCase().includes("bullish")){ts+=5;tb.push("MACDbullish: +5");}
   if((t.support1||0)>0&&(d.currentPrice||0)>0){
     const pct=(d.currentPrice-t.support1)/t.support1*100;
-    if(pct>=0&&pct<=3)                             {ts+=5;tb.push("NearS1: +5");}
+    if(pct>=0&&pct<=3)                             {ts+=4;tb.push("NearS1: +4");}
   }
 
-  // Commentary
+  // Management Research (max 40) — AI-provided score
   const sc=d.scoring||{};
-  const cs=Math.min(Math.max(sc.commentaryScore||0,-15),15);
+  const res=d.research||{};
+  const mrs=Math.min(Math.max(res.mgmtResearchScore||sc.mgmtResearchScore||0,0),40);
+  const mrb=res.monitoringChecklist||[];
+  const cs=Math.min(Math.max(sc.commentaryScore||0,-15),15); // kept for reclassify compat
   const cb=sc.commentaryBreakdown||[];
 
-  // Weighted
-  const fWt=Math.round((fs/70)*60);
-  const tWt=Math.round((ts/30)*20);
-  const cWt=Math.round((cs/15)*20);
-  const total=Math.min(Math.max(fWt+tWt+cWt,0),100);
+  // Weighted — 30/30/40
+  const fWt=Math.round((fs/30)*30);
+  const tWt=Math.round((ts/30)*30);
+  const mWt=Math.round((mrs/40)*40);
+  const total=Math.min(Math.max(fWt+tWt+mWt,0),100);
 
-  // Rating — PAT ≤5% forces Avoid for established companies
+  // Rating overrides
   let rating="Avoid";
   const pm=f.patMargin||0;
-  // Only force Avoid for PAT if we have actual data (pm != 0)
+  const highRisks=(res.businessRisks||[]).filter(r=>(r.severity||"").toLowerCase()==="high").length;
   if(pm!==0&&pm>0&&pm<=5) rating="Avoid";
-  else if(total>=75)    rating="Strong Buy";
-  else if(total>=55)    rating="Buy";
-  else if(total>=35)    rating="Hold";
+  else if(total>=75&&highRisks<2)   rating="Strong Buy";
+  else if(total>=55&&highRisks<2)   rating="Buy";
+  else if(total>=35||highRisks>=2)  rating="Hold";
 
-  return {fs,ts,cs,fb,tb,cb,fWt,tWt,cWt,total,rating};
+  return {fs,ts,cs,mrs,fb,tb,cb,fWt,tWt,mWt,total,rating};
 }
 
 // ── Growth / Emerging company scoring (max 100) ───────────────────
@@ -1066,7 +1090,9 @@ function recalcScore(d, forceFramework){
   d.scoring = {
     framework,
     fundamentalScore:fs, technicalScore:ts, commentaryScore:cs,
-    fundamentalWeighted:fWt, technicalWeighted:tWt, commentaryWeighted:cWt,
+    mgmtResearchScore: result.mrs||0,
+    fundamentalWeighted:fWt, technicalWeighted:tWt, commentaryWeighted:result.mWt||cWt,
+    mgmtResearchWeighted: result.mWt||0,
     fundamentalBreakdown:fb, technicalBreakdown:tb, commentaryBreakdown:cb
   };
   d.fitScore  = total;
@@ -1110,7 +1136,7 @@ function reclassifyHistory(){
         const cWt = Math.round((cs/15)*20);
         const fWt = scored.scoring.fundamentalWeighted || 0;
         const tWt = scored.scoring.technicalWeighted   || 0;
-        scored.fitScore = Math.min(Math.max(fWt+tWt+cWt, 0), 100);
+        scored.fitScore = Math.min(Math.max(fWt+tWt+(scored.scoring.mgmtResearchWeighted||cWt), 0), 100);
         scored.scoring.commentaryWeighted = cWt;
         // Re-apply rating with correct score
         if(fw === "growth"){
@@ -1402,7 +1428,7 @@ async function analyze(){
       headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-beta":"prompt-caching-2024-07-31","anthropic-dangerous-direct-browser-access":"true"},
       body:JSON.stringify({
         model:"claude-haiku-4-5-20251001",
-        max_tokens:4000,
+        max_tokens:getMaxTokens(),
         tools:[{type:"web_search_20250305",name:"web_search",max_uses:6}],
         system:[{type:"text",text:SYS,cache_control:{type:"ephemeral"}}],
         messages:[{role:"user",content:`Analyse Indian stock: ${q}. Do these steps in order: 1) Search screener.in/company/${q.replace(/[-\s]/g,"")}/consolidated/ for fundamentals, shareholding, cash flows. 2) Search tickertape.in/stocks/${q}-NSE/ technicals for RSI MACD moving averages. 3) Search "${q} NSE share price 52 week high low today" for current price and range. 4) Use 52w high/low to derive support resistance if technicals not found. NEVER return null — always estimate. Return only raw JSON.`}]
@@ -1482,7 +1508,7 @@ async function analyze(){
               method:"POST",
               headers:{"Content-Type":"application/json","x-api-key":getKey(),"anthropic-version":"2023-06-01","anthropic-beta":"prompt-caching-2024-07-31","anthropic-dangerous-direct-browser-access":"true"},
               body:JSON.stringify({
-                model:"claude-haiku-4-5-20251001",max_tokens:4000,
+                model:"claude-haiku-4-5-20251001",max_tokens:getMaxTokens(),
                 tools:[{type:"web_search_20250305",name:"web_search",max_uses:4}],
                 system:SYS_DCF,
                 messages:[{role:"user",content:`Stock: ${currentData?.ticker||""}, Sector: ${currentData?.sector||""}, CMP: ${currentData?.currentPrice||0}, PAT margin: ${currentData?.fundamental?.patMargin||0}%. Build DCF and rank 4-5 NSE sector peers. Return only JSON.`}]
