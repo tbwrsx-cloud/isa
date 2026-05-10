@@ -96,7 +96,7 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
     </div>
     <label style="color:#94a3b8;font-size:12px;margin-bottom:6px;display:block">Anthropic API Key</label>
     <div class="s-wrap">
-      <input id="apiKeyInput" class="s-inp" type="password" placeholder="sk-ant-api03-…" autocomplete="off" spellcheck="false"/>
+      <input id="apiKeyInput" class="s-inp" type="text" placeholder="sk-ant-api03-…" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"/>
       <button class="eye" onclick="toggleEye('apiKeyInput','e1')" id="e1">👁</button>
     </div>
     <div class="s-hint">
@@ -494,14 +494,14 @@ const getMaxTokens=()=>parseInt(localStorage.getItem("isa_tokens")||"6000");
 function saveTokenBudget(n){localStorage.setItem("isa_tokens",String(n));document.getElementById("tokenNormal").classList.toggle("active",n===6000);document.getElementById("tokenPremium").classList.toggle("active",n===8000);document.getElementById("tokenMsg").textContent=n===8000?"Premium (8k) saved — higher first-pass completion":"Normal (6k) saved — failed scrips retry via queue";}
 const setKey=k=>localStorage.setItem("isa_k",k.trim());
 function saveKey(){
-  const k=document.getElementById("apiKeyInput").value.trim();
-  if(!k.startsWith("sk-ant-")){document.getElementById("setupErr").textContent="Invalid key — must start with sk-ant-";return;}
+  const k=document.getElementById("apiKeyInput").value.trim().replace(/[\u200B-\u200D\uFEFF]/g,"");
+  if(k.length<20){document.getElementById("setupErr").textContent="Key too short — paste your full sk-ant-… key";return;}
   setKey(k);launchApp();
 }
 function updateKey(){
   const k=document.getElementById("settingsKey").value.trim();
   const m=document.getElementById("settingsMsg");
-  if(!k.startsWith("sk-ant-")){m.style.color="#ef4444";m.textContent="Invalid key format.";return;}
+  if(k.length<20){m.style.color="#ef4444";m.textContent="Key too short — check and paste again.";return;}
   setKey(k);document.getElementById("settingsKey").value="";
   m.style.color="#22c55e";m.textContent="✓ Key updated!";
   setTimeout(()=>m.textContent="",3000);
