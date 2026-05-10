@@ -855,5 +855,11 @@ window.addEventListener("storage", e => {
   }
 });
 </script>
+
+<script>
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/isa/sw.js').catch(()=>{});
+}
+</script>
 </body>
 </html>

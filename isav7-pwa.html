@@ -516,8 +516,9 @@ window.addEventListener("load",()=>{
   setTimeout(reclassifyHistory, 1500);
   document.getElementById("apiKeyInput").addEventListener("keydown",e=>{if(e.key==="Enter")saveKey();});
   document.getElementById("scripInput").addEventListener("keydown",e=>{if(e.key==="Enter")analyze();});
-  if("serviceWorker"in navigator){
-    const sw=`self.addEventListener('install',()=>self.skipWaiting());self.addEventListener('activate',()=>clients.claim());self.addEventListener('fetch',e=>{if(e.request.url.includes('anthropic.com'))return;e.respondWith(fetch(e.request).catch(()=>new Response('Offline')));});`;
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('/isa/sw.js').catch(()=>{});
+  }`;
     navigator.serviceWorker.register(URL.createObjectURL(new Blob([sw],{type:"application/javascript"}))).catch(()=>{});
   }
 });
