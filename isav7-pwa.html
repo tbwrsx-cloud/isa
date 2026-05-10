@@ -262,6 +262,25 @@ body{background:#0a0e1a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
           <div id="algoSavedMsg" style="font-size:11px;text-align:center;min-height:14px;margin-bottom:6px"></div>
           <button onclick="switchTab('portfolio')" style="background:#7c3aed18;color:#a78bfa;border:1px solid #7c3aed44;border-radius:8px;padding:10px;font-weight:700;font-size:12px;width:100%;cursor:pointer">💼 Go to Portfolio →</button>
         </div>
+        <!-- Queue Interval Setting -->
+        <div style="margin-top:14px;border-top:1px solid #1e2d45;padding-top:13px">
+          <div style="color:#94a3b8;font-size:11px;margin-bottom:8px;font-weight:700">⏱ QUEUE ANALYSIS INTERVAL</div>
+          <div style="color:#64748b;font-size:11px;margin-bottom:10px;line-height:1.6">Gap between scrips during sequential queue analysis. Longer = safer from rate limits + better cache hits.</div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+            <input type="range" id="queueIntervalSlider" min="30" max="300" step="15" value="${loadQueueInterval()}"
+              oninput="updateQueueIntervalDisplay(this.value)"
+              style="flex:1;accent-color:#00d4aa;cursor:pointer">
+            <div style="text-align:center;min-width:55px">
+              <span id="queueIntervalVal" style="font-size:16px;font-weight:700;color:#00d4aa;font-family:monospace">${loadQueueInterval()}</span>
+              <span style="font-size:10px;color:#64748b">s</span>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:9px;color:#475569;margin-bottom:10px;font-family:monospace;padding:0 2px">
+            <span>30s fast</span><span>90s default</span><span>300s safe</span>
+          </div>
+          <button onclick="saveQueueInterval()" style="background:#00d4aa18;color:#00d4aa;border:1px solid #00d4aa33;border-radius:8px;padding:9px;font-weight:700;font-size:12px;width:100%;cursor:pointer;margin-bottom:4px">💾 Save Interval</button>
+          <div id="queueIntervalMsg" style="font-size:10px;text-align:center;color:#64748b;min-height:14px"></div>
+        </div>
         <div style="margin-top:14px;border-top:1px solid #1e2d45;padding-top:13px">
           <div style="color:#94a3b8;font-size:11px;margin-bottom:8px;font-weight:700">☁ GOOGLE DRIVE BACKUP</div>
           <div style="color:#64748b;font-size:11px;margin-bottom:10px;line-height:1.6">Auto-backup history to Google Drive after every analysis.</div>
@@ -651,43 +670,93 @@ function analyseFromWaitlist(ticker){
 }
 
 function renderWaitlist(){
-  const wl = loadWaitlist();
+  const wl   = loadWaitlist();
   const hist = loadHist();
   const histTickers = new Set(hist.map(h => (h.ticker||"").toUpperCase()));
-  
-  const meta = document.getElementById("waitlistMeta");
+
+  const meta  = document.getElementById("waitlistMeta");
   const empty = document.getElementById("waitlistEmpty");
   const items = document.getElementById("waitlistItems");
   if(!items) return;
-  
-  if(meta) meta.textContent = wl.length + " scrip" + (wl.length!==1?"s":"") + " queued";
-  
+
+  const interval = loadQueueInterval();
+  if(meta) meta.textContent = wl.length + " scrip" + (wl.length!==1?"s":"") + " queued · "+interval+"s interval";
+
   if(wl.length === 0){
     if(empty) empty.style.display = "block";
     items.innerHTML = "";
+    // Reset run button if visible
+    const runBtn = document.getElementById("queueRunBtn");
+    if(runBtn){ runBtn.style.display="flex"; }
+    const stopBtn = document.getElementById("queueStopBtn");
+    if(stopBtn){ stopBtn.style.display="none"; }
     return;
   }
   if(empty) empty.style.display = "none";
-  
-  items.innerHTML = wl.map(item => {
-    const inHist = histTickers.has(item.ticker.toUpperCase());
-    const histEntry = inHist ? hist.find(h => h.ticker.toUpperCase() === item.ticker.toUpperCase()) : null;
-    const histBadge = inHist ? 
-      `<span style="background:#22c55e18;color:#22c55e;border:1px solid #22c55e33;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700;font-family:monospace">✓ Score:${histEntry?.fitScore||"?"}</span>` :
-      `<span style="background:#64748b18;color:#64748b;border:1px solid #64748b33;border-radius:4px;padding:2px 7px;font-size:10px;font-family:monospace">Not analysed</span>`;
-    return `<div style="background:#111827;border:1px solid #1e2d45;border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+
+  // ── Run / Stop controls ───────────────────────────────────────
+  const runBtnHtml = !_queueRunning
+    ? `<button id="queueRunBtn" onclick="startQueueAnalysis()" style="background:linear-gradient(135deg,#00b894,#00d4aa);color:#000;border:none;border-radius:8px;padding:9px 16px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px">
+        ▶ Analyse All (${wl.length})
+       </button>`
+    : `<button id="queueStopBtn" onclick="stopQueueAnalysis()" style="background:#ef444418;color:#ef4444;border:1px solid #ef444433;border-radius:8px;padding:9px 16px;font-size:12px;font-weight:700;cursor:pointer">
+        ⬛ Stop
+       </button>`;
+
+  // Progress bar when running
+  const totalOrig = wl.length + (hist.length ? 0 : 0); // approximate
+  const progressHtml = _queueRunning ? `
+    <div style="margin-top:8px;background:#1e2d45;border-radius:3px;height:3px">
+      <div style="background:linear-gradient(90deg,#00b894,#00d4aa);border-radius:3px;height:3px;width:${Math.min(100,(_queueCountdown>0?(1-_queueCountdown/loadQueueInterval())*100:50))}%;transition:width 1s"></div>
+    </div>
+    ${_queueCountdown>0?`<div style="font-size:10px;color:#64748b;font-family:monospace;margin-top:3px;text-align:right">Next in ${_queueCountdown}s…</div>`:""}` : "";
+
+  items.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px">
+      ${runBtnHtml}
+      <span style="font-size:10px;color:#64748b;font-family:monospace">⏱ ${interval}s gap · Settings to change</span>
+    </div>
+    ${progressHtml}
+  ` + wl.map(item => {
+    const isCurrent = _queueRunning && _queueCurrentTicker === item.ticker;
+    const isWaiting = _queueRunning && _queueCurrentTicker !== item.ticker && !item.lastError;
+    const hasFailed = !!item.lastError;
+    const inHist    = histTickers.has(item.ticker.toUpperCase());
+    const histEntry = inHist ? hist.find(h=>h.ticker.toUpperCase()===item.ticker.toUpperCase()) : null;
+
+    // Status badge
+    const statusBadge = isCurrent
+      ? `<span style="background:#00d4aa20;color:#00d4aa;border:1px solid #00d4aa40;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700;font-family:monospace;animation:pulse 1s infinite">⚙ Analysing…</span>`
+      : _queueCountdown>0 && isWaiting
+        ? `<span style="background:#64748b18;color:#64748b;border:1px solid #64748b33;border-radius:4px;padding:2px 7px;font-size:10px;font-family:monospace">⏳ ${_queueCountdown}s</span>`
+      : hasFailed
+        ? `<span style="background:#ef444418;color:#ef4444;border:1px solid #ef444433;border-radius:4px;padding:2px 7px;font-size:10px;font-family:monospace" title="${item.lastError}">✕ Failed — retry</span>`
+      : inHist
+        ? `<span style="background:#22c55e18;color:#22c55e;border:1px solid #22c55e33;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700;font-family:monospace">✓ Score:${histEntry?.fitScore||"?"}</span>`
+        : `<span style="background:#64748b18;color:#64748b;border:1px solid #64748b33;border-radius:4px;padding:2px 7px;font-size:10px;font-family:monospace">Pending</span>`;
+
+    // Card border highlight for current
+    const cardBorder = isCurrent ? "#00d4aa" : hasFailed ? "#ef4444" : "#1e2d45";
+    const cardBg     = isCurrent ? "#00d4aa08" : "#111827";
+
+    // Sector trend
+    const sectorBadge = buildSectorTrendBadge(item.ticker, true);
+
+    return `<div style="background:${cardBg};border:1px solid ${cardBorder};border-radius:10px;padding:11px 13px;margin-bottom:7px;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;transition:all 0.3s">
       <div style="flex:1;min-width:0">
         <div style="font-weight:700;font-size:13px;color:#38bdf8;font-family:monospace">${item.ticker}</div>
         <div style="font-size:11px;color:#64748b;margin-top:1px">${item.company}</div>
         <div style="margin-top:5px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-          ${histBadge}
+          ${statusBadge}
           <span style="font-size:10px;color:#475569">${item.addedAt}</span>
         </div>
+        ${sectorBadge}
+        ${hasFailed ? `<div style="font-size:9px;color:#f87171;font-family:monospace;margin-top:3px">Error: ${(item.lastError||"").slice(0,60)}</div>` : ""}
       </div>
-      <div style="display:flex;gap:6px;flex-shrink:0">
-        ${inHist ? `<button onclick="loadHistByTicker('${item.ticker}')" style="background:#22c55e18;color:#22c55e;border:1px solid #22c55e33;border-radius:6px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer">📋 View</button>` : ""}
-        <button onclick="analyseFromWaitlist('${item.ticker}')" style="background:#00d4aa;color:#000;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer">📊 Analyse</button>
-        <button onclick="removeFromWaitlist('${item.ticker}')" style="background:#ef444415;color:#ef4444;border:1px solid #ef444433;border-radius:6px;padding:6px 8px;font-size:11px;cursor:pointer">✕</button>
+      <div style="display:flex;gap:5px;flex-shrink:0;flex-wrap:wrap">
+        ${inHist ? `<button onclick="loadHistByTicker('${item.ticker}')" style="background:#22c55e18;color:#22c55e;border:1px solid #22c55e33;border-radius:6px;padding:5px 9px;font-size:11px;font-weight:700;cursor:pointer">📋 View</button>` : ""}
+        ${!_queueRunning ? `<button onclick="analyseFromWaitlist('${item.ticker}')" style="background:#00d4aa;color:#000;border:none;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer">📊</button>` : ""}
+        ${!_queueRunning ? `<button onclick="removeFromWaitlist('${item.ticker}')" style="background:#ef444415;color:#ef4444;border:1px solid #ef444433;border-radius:6px;padding:5px 8px;font-size:11px;cursor:pointer">✕</button>` : ""}
       </div>
     </div>`;
   }).join("");
@@ -1086,6 +1155,205 @@ function forceReclassify(){
   showSyncToast("✓ All history re-scored with dual framework","#22c55e");
 }
 
+
+// ── NSE 500 Sector Trend Lookup ───────────────────────────────────────────────
+// Reads nse500_db from localStorage (synced from nse500.html via Drive)
+// Returns sector info for a given ticker, or null if not found
+
+const SECTOR_TREND_EMOJI = {HOT:"🔥",WARMING:"↑",EMERGING:"★",NEUTRAL:"—"};
+const SECTOR_TREND_COLOR = {
+  HOT:"#f87171", WARMING:"#fbbf24", EMERGING:"#a78bfa", NEUTRAL:"#475569"
+};
+const SECTOR_TREND_LABEL = {
+  HOT:"HOT", WARMING:"WARMING", EMERGING:"EMERGING", NEUTRAL:"NEUTRAL"
+};
+
+function getNSE500SectorInfo(ticker){
+  try {
+    const raw = localStorage.getItem("nse500_db");
+    if(!raw) return null;
+    const db = JSON.parse(raw);
+    if(!db || !db.sectors) return null;
+
+    ticker = (ticker||"").toUpperCase().trim();
+
+    for(const sec of db.sectors){
+      const scrip = (sec.scrips||[]).find(s =>
+        (s.ticker||"").toUpperCase() === ticker
+      );
+      if(scrip){
+        // Get MoM trend change for display
+        const hist = sec.trendHistory || [];
+        const last = hist.length ? hist[hist.length-1] : null;
+        const prev = hist.length > 1 ? hist[hist.length-2] : null;
+        const mom  = last ? last.mom : "—";
+        const momColor = last ? (
+          last.momColor==="up"   ? "#22c55e" :
+          last.momColor==="down" ? "#f87171" : "#475569"
+        ) : "#475569";
+
+        return {
+          sector:    sec.sector,
+          trend:     sec.trend,
+          emoji:     SECTOR_TREND_EMOJI[sec.trend] || "—",
+          color:     SECTOR_TREND_COLOR[sec.trend] || "#475569",
+          label:     SECTOR_TREND_LABEL[sec.trend] || sec.trend,
+          signal:    scrip.signal || "",
+          mom,
+          momColor,
+          prevTrend: prev ? prev.trend : null,
+          lastMonth: last ? last.month : null,
+        };
+      }
+    }
+    return null; // ticker not in NSE 500
+  } catch(e){
+    return null;
+  }
+}
+
+// Build the sector trend HTML line (used in history cards + analysis page)
+function buildSectorTrendBadge(ticker, compact){
+  const info = getNSE500SectorInfo(ticker);
+  if(!info) return ""; // ticker not in NSE500 — show nothing
+
+  const momSpan = info.mom && info.mom !== "—"
+    ? `<span style="color:${info.momColor};font-weight:700;font-size:10px;margin-left:2px">${info.mom}</span>`
+    : "";
+
+  const lastSpan = info.lastMonth
+    ? `<span style="color:#475569;font-size:9px;margin-left:3px">${info.lastMonth}</span>`
+    : "";
+
+  if(compact){
+    // Compact version for history cards
+    return `<div style="margin-top:4px;display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+      <span style="font-size:9px;color:#475569;font-weight:700;letter-spacing:1px">SECTOR</span>
+      <span style="font-size:10px;color:#94a3b8">${info.sector}</span>
+      <span style="background:${info.color}20;color:${info.color};border:1px solid ${info.color}40;border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;font-family:monospace">${info.emoji} ${info.label}</span>
+      ${momSpan}${lastSpan}
+    </div>`;
+  } else {
+    // Full version for analysis page
+    return `<div style="margin-top:8px;padding:8px 10px;background:#0d1525;border:1px solid #1e2d45;border-radius:7px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span style="font-size:9px;color:#475569;font-weight:700;letter-spacing:1px">NSE 500 SECTOR</span>
+      <span style="font-size:11px;color:#94a3b8;font-weight:600">${info.sector}</span>
+      <span style="background:${info.color}20;color:${info.color};border:1px solid ${info.color}40;border-radius:5px;padding:2px 8px;font-size:10px;font-weight:700;font-family:monospace">${info.emoji} ${info.label}</span>
+      ${momSpan}${lastSpan}
+      ${info.signal ? `<span style="font-size:9px;color:#475569">Stock signal: <b style="color:#94a3b8">${info.signal}</b></span>` : ""}
+    </div>`;
+  }
+}
+
+// ── Queue Interval Settings ───────────────────────────────────────────────────
+const QUEUE_INTERVAL_KEY = "isa_queue_interval_s";
+const QUEUE_INTERVAL_DEFAULT = 90;
+
+function loadQueueInterval(){
+  return parseInt(localStorage.getItem(QUEUE_INTERVAL_KEY)||QUEUE_INTERVAL_DEFAULT);
+}
+function saveQueueInterval(){
+  const val = parseInt(document.getElementById("queueIntervalSlider")?.value||QUEUE_INTERVAL_DEFAULT);
+  localStorage.setItem(QUEUE_INTERVAL_KEY, val);
+  const msg = document.getElementById("queueIntervalMsg");
+  if(msg){ msg.textContent="✓ Saved — "+val+"s interval"; setTimeout(()=>msg.textContent="",2500); }
+  showSyncToast("Queue interval set to "+val+"s","#00d4aa");
+}
+function updateQueueIntervalDisplay(val){
+  const el = document.getElementById("queueIntervalVal");
+  if(el) el.textContent = val;
+}
+
+// ── Sequential Queue Analysis ─────────────────────────────────────────────────
+let _queueRunning = false;
+let _queueStop    = false;
+
+async function startQueueAnalysis(){
+  if(_queueRunning){ showSyncToast("Queue already running","#f59e0b"); return; }
+  const wl = loadWaitlist();
+  if(!wl.length){ showSyncToast("Queue is empty","#64748b"); return; }
+
+  _queueRunning = true;
+  _queueStop    = false;
+  const interval = loadQueueInterval() * 1000; // ms
+  const total    = wl.length;
+  let   done     = 0, failed = 0;
+
+  // Show run UI
+  renderWaitlist(); // re-renders with progress UI
+
+  for(let i = 0; i < wl.length; i++){
+    if(_queueStop) break;
+
+    const item = loadWaitlist()[0]; // always take first — list shrinks as we go
+    if(!item) break;
+
+    // Update UI — mark current as processing
+    _queueCurrentTicker = item.ticker;
+    renderWaitlist();
+
+    try {
+      // Set scrip input and switch to analyse tab
+      const scripInput = document.getElementById("scripInput");
+      if(scripInput) scripInput.value = item.ticker;
+
+      // Run the analysis programmatically
+      await analyze();
+      done++;
+
+      // analyze() calls addToHist() which calls removeFromWaitlist()
+      // So the scrip is auto-removed from queue on success
+      showSyncToast("✓ "+item.ticker+" analysed ("+done+"/"+total+")","#22c55e");
+
+    } catch(e){
+      failed++;
+      // On failure — scrip STAYS in queue (we don't remove it)
+      // Move it to end of queue so we can continue with next
+      const current = loadWaitlist();
+      const failedItem = current.find(x=>x.ticker===item.ticker);
+      if(failedItem){
+        const rest = current.filter(x=>x.ticker!==item.ticker);
+        rest.push({...failedItem, lastError: e.message, failedAt: new Date().toLocaleString("en-IN")});
+        saveWaitlist(rest);
+      }
+      showSyncToast("✗ "+item.ticker+" failed — kept in queue","#f87171");
+    }
+
+    renderWaitlist();
+    updateWaitlistBadge();
+
+    // Check if more items remain
+    const remaining = loadWaitlist();
+    if(!remaining.length || _queueStop) break;
+
+    // Wait the configured interval before next scrip
+    // Show countdown in queue UI
+    for(let s = loadQueueInterval(); s > 0; s--){
+      if(_queueStop) break;
+      _queueCountdown = s;
+      renderWaitlist();
+      await new Promise(r=>setTimeout(r,1000));
+    }
+    _queueCountdown = 0;
+  }
+
+  _queueRunning = false;
+  _queueCurrentTicker = null;
+  _queueCountdown = 0;
+  renderWaitlist();
+
+  const msg = done+" analysed" + (failed>0?" · "+failed+" failed (kept in queue)":"") + (_queueStop?" · stopped":"");
+  showSyncToast("Queue complete: "+msg, done>0?"#22c55e":"#f59e0b");
+  setTimeout(()=>pushToDrive(), 1000);
+}
+
+function stopQueueAnalysis(){
+  _queueStop = true;
+  showSyncToast("Stopping after current scrip…","#f59e0b");
+}
+
+let _queueCurrentTicker = null;
+let _queueCountdown     = 0;
 function extractJSON(text){
   // Strip markdown fences and leading/trailing whitespace
   let s = text.replace(/```json|```/gi,"").trim();
@@ -1532,6 +1800,7 @@ function buildResult(d){
       <div style="margin-bottom:8px">${bdg(d.ticker,"#38bdf8")}${bdg(d.exchange,"#64748b")}${bdg(d.sector,"#f59e0b")}</div>
       <div style="color:#64748b;font-size:12px">CMP <span style="color:#e2e8f0;font-weight:700;font-family:monospace;font-size:17px">Rs.${d.currentPrice}</span></div>
       <div style="color:#64748b;font-size:11px;margin-top:2px">MCap:${d.marketCap} · PE:${d.peRatio}x · P/S:${d.mcapToSales}x</div>
+      ${buildSectorTrendBadge(d.ticker, false)}
     </div>
     <div style="text-align:center">
       <canvas id="gauge" width="108" height="108"></canvas>
@@ -1706,6 +1975,7 @@ function renderHistory(){
         </div>
         <div style="margin-bottom:3px">${bdg(h.ticker,"#38bdf8")}${bdg(h.fitRating,c)}<span style="font-size:11px;margin-left:2px" title="${(h.framework||detectFramework(h))==="growth"?"Growth Framework":"Established Framework"}">${(h.framework||detectFramework(h))==="growth"?"🚀":"📊"}</span></div>
         <div style="color:#64748b;font-size:10px">Rs.${h.currentPrice} · PE:${h.peRatio}x · ${h.savedAt||h.fullData?.savedAt||""}</div>
+        ${buildSectorTrendBadge(h.ticker, true)}
       </div>
       <div style="text-align:center;min-width:42px">
         <div style="font-size:24px;font-weight:800;font-family:monospace;color:${c};line-height:1">${h.fitScore}</div>
@@ -1935,6 +2205,7 @@ function renderHistory(){
         </div>
         <div style="margin-bottom:3px">${bdg(h.ticker,"#38bdf8")}${bdg(h.fitRating,c)}<span style="font-size:11px;margin-left:2px" title="${(h.framework||detectFramework(h))==="growth"?"Growth Framework":"Established Framework"}">${(h.framework||detectFramework(h))==="growth"?"🚀":"📊"}</span></div>
         <div style="color:#64748b;font-size:10px">Rs.${h.currentPrice} · PE:${h.peRatio}x · ${h.savedAt||h.fullData?.savedAt||""}</div>
+        ${buildSectorTrendBadge(h.ticker, true)}
       </div>
       <div style="text-align:center;min-width:42px">
         <div style="font-size:24px;font-weight:800;font-family:monospace;color:${c};line-height:1">${h.fitScore}</div>
