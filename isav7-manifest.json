@@ -2,18 +2,24 @@
   "name": "IndiaStock Analyser v7",
   "short_name": "ISA v7",
   "description": "AI-powered Indian stock fundamental and technical analyser",
-  "start_url": "https://tbwrsx-cloud.github.io/isa/isav7-pwa.html",
-  "scope": "https://tbwrsx-cloud.github.io/isa/isav7-pwa.html",
+  "start_url": "/isa/isav7-pwa.html",
+  "scope": "/isa/",
   "display": "standalone",
   "background_color": "#0a0e1a",
   "theme_color": "#00d4aa",
   "orientation": "portrait",
   "icons": [
-    "icons": [
-  {
-    "src": "isa-logo.svg",
-    "sizes": "any",
-    "type": "image/svg+xml",
-    "purpose": "any"
-  }
+    {
+      "src": "/isa/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/isa/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
   ]
+}
