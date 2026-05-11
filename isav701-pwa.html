@@ -1707,7 +1707,7 @@ function buildPeersBody(data){
     const col=pCols[i]||"#64748b";
     const ratingCol=rCol(p._rating);
     const histBadge=getPeerHistBadge(p.ticker||p.name);
-    return `<div style="background:#111827;border:1px solid ${col}33;border-radius:10px;padding:12px;margin-bottom:9px" onclick="showPeerDetail(${i})">
+    return `<div style="background:#111827;border:1px solid ${col}33;border-radius:10px;padding:12px;margin-bottom:9px" onclick="(()=>{const he=loadHist().find(h=>(h.ticker||'').toUpperCase()==='${p.ticker||p.name}'.toUpperCase());if(he){loadHistByTicker('${p.ticker||p.name}');}else{showPeerDetail(${i});}})()">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
         <div style="flex:1">
           <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:4px">
@@ -1729,10 +1729,21 @@ function buildPeersBody(data){
           </div>
           ${p.commentary?`<div style="margin-top:6px;color:#64748b;font-size:10px;line-height:1.4">${p.commentary.slice(0,120)}${p.commentary.length>120?"…":""}</div>`:""}
         </div>
-        <div style="text-align:center;min-width:42px">
-          <div style="color:${col};font-weight:800;font-size:22px;font-family:monospace;line-height:1">${p._fit}</div>
-          <div style="color:#64748b;font-size:9px">/100</div>
-          <div style="font-size:16px;margin-top:4px">›</div>
+        <div style="text-align:center;min-width:54px">
+          ${(()=>{
+            const he=loadHist().find(h=>(h.ticker||"").toUpperCase()===(p.ticker||"").toUpperCase());
+            if(he){
+              const hc=rc(normalizeFitRating(he.fitRating,he.fitScore));
+              return '<div style="color:'+hc+';font-weight:800;font-size:22px;font-family:monospace;line-height:1">'+he.fitScore+'</div>'
+                +'<div style="color:#64748b;font-size:9px">/100</div>'
+                +'<div style="font-size:9px;color:#00d4aa;margin-top:3px;font-weight:700">ISA ✓</div>'
+                +'<div style="font-size:14px;margin-top:2px">›</div>';
+            } else {
+              return '<div style="color:#64748b;font-size:18px;font-family:monospace;line-height:1">'+p._fit+'</div>'
+                +'<div style="color:#64748b;font-size:9px">/100</div>'
+                +'<button onclick="event.stopPropagation();addToWaitlist(\''+(p.ticker||p.name)+'\',\''+(p.fullName||p.name)+'\')" style="background:#00d4aa;color:#000;border:none;border-radius:5px;padding:3px 7px;font-size:9px;font-weight:700;cursor:pointer;margin-top:4px;display:block;width:100%">+ Queue</button>';
+            }
+          })()}
         </div>
       </div>
     </div>`;
@@ -1786,8 +1797,9 @@ function getPeerHistBadge(ticker){
   const col = rc(cleanRating);
   const fw = entry.framework || detectFramework(entry);
   const fwBadge = fw==="growth"?"🚀":"📊";
-  return `<span class="peer-hist-badge" style="background:${col}18;border-color:${col}44;color:${col}" onclick="event.stopPropagation();loadPeerFromHist('${ticker}')" title="Load saved analysis">
-    ${fwBadge} ${entry.fitScore} · ${cleanRating}
+  // Show rating badge only — score is now shown on right side of card
+  return `<span class="peer-hist-badge" style="background:${col}18;border-color:${col}44;color:${col}" onclick="event.stopPropagation();loadHistByTicker('${ticker}')" title="View ISA analysis">
+    ${fwBadge} ${cleanRating}
   </span>`;
 }
 
@@ -3118,7 +3130,7 @@ function renderPeers(data){
   let html=`<div style="overflow-x:auto;padding-bottom:6px;margin-bottom:11px">
     <div style="display:flex;gap:8px;min-width:max-content">
       ${scored.map((p,i)=>{const col=pCols[i]||"#64748b",rc=rCol(p._rating);
-        return `<div style="background:#111827;border:1px solid ${col}44;border-radius:10px;padding:9px 11px;text-align:center;min-width:85px;cursor:pointer" onclick="showPeerDetail(${i})">
+        return `<div style="background:#111827;border:1px solid ${col}44;border-radius:10px;padding:9px 11px;text-align:center;min-width:85px;cursor:pointer" onclick="(()=>{const he=loadHist().find(h=>(h.ticker||'').toUpperCase()==='${p.ticker||p.name}'.toUpperCase());if(he){loadHistByTicker('${p.ticker||p.name}');}else{showPeerDetail(${i});}})()">
           <div style="font-size:13px">${medals[i]||"•"}</div>
           <div style="color:#e2e8f0;font-weight:700;font-size:11px;margin:2px 0">${p.ticker||p.name}</div>
           <div style="color:${col};font-weight:800;font-size:18px;font-family:monospace">${p._fit}</div>
@@ -3133,7 +3145,7 @@ function renderPeers(data){
         ${["#","COMPANY","PROMO","PAT%","D/R","M/S","RSI","TREND","SCORE","RATING"].map((h,i)=>`<th style="padding:5px 6px;color:#64748b;font-size:9px;text-align:${i<=1?"left":"center"}">${h}</th>`).join("")}
       </tr></thead><tbody>
         ${scored.map((p,i)=>{const col=pCols[i]||"#64748b",rc=rCol(p._rating);
-          return `<tr style="border-bottom:1px solid #1e2d45;cursor:pointer" onclick="showPeerDetail(${i})">
+          return `<tr style="border-bottom:1px solid #1e2d45;cursor:pointer" onclick="(()=>{const he=loadHist().find(h=>(h.ticker||'').toUpperCase()==='${p.ticker||p.name}'.toUpperCase());if(he){loadHistByTicker('${p.ticker||p.name}');}else{showPeerDetail(${i});}})()">
             <td style="padding:6px">${medals[i]||i+1}</td>
             <td style="padding:6px"><div style="color:${col};font-weight:700">${p.ticker||p.name}</div><div style="color:#64748b;font-size:9px">${p.sector||""}</div></td>
             <td style="text-align:center;padding:6px;color:${(p.promoterHolding||0)>50?"#22c55e":"#e2e8f0"};font-family:monospace">${p.promoterHolding||"--"}%</td>
